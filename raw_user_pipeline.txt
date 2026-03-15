@@ -1,0 +1,44 @@
+voglio progettare una pipeline cosi' composta:
+
+#l'utente puo' iniziare in 3 modi:
+
+***AVVIO PROGETTO
+1- l'utente apre una chat con l'agente orchestratore della pipeline e gli chiede di avviare un nuovo progetto
+2- l'orchestratore passa la conversazione all'agente prompt-refiner che ha il compito di conversare con l'utente in linguaggio naturale per richiedere qual e' il target del progetto e sviluppare un PROMPT.md completo e dettagliato da passare al successivo punto della pipeline; la conversazione prosegue con feedback sul lavoro svolto dal prompt-refiner fino a che l'utente conferma che il PROMPT.md e' completo e quindi l'orchestratore esegue un commit della repo e si va al punto successivo
+3- una volta prodotto il PROMPT.md l'orchestratore ha due scelte:
+	a* se c'e' bisogno di analizzare fonti di codice esterno, passa la conversazione all'analista, che si occupa di analizzare le fonti esterne di codice dai riferimenti forniti nel prompt producendo un md dettagliato dell'analisi e torna dall'orchestratore con il risultato dell'analisi, esegue un commit e attende la conferma dell'utente, se l'analisi e' insufficiente la conversazione ripassa all'analista con le note e riparte l'analisi;il ciclo si interrompe quando l'utente e' soddisfatto del risultato ottenuto, l'orchestratore esegue un commit e si prosegue alla fase successiva
+	b* se non c'e' bisogno di analizzare nessuna fonte esterna passa al punto successivo
+4- i file prodotti vengono quindi passati dall'orchestratore all'architetto che procede a produrre documenti dell'architettura del progetto e ripassa il risultato all'orchestratore che fa un commit; l'orchestratore fornisce un report all'utente e anche in questo caso attende una sua conferma a procedere, se invece l'utente non e' soddisfatto fornisce un feedback e la conversazione torna all'architetto per completare la sua funzione con le indicazioni fornite; il ciclo si interrompe quando l'utente e' soddisfatto del risultato ottenuto, quindi l'orchestratore esegue un commit e si procede alla fase successiva
+5- l'orchestratore quindi richiama la figura del builder, che sulla base dei documenti progettuali prodotti sviluppa il codice modularmente in maniera iterativa; in questa fase il builder produce un modulo alla volta riportando al completamento di ogni modulo un report all'orchestratore che esegue un commit e che fornisce un feedback all'utente che in questo caso non richiede nessuna conferma ma e' solo informativo per poi rilanciare il builder nell'esecuzione del modulo successivo; il ciclo si interrompe quando tutti i moduli sono stati completati, quindi l'orchestratore fornisce un feedback comulativo del lavoro del builder, fa un commit e prosegue anche in questo caso con la fase successiva senza attendere conferma
+6- l'orchestratore richiama la figura del validatore il quale e' chiamato a verificare l'implementazione del codice e produce dei report completo dei riscontri trovati sul codice; il report viene fornito all'orchestratore che segue un commit e lo mostra all'utente per richiedere come procedere:
+	a* correzione di tutto quello che e' stato riscontrato: in questo caso l'orchestratore ripassa tutte le note del validatore al builder che, sempre in maniera modulare, riesegue implementazione del codice per correggere tutti i punti riscontrati; in pratica ci si reinserisce nella pipeline dal punto 5
+	b* elenco dei punti da correggere: in questo caso l'orchestratore ripassa l'elenco dei punti da correggere prodotti dal validatore al builder che esegue le correzioni in maniera modulare; in pratica ci si reinserisce nella pipeline dal punto 5
+	c* nessun bug presente: l'orchestratore passa al punto successivo
+7- l'orchestratore passa il lavoro al debugger che Exercises the application post-validation, captures logs, and runs smoke tests; esegue le operazioni necessarie in autonomia e fornisce un report dei bug trovati all'orchestratore; l'orchestratore esegue un commit e mostra il report all'utente che sceglie se procedere alla correzione in una modalita' identica a quella descritta per lo step precedente per il validatore:
+	a*
+	b*
+	c*
+8- l'orchestratore esegue un check della repo e fornisce un report finale che mostra all'utente richiedendo se intende procedere nell'iterazione riagganciandosi in uno dei punti precedenti fornendo indicazioni con le quali far ripartire la pipeline o concludere la pipeline
+
+***RESUME PROGETTO
+1- l'utente apre una chat con l'agente orchestratore della pipeline e gli chiede di ricominciare il progetto
+2- l'orchestratore richiamata l'agente auditor che revisiona la repo alla ricerca degli artefatti prodotti dai vari agenti nell'esecuzione delle pipeline; l'auditor analizza la coerenza logica dei file che trova e verifica se il progetto puo' essere resumed e fornisce un report all'orchestratore che committa e mostra il report all'utente attendendo una sua risposta:
+	*a il progetto puo' essere ricominciato: sulla base dei file l'auditor individua con coerenza lo stato del progetto nell'ultima esecuzione della pipeline e riparte dal punto in cui e' stato interrotto inserendosi nella pipeline descritta per ***AVVIO PROGETTO al punto in cui deve ripartire in base agli artefatti trovati
+	*b il progetto non puo' essere ricominciato: sulla base dell'analisi della repo l'auditor non riesce ad individuare coerenza tra i file prodotti e la pipeline descritta, quindi il report dovra' includere l'indicazione di procedere con la modalita' ***ADOZIONE DEL PROGETTO
+
+***ADOZIONE PROGETTO
+1- l'utente apre una chat con l'agente orchestratore della pipeline e gli chiede di adottare il progetto
+2- l'orchestratore richiamata l'agente auditor che revisiona la repo alla ricerca degli artefatti prodotti dai vari agenti compresi i propri nel caso di un precedente RESUME che non e' stato possibile portare a buon fine; fornisce un report delle operazioni necessarie a conformare il progetto alla pipeline descritta in ***AVVIO PROGETTO di modo che sia adottabile e lo fornisce all'orchestratore, l'orchestratore committa e lo mostra all'utente attendendo una sua confema ad adottare il progetto
+3- quando l'utente conferma, l'orchestratore si riinesca nella pipeline nel punto nel quale auditor individua e' necessario ricominciare
+
+---
+l'orchestratore e' l'unica interfaccia con l'utente e qualsiasi report di un subagente necessario a proseguire nelle pipeline deve essere riscritto esplicitamente dall'orchestratore nella chat con l'utente
+in ogni momento ogni fase compiuta da un agente deve essere tracciata all'interno della repo del progetto con la produzione di artefatti specifici per ogni utente
+le chat di tutti gli agenti devono essere tracciate all'interno della repo
+in qualsiasi momento nell'esecuzione della pipeline deve essere possibile stoppare l'esecuzione e le operazioni devono essere atomiche ovvero che ogni operazione avviene in maniera isolata e lo stato della pipeline deve essere sempre definitivo e mai sporco
+ad ogni operazione troncata dall'operazione di stop della pipeline, le modifiche devono essere interrotte e distrutte rieseguendo un ripristino all'ultimo commit presente
+in generale l'obbiettivo della pipeline deve essere la possibilita' di migrazione su altro workspace e la tracciabilita' per comprendere se la pipeline e' stata utilizzata o no per eventualmente adottare il progetto e conformarlo alle specifiche della pipeline
+---
+dimmi come la imposteresti, se vedi delle migliore da effetturale, spiega quanti agenti produrresti per renderla piu' efficiente e potente possibile anche stravolgendo la mia idea sulla base di cio' che e' meglio per un LLM nella gestione di una pipeline che riesca a produrre codice per un progetto in maniera autonoma, interagendo con l'utente dove necessario ad indirizzare il progetto e per fare in modo che la pipeline possa essere applicata a qualsiasi repo esistente per revisionarla o completare il progetto
+
+in questa fase analizza la richiesta e fornisci una risposta, solo successivamente alla nostra interazione produrrai artefatti nella cartella della repo /newagents
