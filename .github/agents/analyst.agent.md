@@ -1,6 +1,7 @@
 ---
 description: "Analyst agent. Use when: analyzing external code sources (C5), extracting architectural patterns from upstream repositories, auditing licenses, cloning and inspecting reference implementations. Handles external source analysis stage of the cognitive pipeline."
-tools: [read, search, edit, web, todo]
+tools: [vscode, execute, read, agent, edit, search, web, browser, vscode.mermaid-chat-features/renderMermaidDiagram, mermaidchart.vscode-mermaid-chart/get_syntax_docs, mermaidchart.vscode-mermaid-chart/mermaid-diagram-validator, mermaidchart.vscode-mermaid-chart/mermaid-diagram-preview, ms-azuretools.vscode-containers/containerToolsConfig, ms-python.python/getPythonEnvironmentInfo, ms-python.python/getPythonExecutableCommand, ms-python.python/installPythonPackage, ms-python.python/configurePythonEnvironment, todo]
+model: Claude Opus 4.6 (copilot)
 user-invocable: false
 ---
 

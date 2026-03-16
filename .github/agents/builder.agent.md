@@ -1,6 +1,7 @@
 ---
 description: "Builder agent. Use when: setting up development environment (O1), creating repository scaffold (O2), generating code modules with tests (O3), producing project documentation (O7), configuring CI/CD pipelines (O8). Handles environment setup, scaffold creation, module generation, documentation, and CI/CD configuration."
-tools: [read, search, edit, execute, todo]
+tools: [vscode, execute, read, agent, edit, search, web, browser, vscode.mermaid-chat-features/renderMermaidDiagram, mermaidchart.vscode-mermaid-chart/get_syntax_docs, mermaidchart.vscode-mermaid-chart/mermaid-diagram-validator, mermaidchart.vscode-mermaid-chart/mermaid-diagram-preview, ms-azuretools.vscode-containers/containerToolsConfig, ms-python.python/getPythonEnvironmentInfo, ms-python.python/getPythonExecutableCommand, ms-python.python/installPythonPackage, ms-python.python/configurePythonEnvironment, todo]
+model: Claude Opus 4.6 (copilot)
 user-invocable: false
 ---
 

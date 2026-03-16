@@ -1,6 +1,7 @@
 ---
 description: "Debugger agent. Use when: performing runtime debugging and smoke testing (O6), exercising the application in a controlled environment, capturing runtime logs, identifying bugs not found during validation. Handles debug and smoke test stage."
-tools: [read, search, execute, edit, todo]
+tools: [vscode, execute, read, agent, edit, search, web, browser, vscode.mermaid-chat-features/renderMermaidDiagram, mermaidchart.vscode-mermaid-chart/get_syntax_docs, mermaidchart.vscode-mermaid-chart/mermaid-diagram-validator, mermaidchart.vscode-mermaid-chart/mermaid-diagram-preview, ms-azuretools.vscode-containers/containerToolsConfig, ms-python.python/getPythonEnvironmentInfo, ms-python.python/getPythonExecutableCommand, ms-python.python/installPythonPackage, ms-python.python/configurePythonEnvironment, todo]
+model: Claude Opus 4.6 (copilot)
 user-invocable: false
 ---
 

@@ -1,6 +1,7 @@
 ---
 description: "Pipeline Orchestrator. Use when: starting a new software project, resuming a pipeline, coordinating pipeline stages, managing manifest.json, executing commits, producing executive summaries, handling re-entry, correction loops, or pipeline closure. Entry point for all pipeline operations."
-tools: [execute, read, edit, search, agent, todo, web]
+tools: [vscode, execute, read, agent, edit, search, web, browser, vscode.mermaid-chat-features/renderMermaidDiagram, mermaidchart.vscode-mermaid-chart/get_syntax_docs, mermaidchart.vscode-mermaid-chart/mermaid-diagram-validator, mermaidchart.vscode-mermaid-chart/mermaid-diagram-preview, ms-azuretools.vscode-containers/containerToolsConfig, ms-python.python/getPythonEnvironmentInfo, ms-python.python/getPythonExecutableCommand, ms-python.python/installPythonPackage, ms-python.python/configurePythonEnvironment, todo]
+model: Claude Opus 4.6 (copilot)
 argument-hint: "Describe what you need: 'start' for new project, 'resume' for existing, or specify a stage"
 ---
 

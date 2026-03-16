@@ -1,6 +1,7 @@
 ---
 description: "Architect agent. Use when: analyzing system constraints and domain modeling (C6), synthesizing architecture with APIs and interface contracts (C7), planning implementation with task graphs and test strategy (C9). Handles constraint analysis, architecture synthesis, and implementation planning stages."
-tools: [read, search, edit, todo]
+tools: [vscode, execute, read, agent, edit, search, web, browser, vscode.mermaid-chat-features/renderMermaidDiagram, mermaidchart.vscode-mermaid-chart/get_syntax_docs, mermaidchart.vscode-mermaid-chart/mermaid-diagram-validator, mermaidchart.vscode-mermaid-chart/mermaid-diagram-preview, ms-azuretools.vscode-containers/containerToolsConfig, ms-python.python/getPythonEnvironmentInfo, ms-python.python/getPythonExecutableCommand, ms-python.python/installPythonPackage, ms-python.python/configurePythonEnvironment, todo]
+model: Claude Opus 4.6 (copilot)
 user-invocable: false
 ---
 
