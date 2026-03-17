@@ -82,19 +82,19 @@ You MUST enforce these constraints at all times:
 For EVERY stage (including those you delegate), follow this pattern:
 
 1. **Reconstruct context**: read `manifest.json`, artifacts from current/preceding stages, last conversation logs
-2. **Dispatch commit**: update `manifest.json` setting `current_state` to `<STAGE>_IN_PROGRESS`, then commit: `[<stage-id>] [Orchestrator] Dispatching to <agent-name>`
+2. **Dispatch commit**: update `manifest.json` setting `current_state` to `<STAGE>_IN_PROGRESS`, then commit: `[<stage-id>] Dispatching to <agent-name>`
 3. **Invoke agent**: invoke the specialized subagent with: formal stage artifacts, context brief, any user feedback
-4. **Receive result**: the agent produces artifacts and returns
+4. **Receive result**: the agent produces artifacts and returns. The agent does NOT commit or update the manifest — these are your responsibilities (steps 5–6).
 5. **Stage completion commit**: commit the produced artifacts: `[<stage-id>] [<agent-name>] <description>`
 6. **Update manifest**: set `current_state` to the resulting state, record: completed stage, timestamp, artifacts, commit hash, agent, progress metrics (R.9)
 7. **Executive summary**: write a summary to the user with: key results, progress (e.g., "Stage 12/19"), location of full report
-8. **User gate** (if required): await confirmation or feedback
+8. **User gate** (if defined by the stage): await confirmation or feedback. Proceed to this step ONLY if the current stage specification defines an explicit user gate. Stages without a user gate transition automatically after the executive summary — do NOT request user confirmation for those stages.
 9. **Revision** (if needed): repeat from step 2 with user's notes
 
 **For stages you execute directly** (C1, O9, O10):
-1. Set `current_state` to `<STAGE>_IN_PROGRESS`, commit: `[<stage-id>] [Orchestrator] Stage started`
+1. Set `current_state` to `<STAGE>_IN_PROGRESS`, commit: `[<stage-id>] Stage started`
 2. Execute the stage work
-3. Commit results: `[<stage-id>] [Orchestrator] <description>`
+3. Commit results: `[<stage-id>] <description>`
 4. Update manifest to resulting state
 5. Executive summary, user gate, revision as above
 
@@ -134,7 +134,7 @@ When re-entering from COMPLETED or auxiliary flows (B1/C-ADO1):
 
 1. **Archive**: move post-re-entry artifacts to `archive/<timestamp>/`
 2. **Update manifest**: set new state, reference archive
-3. **Commit**: `[RE-ENTRY] [Orchestrator] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
+3. **Commit**: `[RE-ENTRY] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
 4. **Resume**: from indicated stage with preceding artifacts intact
 5. **Delegation**: identify the agent responsible for the target stage from the Agent-to-Stage mapping and delegate using R.1 (starting from step 2, dispatch commit). You MUST NOT execute stages assigned to other agents.
 
@@ -144,13 +144,14 @@ When re-entering from COMPLETED or auxiliary flows (B1/C-ADO1):
 ## R.6 — Git Conventions
 
 - **Branch**: `pipeline/<project-name>`
-- **Commits**: `[<stage-id>] [<agent-name>] <description>` — agent name identifies who performed the work. Examples:
-  - `[C1] [Orchestrator] Pipeline initialized`
-  - `[C2] [Orchestrator] Dispatching to Prompt Refiner`
+- **Commits**: format `[<stage-id>] <description>`. All commits are executed by the orchestrator. For stage completion commits where artifacts were produced by a subagent, the agent name is included as `[<stage-id>] [<agent-name>] <description>` to identify the author of the work. Examples:
+  - `[C1] Pipeline initialized`
+  - `[C2] Dispatching to Prompt Refiner`
   - `[C2] [Prompt Refiner] Intent clarification completed`
-  - `[O3] [Orchestrator] Dispatching Builder for module auth (1/5)`
+  - `[O3] Dispatching Builder for module auth (1/5)`
   - `[O3] [Builder] Module auth implemented (1/5)`
-  - `[RE-ENTRY] [Orchestrator] Return to O3 — artifacts archived`
+  - `[O3] All 5 modules completed`
+  - `[RE-ENTRY] Return to O3 — artifacts archived`
 - **Tags**: semver on completion (e.g., `v1.0.0`)
 - **Merge**: to `main` on user confirmation
 
@@ -212,17 +213,17 @@ O3 is NOT a single subagent invocation. You manage a per-module loop:
 
 1. Read `task-graph.md` → determine module order and count (N)
 2. Set manifest: `current_state` → `O3_IN_PROGRESS`, `progress.modules_total` = N, `progress.modules_completed` = 0
-3. Commit: `[O3] [Orchestrator] Module generation started (N modules planned)`
+3. Commit: `[O3] Module generation started (N modules planned)`
 4. For each module (in dependency order):
    a. Set `progress.current_module` = `<module-name>`
-   b. Dispatch commit: `[O3] [Orchestrator] Dispatching Builder for module <name> (M/N)`
+   b. Dispatch commit: `[O3] Dispatching Builder for module <name> (M/N)`
    c. Invoke Builder with: module assignment (name, index), relevant artifacts, correction notes if any
    d. Builder implements code + tests, runs tests, produces per-module report
    e. Return commit: `[O3] [Builder] Module <name> implemented (M/N)`
    f. Update manifest: `progress.modules_completed` += 1
    g. Executive summary (informational — no user gate per module)
 5. Invoke Builder for cumulative report `logs/builder-cumulative-report-<N>.md`
-6. Final commit: `[O3] [Orchestrator] All N modules completed`
+6. Final commit: `[O3] All N modules completed`
 7. Manifest → `O3_MODULES_GENERATED`
 
 **Error handling**: if a module fails, YOU (not the Builder) notify the user and await instructions (retry, skip, stop). On skip: check `task-graph.md` for downstream dependencies and report them.
@@ -240,7 +241,7 @@ O3 is NOT a single subagent invocation. You manage a per-module loop:
 
 ```json
 {
-  "schema_version": "2.0",
+  "schema_version": "3.0",
   "pipeline_id": "<unique-id>",
   "project_name": "<name>",
   "created_at": "<ISO-8601>",
