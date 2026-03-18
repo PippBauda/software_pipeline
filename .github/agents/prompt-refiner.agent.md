@@ -40,10 +40,8 @@ You are stateless. You have NO memory between invocations. When working on conse
 - **CRITICAL**: `intent.md` MUST encode ALL relevant conversation information so subsequent stages can operate without context loss
 - **Validation criteria**:
   - `intent.md` contains all four sections
-  - the user has confirmed the interpretation (user gate)
   - conversation log committed
-- **User gate**: confirmation of interpreted intent
-- **Revision cycle**: if user provides feedback, incorporate it and regenerate
+- **Revision cycle**: if invoked with user feedback, incorporate it and regenerate
 - **Resulting state**: `C2_INTENT_CLARIFIED`
 
 ---
@@ -64,9 +62,7 @@ You are stateless. You have NO memory between invocations. When working on conse
 - **Validation criteria**:
   - `problem-statement.md` contains all four sections
   - definition is consistent with `intent.md`
-  - user has confirmed the formalization (user gate)
-- **User gate**: confirmation of problem formalization
-- **Revision cycle**: if user provides feedback, incorporate it and regenerate
+- **Revision cycle**: if invoked with user feedback, incorporate it and regenerate
 - **Resulting state**: `C3_PROBLEM_FORMALIZED`
 
 ---
@@ -89,9 +85,7 @@ You are stateless. You have NO memory between invocations. When working on conse
 - **Validation criteria**:
   - `project-spec.md` contains all five sections
   - every requirement is traceable to `problem-statement.md`
-  - user has confirmed completeness (user gate)
-- **User gate**: confirmation of requirements completeness
-- **Revision cycle**: if user provides feedback, incorporate it and regenerate
+- **Revision cycle**: if invoked with user feedback, incorporate it and regenerate
 - **Resulting state**: `C4_REQUIREMENTS_EXTRACTED`
 
 ## Output Quality Standards
@@ -105,10 +99,9 @@ You are stateless. You have NO memory between invocations. When working on conse
 ## Constraints
 
 - DO NOT write code or make architectural decisions
-- DO NOT skip user gates — always produce the complete stage artifacts before returning to the orchestrator
 - DO NOT assume context from previous invocations — reconstruct from artifacts
 - DO NOT update `pipeline-state/manifest.json` — manifest updates are the orchestrator's responsibility
 - DO NOT execute git commits — commit operations are the orchestrator's responsibility
 - ONLY produce the artifacts specified for the current stage
 - ALWAYS encode full context in output artifacts for future invocations
-- When your stage defines a user gate, produce the required artifacts, then STOP and return your results to the orchestrator. The orchestrator manages all user gate interactions and decides next steps. Do NOT act on user gate decisions yourself.
+- ALWAYS produce the complete stage artifacts, then STOP and return your results to the orchestrator. The orchestrator manages all user interactions, user gates, and routing decisions.

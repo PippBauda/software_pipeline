@@ -8,10 +8,10 @@ This document describes how the pipeline transforms an idea into production-read
 
 The pipeline is a structured process that takes a user's informal project idea and progressively refines it through two macro-phases:
 
-1. **Cognitive Pipeline** (C1–C9): turns the idea into a complete, validated plan
+1. **Cognitive Pipeline** (C2–C9): turns the idea into a complete, validated plan
 2. **Operational Pipeline** (O1–O10): executes the plan to produce working software
 
-An **Orchestrator** coordinates the entire process. It never writes code or designs architecture — it delegates each stage to a specialized agent, manages commits, tracks state, and communicates with the user.
+An **Orchestrator** coordinates the entire process. It never writes code or designs architecture — it delegates each stage to a specialized agent, manages commits, tracks state, and communicates with the user. Before the first stage (C2), the orchestrator runs a startup procedure (C1) to set up the repository infrastructure.
 
 All state is stored in a Git repository. A manifest file (`pipeline-state/manifest.json`) tracks which stage the project is in, what artifacts have been produced, and who produced them. If the process is interrupted at any point, it can be resumed from where it stopped.
 
@@ -23,8 +23,11 @@ All state is stored in a Git repository. A manifest file (`pipeline-state/manife
 graph TD
     START([User Idea]) --> C1
 
+    subgraph STARTUP["Startup"]
+        C1[C1 — Initialization<br><i>Orchestrator — automatic</i>]
+    end
+
     subgraph COGNITIVE["Cognitive Pipeline"]
-        C1[C1 — Initialization<br><i>Orchestrator</i>]
         C2[C2 — Intent Clarification<br><i>Prompt Refiner</i>]
         C3[C3 — Problem Formalization<br><i>Prompt Refiner</i>]
         C4[C4 — Requirements Extraction<br><i>Prompt Refiner</i>]
@@ -34,13 +37,15 @@ graph TD
         C8{C8 — Architecture Validation<br><i>Validator</i>}
         C9[C9 — Implementation Planning<br><i>Architect</i>]
 
-        C1 --> C2 --> C3 --> C4
+        C2 --> C3 --> C4
         C4 --> C5
         C4 -->|no external sources| C6
         C5 --> C6 --> C7 --> C8
-        C8 -->|invalid| C7
-        C8 -->|valid| C9
+        C8 -->|revise| C7
+        C8 -->|valid or override| C9
     end
+
+    C1 --> C2
 
     subgraph OPERATIONAL["Operational Pipeline"]
         O1[O1 — Environment Setup<br><i>Builder</i>]
@@ -82,7 +87,7 @@ Each agent is a specialist. It receives specific artifacts, does its work, produ
 
 | Agent | Role | Stages |
 |-------|------|--------|
-| **Orchestrator** | Coordinates the pipeline, manages state, commits, user communication | C1, O9, O10 |
+| **Orchestrator** | Coordinates the pipeline, manages state, commits, user communication | C1 (startup), O9, O10 |
 | **Prompt Refiner** | Transforms a vague idea into precise requirements through dialogue | C2, C3, C4 |
 | **Analyst** | Analyzes external code repositories referenced by the project | C5 |
 | **Architect** | Designs system architecture, APIs, and implementation plan | C6, C7, C9 |
@@ -95,8 +100,8 @@ Each agent is a specialist. It receives specific artifacts, does its work, produ
 
 ## Cognitive Pipeline — From Idea to Plan
 
-### C1 — Initialization
-The orchestrator creates the project repository structure: directories for docs, logs, pipeline state, and archive. It initializes the manifest and makes the first commit. This is the starting point.
+### C1 — Initialization *(startup procedure)*
+The orchestrator automatically creates the project repository structure: directories for docs, logs, pipeline state, and archive. It initializes the manifest and makes the first commit. This is not a numbered pipeline stage — it happens automatically before C2.
 
 ### C2 — Intent Clarification
 The Prompt Refiner talks with the user to understand what they actually want. It interprets the idea, identifies assumptions, defines terminology, and produces an intent document. The user must confirm the interpretation before moving on.
@@ -117,7 +122,7 @@ The Architect identifies all system constraints (performance, security, environm
 The Architect designs the full system architecture: components, their responsibilities, how they interact, the API surface, configuration model, and interface contracts between components. The user reviews and confirms the architecture.
 
 ### C8 — Architecture Validation
-The Validator cross-references the architecture against requirements and constraints. If something doesn't match — a requirement has no component, a constraint is violated — the architecture goes back to C7 for revision. This loop continues until the architecture is valid.
+The Validator cross-references the architecture against requirements and constraints. The orchestrator then presents the user with three options: proceed (architecture is valid), revise (send back to C7 with notes), or override (proceed despite issues). This gives the user explicit control over the validation outcome.
 
 ### C9 — Implementation Planning
 The Architect breaks the architecture into implementable modules: a dependency graph, execution order, per-module specifications, and a test strategy with coverage thresholds. This is the blueprint the Builder will follow.
@@ -173,7 +178,7 @@ For existing projects not built with this pipeline, the Auditor inventories what
 ## Key Mechanisms
 
 ### User Gates
-Certain stages require the user's explicit confirmation before the pipeline moves forward — for example, confirming the interpreted intent (C2), approving the architecture (C7), or deciding whether to correct validation findings (O4/O5/O6). Stages without a user gate transition automatically.
+Certain stages require the user's explicit confirmation before the pipeline moves forward — for example, confirming the interpreted intent (C2), approving the architecture (C7), deciding the outcome of architecture validation (C8), or deciding whether to correct validation findings (O4/O5/O6). All user gate definitions are centralized in the orchestrator's Stage Routing Table. Stages without a user gate transition automatically.
 
 ### Correction Loops
 When O4, O5, or O6 find issues, the user can request full or selective correction. The pipeline returns to O3 (only for affected modules), then re-runs all validation stages sequentially up to the one that found the issues.

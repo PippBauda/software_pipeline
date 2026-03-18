@@ -16,7 +16,7 @@ The pipeline uses the following specialized agents:
 
 | Agent | Stages | Responsibility |
 |-------|--------|----------------|
-| Orchestrator (direct) | C1, O9, O10 | Pipeline infrastructure, release coordination, closure |
+| Orchestrator (direct) | O9, O10 | Release coordination, closure |
 | Prompt Refiner | C2, C3, C4 | Intent clarification, problem formalization, requirements extraction |
 | Analyst | C5 | External source analysis |
 | Architect | C6, C7, C9 | Constraints, domain modeling, architecture synthesis, implementation planning |
@@ -25,22 +25,28 @@ The pipeline uses the following specialized agents:
 | Debugger | O6 | Runtime debugging and smoke testing |
 | Auditor | B1, C-ADO1 | Continuity audit, conformance audit |
 
+C1 (Initialization) is not a pipeline stage — it is an automatic startup procedure the orchestrator executes before the first stage (C2). See the C1 section below.
+
 Stages marked "Orchestrator (direct)" are executed by the orchestrator itself without invoking an external agent. The orchestrator still follows R.1 for commit, manifest update, and traceability.
 
 **Agent-to-Stage constraint**: the orchestrator MUST delegate each stage to the agent declared in the table above. The orchestrator MUST NOT execute stages assigned to other agents, regardless of the circumstances (including after R.5 re-entry or R.7 correction loops).
+
+**Stage Routing Table**: the orchestrator uses a Stage Routing Table (defined in `orchestrator.agent.md`) that governs post-stage behavior for each stage: whether to auto-proceed or present a user gate with specific options. All user gate definitions and routing decisions are centralized in this table — subagent files do not contain user gate information.
 
 ---
 
 # Cognitive Pipeline
 
-Goal: progressively transform an ambiguous user idea into a complete, validated implementation plan.
+Goal: progressively transform an ambiguous user idea into a complete, validated implementation plan. Stages C2–C9 form the cognitive pipeline. C1 (Initialization) is a startup procedure that precedes the pipeline stages.
 
 ---
 
-## C1 — Initialization
+## C1 — Initialization (Startup Procedure)
 
-- **Agent**: Orchestrator (direct)
+- **Agent**: Orchestrator (automatic procedure — not a pipeline stage)
 - **Purpose**: set up the pipeline infrastructure and establish a traceable starting point for the project.
+- **Trigger**: new project request from user (no `manifest.json` exists), or adoption request.
+- **Note**: C1 is NOT a numbered pipeline stage. It is an automatic infrastructure setup that the orchestrator executes immediately upon receiving a project request. There is no user gate, no executive summary, and no stage counting for C1. The first pipeline stage is C2.
 - **Input**:
   - `user_request` — user request to start a new project or adopt an existing one (natural language)
 - **Output**:
@@ -54,8 +60,8 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
   - `manifest.json` contains state `C1_INITIALIZED` with timestamp
   - the initial commit has been executed
 - **Dual mode**:
-  - **New project**: standard initialization → `C1_INITIALIZED` → proceed to C2
-  - **Project adoption**: when the user requests adoption of an existing project (not developed with this pipeline), the orchestrator creates the pipeline infrastructure (directories, manifest) and transitions directly to C-ADO1. The manifest is set to `C_ADO1_AUDITING` and the Auditor is invoked for the conformance audit.
+  - **New project**: initialization → `C1_INITIALIZED` → immediately dispatch C2 (no user interaction)
+  - **Project adoption**: create pipeline infrastructure, set manifest to `C_ADO1_AUDITING`, invoke Auditor for C-ADO1
 - **Resulting state**: `C1_INITIALIZED` (new project) or `C_ADO1_AUDITING` (adoption)
 
 ---
@@ -73,9 +79,8 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
 - **Transformation**: an informally expressed idea is analyzed to identify the actual goal, usage context, and implicit assumptions, producing a structured intent document.
 - **Validation criteria**:
   - `intent.md` contains sections for: interpreted goal, system context, assumptions, terminology
-  - the user has confirmed that the interpretation is correct (user gate passed)
   - the conversation log has been committed
-- **User gate**: confirmation of the interpreted intent
+- **Post-stage routing**: managed by the orchestrator's Stage Routing Table (user gate: confirm interpretation)
 - **Revision cycle**: if the user is unsatisfied, feedback is passed to the Prompt Refiner and the stage repeats
 - **Resulting state**: `C2_INTENT_CLARIFIED`
 
@@ -95,8 +100,7 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
 - **Validation criteria**:
   - `problem-statement.md` contains: system goal, expected inputs, expected outputs, high-level behavior
   - the definition is consistent with `intent.md`
-  - the user has confirmed the formalization (user gate passed)
-- **User gate**: confirmation of the problem formalization
+- **Post-stage routing**: managed by the orchestrator's Stage Routing Table (user gate: confirm formalization)
 - **Revision cycle**: if the user is unsatisfied, feedback is passed to the Prompt Refiner and the stage repeats
 - **Resulting state**: `C3_PROBLEM_FORMALIZED`
 
@@ -117,8 +121,7 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
 - **Validation criteria**:
   - `docs/project-spec.md` contains sections for: functional requirements (numbered), non-functional requirements (numbered), constraints, acceptance criteria
   - every requirement is traceable to `problem-statement.md`
-  - the user has confirmed document completeness (user gate passed)
-- **User gate**: confirmation of requirements completeness
+- **Post-stage routing**: managed by the orchestrator's Stage Routing Table (user gate: confirm completeness)
 - **Revision cycle**: if the user is unsatisfied, feedback is passed to the Prompt Refiner and the stage repeats
 - **Resulting state**: `C4_REQUIREMENTS_EXTRACTED`
 
@@ -138,9 +141,9 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
 - **Validation criteria**:
   - every source referenced in `docs/project-spec.md` has been analyzed or documented as inaccessible
   - `upstream-analysis.md` links each extracted element to its original source
-  - the user has confirmed analysis quality (user gate passed)
 - **Access error handling**: if an external source is inaccessible (authentication, network, invalid URL), the Analyst documents the failure in the report with: source, error type, estimated impact on the project, and requests user instructions to proceed (alternative source, skip, credentials).
-- **Bypass**: if no external sources exist, the stage is skipped and `upstream-analysis.md` is not produced. Subsequent stages must function with or without this artifact.
+- **Bypass**: if no external sources exist, the orchestrator skips C5 (sets state to `C5_SKIPPED`) and proceeds to C6. The Analyst is not invoked and `upstream-analysis.md` is not produced. Subsequent stages must function with or without this artifact.
+- **Post-stage routing**: managed by the orchestrator's Stage Routing Table (user gate: confirm analysis quality)
 - **Resulting state**: `C5_EXTERNAL_ANALYZED` (or `C5_SKIPPED`)
 
 ---
@@ -160,7 +163,7 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
   - every constraint is classified by category (performance, security, environment, scalability)
   - the domain model covers all entities mentioned in requirements
   - no constraints are mutually conflicting
-- **Note**: no user gate is required at this stage. Errors in constraints or the domain model are caught by C8 (Architecture Validation), which performs systematic cross-referencing and can trigger a return to C7 with revision notes.
+- **Post-stage routing**: auto-proceed to C7 (no user gate). Errors in constraints or the domain model are caught by C8 (Architecture Validation).
 - **Resulting state**: `C6_DOMAIN_MODELED`
 
 ---
@@ -184,8 +187,7 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
   - every functional requirement is mapped to at least one architectural component
   - every constraint is addressed in the architecture
   - interface contracts are unambiguous
-  - the user has confirmed the architecture (user gate passed)
-- **User gate**: architecture confirmation
+- **Post-stage routing**: managed by the orchestrator's Stage Routing Table (user gate: confirm architecture)
 - **Resulting state**: `C7_ARCHITECTURE_SYNTHESIZED`
 
 ---
@@ -208,9 +210,7 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
   - every requirement is traced to at least one component
   - no constraints are violated
   - identified risks have mitigation proposals
-- **Decision rule**:
-  - if architecture is invalid → return to C7 with revision notes
-  - if architecture is valid → proceed
+- **Post-stage routing**: managed by the orchestrator's Stage Routing Table (user gate: (a) valid → proceed to C9; (b) revise → return to C7 with notes; (c) override → proceed despite issues). The Validator produces the report with a verdict (VALID/INVALID); the orchestrator presents the options to the user.
 - **Resulting state**: `C8_ARCHITECTURE_VALIDATED`
 
 ---
@@ -236,8 +236,7 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
   - the dependency graph is acyclic
   - every module has declared responsibilities, interfaces, and dependencies
   - the test strategy defines at least: test types, coverage threshold, criteria per module
-  - the user has confirmed the plan (user gate passed)
-- **User gate**: plan and test strategy confirmation
+- **Post-stage routing**: managed by the orchestrator's Stage Routing Table (user gate: confirm plan)
 - **Resulting state**: `C9_IMPLEMENTATION_PLANNED`
 
 ---
@@ -362,7 +361,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
      d. Builder implements module code + tests, runs tests, produces per-module report
      e. Return commit: `[O3] [Builder] Module <module-name> implemented (M/N)`
      f. Update manifest: `progress.modules_completed` += 1
-     g. Executive summary to user (informational — no user gate per module)
+     g. Executive summary: the orchestrator writes a **visible per-module summary** in the chat containing: module name (M/N), files produced, test results (pass/fail count), issues encountered, progress (informational — no user gate per module)
   5. Invoke Builder for cumulative report
   6. Final commit: `[O3] All N modules completed`
   7. Manifest → `O3_MODULES_GENERATED`
@@ -403,10 +402,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - no interface contract violations
   - code coverage ≥ threshold defined in `test-strategy.md`
   - cyclomatic complexity within defined limits
-- **User gate**: the user chooses between:
-  - **a)** full correction → return to O3 with all notes (correction loop, see R.7)
-  - **b)** selective correction → return to O3 with selected points (correction loop, see R.7)
-  - **c)** no correction → proceed
+- **Post-stage routing**: managed by the orchestrator's Stage Routing Table (user gate: (a) full correction → O3 R.7; (b) selective correction → O3 R.7; (c) no correction → proceed)
 - **Resulting state**: `O4_SYSTEM_VALIDATED`
 
 ---
@@ -435,10 +431,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - applicable OWASP risks have been verified
   - every found vulnerability has a severity and recommendation
   - analysis limitations are explicitly documented
-- **User gate**: the user chooses between:
-  - **a)** full correction → return to O3 with all security notes (correction loop, see R.7)
-  - **b)** selective correction → return to O3 with selected points (correction loop, see R.7)
-  - **c)** no correction needed → proceed
+- **Post-stage routing**: managed by the orchestrator's Stage Routing Table (user gate: (a) full correction → O3 R.7; (b) selective correction → O3 R.7; (c) no correction → proceed)
 - **Resulting state**: `O5_SECURITY_AUDITED`
 
 ---
@@ -464,10 +457,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - all defined smoke tests have been executed
   - logs have been captured and analyzed
   - every found bug is documented with: scenario, logs, severity
-- **User gate**: the user chooses between:
-  - **a)** full correction → return to O3 with all notes (correction loop, see R.7)
-  - **b)** selective correction → return to O3 with selected points (correction loop, see R.7)
-  - **c)** no bugs → proceed
+- **Post-stage routing**: managed by the orchestrator's Stage Routing Table (user gate: (a) full correction → O3 R.7; (b) selective correction → O3 R.7; (c) no bugs → proceed)
 - **Resulting state**: `O6_DEBUG_COMPLETED`
 
 ---
@@ -537,7 +527,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - the version tag follows semantic versioning
   - the changelog is complete and tracks changes
   - release notes are consistent with the changelog
-- **User gate**: release confirmation
+- **Post-stage routing**: managed by the orchestrator's Stage Routing Table (user gate: release confirmation)
 - **Resulting state**: `O9_RELEASED`
 
 ---
@@ -557,9 +547,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - every artifact declared in the manifest is present in the repository
   - no untracked files remain outside the manifest
   - the manifest is updated with final state and timestamp
-- **User gate**: the user chooses between:
-  - **Iteration**: re-entry at a specific pipeline point (C2–O9) providing instructions. On re-entry the **Re-Entry Protocol** (R.5) is applied. The re-entry point is validated by the orchestrator (see S.1 under State Machine). The orchestrator presents the **Re-Entry Guide** (R.10) to help the user select the correct re-entry stage.
-  - **Closure**: the pipeline is concluded
+- **Post-stage routing**: managed by the orchestrator's Stage Routing Table (user gate: (a) iterate → R.5 + R.10 guide; (b) close → COMPLETED)
 - **Resulting state**: `COMPLETED`
 
 ---
@@ -594,7 +582,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
 - **RESUME/ADOPTION threshold criteria**:
   - **RESUMABLE** if: `manifest.json` exists AND is valid AND its `schema_version` is `"3.0"` AND all artifacts referenced in the manifest are present AND the last completed stage is uniquely identifiable
   - **ADOPTION** if: `manifest.json` is absent OR corrupted OR `schema_version` is not `"3.0"` OR artifacts do not match the manifest OR the last completed stage cannot be uniquely determined
-- **User gate**: the user confirms the audit result
+- **Post-stage routing**: managed by the orchestrator's Stage Routing Table (user gate: confirm audit result)
 - **Outcome**:
   - **Resumable**: re-entry into the main flow (C/O) at the identified point. The orchestrator reconstructs context by reading: manifest, artifacts from the last completed stage, conversation logs.
   - **Not resumable**: recommendation to switch to Flow C (Adoption)
@@ -628,7 +616,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - every gap has been documented with the missing artifact and responsible stage
   - the conformance plan specifies necessary actions in order, with the responsible agent
   - the pipeline entry point is justified
-- **User gate**: the user must confirm the adoption plan
+- **Post-stage routing**: managed by the orchestrator's Stage Routing Table (user gate: confirm adoption plan)
 - **Plan execution**: the orchestrator executes the conformance plan actions by invoking the appropriate agents for each missing artifact, in the order specified by the plan. Each produced artifact follows the standard pattern (R.1).
 - **Transition**: once the plan is complete, re-entry into the main flow at the identified point
 - **Resulting state**: state of the identified re-entry stage
@@ -648,10 +636,10 @@ Every stage follows this 9-step pattern:
 5. **Stage completion commit**: the orchestrator commits the produced artifacts with message `[<stage-id>] [<agent-name>] <description>`
 6. **Manifest update**: the orchestrator updates `manifest.json` with: completed stage, `current_state` set to the resulting state, timestamp, produced artifacts, commit hash, responsible agent, progress metrics (see R.9)
 7. **Executive summary**: the orchestrator writes in the chat an **executive summary** of the agent's report, indicating the location of the full report in the repository (e.g., "Full report: `docs/validator-report.md`")
-8. **User gate** (if defined by the stage): awaits confirmation or feedback. This step applies ONLY if the current stage specification defines an explicit user gate. Stages without a user gate transition automatically after the executive summary.
+8. **User gate** (if defined in the Stage Routing Table): present the user gate options as specified in the routing table's "Post-Stage" column. Stages marked "Auto-proceed" transition automatically after the executive summary — do NOT request user confirmation for those stages.
 9. **Revision** (if needed): the cycle repeats from step 2 with the user's notes
 
-**For stages the orchestrator executes directly** (C1, O9, O10):
+**For stages the orchestrator executes directly** (O9, O10):
 1. Set `current_state` to `<STAGE>_IN_PROGRESS`, commit: `[<stage-id>] Stage started`
 2. Execute the stage work
 3. Commit results: `[<stage-id>] <description>`
@@ -754,7 +742,7 @@ When an agent encounters a problem it cannot resolve autonomously:
 
 The orchestrator maintains progress information in the manifest and communicates it in executive summaries:
 
-- **Pipeline-level progress**: `manifest.json` records `progress.current_stage`, `progress.current_stage_index` (1-based), and `progress.total_stages` (count of stages in the active flow)
+- **Pipeline-level progress**: `manifest.json` records `progress.current_stage`, `progress.current_stage_index` (1-based, where C2=1), and `progress.total_stages` (count of pipeline stages, excluding C1 startup procedure)
 - **Sub-stage progress** (O3 only): during module generation, the manifest additionally records `progress.modules_completed`, `progress.modules_total`, and `progress.current_module`
 - **Executive summary**: each executive summary (R.1 step 7) includes current progress (e.g., "Stage 12/19 — Module 3/8 completed")
 
@@ -921,8 +909,8 @@ C6_DOMAIN_MODELED        → C7_IN_PROGRESS                  [dispatch to Archit
 C7_IN_PROGRESS           → C7_ARCHITECTURE_SYNTHESIZED     [agent completes]
 C7_ARCHITECTURE_SYNTHESIZED → C8_IN_PROGRESS               [dispatch to Validator]
 C8_IN_PROGRESS           → C8_ARCHITECTURE_VALIDATED       [agent completes]
-C8_ARCHITECTURE_VALIDATED → C7_IN_PROGRESS                 [architecture invalid — revision]
-C8_ARCHITECTURE_VALIDATED → C9_IN_PROGRESS                 [dispatch to Architect]
+C8_ARCHITECTURE_VALIDATED → C7_IN_PROGRESS                 [architecture invalid — user chose revision]
+C8_ARCHITECTURE_VALIDATED → C9_IN_PROGRESS                 [architecture valid or user chose override — dispatch to Architect]
 C9_IN_PROGRESS           → C9_IMPLEMENTATION_PLANNED       [agent completes]
 C9_IMPLEMENTATION_PLANNED → O1_IN_PROGRESS                 [after handoff check — dispatch to Builder]
 O1_IN_PROGRESS           → O1_ENVIRONMENT_READY            [agent completes]
