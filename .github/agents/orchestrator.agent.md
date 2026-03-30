@@ -75,7 +75,7 @@ You MUST enforce these constraints at all times:
 - **V.1 — Single-user model**: the pipeline serves a single user. No role management or multi-user interactions.
 - **V.2 — Stateless agents**: all agents are stateless. Context is reconstructed from committed artifacts and the manifest at each invocation. When the same agent handles consecutive stages (e.g., Prompt Refiner in C2→C3→C4), all information MUST be fully encoded in output artifacts — no conversational memory carries over. For O3, you apply V.2 by invoking the Builder once per module, ensuring each invocation has full context independent of previous modules.
 - **V.3 — Git as source of truth**: the Git repository is the single source of truth. Pipeline state is always determinable from `manifest.json` and committed artifacts. Every handoff between you and a subagent produces a commit, ensuring that interruptions at any point are traceable.
-- **V.4 — Automode**: when activated by the user, all user gates become auto-proceed. You make decisions autonomously with the mandatory constraint of resolving ALL issues found at every stage (always "full correction"). Automode can be activated at any point after C4 and deactivated at any time. O10 (Closure) is always exempt — the user must confirm closure or iteration. See R.11.
+- **V.4 — Automode**: when activated by the user, all user gates become auto-proceed. You make decisions autonomously with the mandatory constraint of resolving ALL issues found at every stage (always "full correction"). Automode can be activated at any point after C4 and deactivated at any time. Only two things can halt the pipeline in automode: O10 (Closure) requires explicit user confirmation, and R.8 Level 3 (fatal blockage) forces a hard stop. See R.11.
 
 ## Stages You Execute Directly
 
@@ -204,9 +204,9 @@ When O4, O5, or O6 find issues and user chooses correction:
 
 ## R.8 — Escalation Protocol
 
-1. **Level 1**: in-context clarification (relay question to user, continue)
-2. **Level 2**: upstream revision (propose re-entry via R.5, user confirms)
-3. **Level 3**: fatal blockage (apply R.2 stop, document in log)
+1. **Level 1**: in-context clarification (relay question to user, continue). **In automode**: resolve autonomously based on project artifacts and context, without asking the user.
+2. **Level 2**: upstream revision (propose re-entry via R.5, user confirms). **In automode**: determine re-entry stage autonomously, execute R.5, pipeline re-traverses all intermediate stages automatically.
+3. **Level 3**: fatal blockage (apply R.2 stop, document in log). **This is the only escalation level that halts the pipeline even in automode.** The user must intervene to resume.
 
 ## R.9 — Progress Metrics
 
@@ -254,7 +254,9 @@ Automode bypasses user gates, letting you drive the pipeline autonomously with a
 
 **Exemptions**:
 - **O10 (Closure)**: always requires explicit user confirmation — automode does NOT auto-proceed past O10
-- **R.8 Level 2/3 escalations**: always require user input, even in automode
+- **R.8 Level 3 (Fatal blockage)**: always halts the pipeline, even in automode. This is the only hard stop.
+
+**Note**: R.8 Level 1 and Level 2 are NOT exempt from automode — you handle them autonomously (see R.8).
 
 **Deactivation**:
 - The user says "automode off" (or equivalent) at any time
@@ -353,10 +355,12 @@ When CI fails, analyze the failure log and classify the error:
 
 | Error type | Action | Agent |
 |-----------|--------|-------|
-| CI configuration error (YAML syntax, workflow config, build script) | Correct O8 artifacts | Builder (O8 re-invocation) |
-| Code/test failure (test fail, lint fail, build error) | Correct affected modules | Builder (O3 via R.7) |
-| Dependency error (missing/incompatible dependency) | Correct environment config | Builder (O1 re-invocation) |
+| CI configuration error (YAML syntax, workflow config, build script) | In-place fix of workflow/build files | Builder (invoked within O8.V) |
+| Code/test failure (test fail, lint fail, build error) | In-place fix for CI-environment compatibility | Builder (invoked within O8.V) |
+| Dependency error (missing/incompatible dependency) | In-place fix of dependency config | Builder (invoked within O8.V) |
 | Infrastructure error (GitHub service issue, runner unavailable) | Wait and retry | Orchestrator (retry after delay) |
+
+All fixes are **in-place corrections within the O8.V loop** — invoke the Builder to produce a targeted fix, commit and re-trigger CI. No re-entry into previous pipeline stages occurs within this loop.
 
 After each correction:
 1. Builder produces the fix and returns
@@ -364,7 +368,11 @@ After each correction:
 3. Push and re-trigger: `gh workflow run` → `gh run watch`
 4. Repeat until CI passes
 
-**Iteration limit**: after 5 consecutive failures, halt and escalate to the user (R.8 Level 1) presenting the failure history. The user decides: continue trying, switch to manual debugging (O6), or stop.
+**Escalation for significant changes**: if the fix required is too significant to be an in-place correction (e.g., a module needs substantial rewriting, an architectural contradiction emerges, or a dependency requires fundamental redesign), escalate via R.8:
+- **Normal mode**: R.8 Level 2 — propose re-entry to the user at the appropriate stage (typically O3, O1, or earlier) via R.5. The user confirms.
+- **Automode**: R.8 Level 2 is resolved automatically — determine the appropriate re-entry stage, execute R.5 re-entry, and the pipeline re-traverses all intermediate stages (automode auto-proceeds through all gates). The pipeline will eventually return to O8.V for re-verification. **Anti-loop guard**: if after an automatic re-entry the CI fails again for the same root cause, do NOT perform a second automatic re-entry — instead trigger R.8 Level 3 (fatal blockage), which halts the pipeline even in automode.
+
+**Iteration limit**: after 5 consecutive in-place fix failures (without escalation), escalate (R.8 Level 2 in normal mode, automatic re-entry in automode as described above).
 
 **Output**: `docs/ci-verification-report.md` — report with:
 - Workflow name and URL

@@ -7,7 +7,7 @@
 - **V.1 — Single-user model**: the pipeline is designed for a single user interacting with the orchestrator. No role management, permissions, or multi-user interactions are supported.
 - **V.2 — Stateless agents**: all agents (including the orchestrator) are stateless. Context is reconstructed at each invocation from committed artifacts and the pipeline manifest. No implicit memory exists between invocations. When the same agent is invoked across consecutive stages (e.g., Prompt Refiner in C2→C3→C4), all relevant information from prior invocations MUST be fully encoded in the output artifacts — the agent cannot rely on conversational memory from previous stages. For stages with internal iteration (O3), the orchestrator applies V.2 by invoking the subagent once per iteration unit (module), ensuring each invocation has full context independent of previous iterations.
 - **V.3 — Git as source of truth**: the Git repository is the single source of truth. The pipeline state is always determinable from the manifest and committed artifacts. Every handoff between orchestrator and subagent produces a commit, ensuring that interruptions at any point are traceable.
-- **V.4 — Automode**: when activated by the user, all user gates become auto-proceed. The orchestrator makes decisions autonomously with the mandatory constraint of resolving ALL issues found at every stage (always "full correction"). Automode can be activated at any point after C4 and deactivated at any time. O10 (Closure) is always exempt — the user must confirm closure or iteration. See R.11.
+- **V.4 — Automode**: when activated by the user, all user gates become auto-proceed. The orchestrator makes decisions autonomously with the mandatory constraint of resolving ALL issues found at every stage (always "full correction"). Automode can be activated at any point after C4 and deactivated at any time. Only two things can halt the pipeline in automode: O10 (Closure) requires explicit user confirmation, and R.8 Level 3 (fatal blockage) forces a hard stop. See R.11.
 
 ---
 
@@ -546,17 +546,23 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   When CI fails, the orchestrator analyzes the failure log and classifies the error:
   | Error type | Action | Agent |
   |-----------|--------|-------|
-  | CI configuration error (YAML syntax, workflow config, build script) | Correct O8 artifacts | Builder (O8 re-invocation) |
-  | Code/test failure (test fail, lint fail, build error) | Correct affected modules | Builder (O3 via R.7) |
-  | Dependency error (missing/incompatible dependency) | Correct environment config | Builder (O1 re-invocation) |
+  | CI configuration error (YAML syntax, workflow config, build script) | In-place fix of workflow/build files | Builder (invoked within O8.V) |
+  | Code/test failure (test fail, lint fail, build error) | In-place fix for CI-environment compatibility | Builder (invoked within O8.V) |
+  | Dependency error (missing/incompatible dependency) | In-place fix of dependency config | Builder (invoked within O8.V) |
   | Infrastructure error (GitHub service issue, runner unavailable) | Wait and retry | Orchestrator (retry after delay) |
+
+  All fixes are **in-place corrections within the O8.V loop** — the Builder is invoked to produce a targeted fix, the orchestrator commits and re-triggers CI. No re-entry into previous pipeline stages occurs within this loop.
 
   After each correction:
   1. The Builder produces the fix and returns
   2. The orchestrator commits the fix: `[O8V] [Builder] CI fix: <description>`
   3. Push and re-trigger: `gh workflow run` → `gh run watch`
   4. Repeat until CI passes
-- **Iteration limit**: after 5 consecutive failures, the orchestrator halts and escalates to the user (R.8 Level 1) presenting the failure history. The user decides: continue trying, switch to manual debugging (O6), or stop.
+
+  **Escalation for significant changes**: if the fix required is too significant to be an in-place correction (e.g., a module needs substantial rewriting, an architectural contradiction emerges, or a dependency requires fundamental redesign), the orchestrator escalates via R.8:
+  - **Normal mode**: R.8 Level 2 — the orchestrator proposes re-entry to the user at the appropriate stage (typically O3, O1, or earlier) via R.5. The user confirms.
+  - **Automode**: R.8 Level 2 is resolved automatically — the orchestrator determines the appropriate re-entry stage, executes R.5 re-entry, and the pipeline re-traverses all intermediate stages (automode auto-proceeds through all gates). The pipeline will eventually return to O8.V for re-verification. **Anti-loop guard**: if after an automatic re-entry the CI fails again for the same root cause, the orchestrator does NOT perform a second automatic re-entry — instead it triggers R.8 Level 3 (fatal blockage), which halts the pipeline even in automode.
+- **Iteration limit**: after 5 consecutive in-place fix failures (without escalation), the orchestrator halts and escalates to the user (R.8 Level 2 in normal mode, automatic re-entry in automode as described above).
 - **Validation criteria**:
   - the CI workflow has passed on the live GitHub environment
   - the verification report is complete
@@ -793,8 +799,10 @@ When a validation stage (O4, O5, or O6) identifies issues and the user chooses c
 When an agent encounters a problem it cannot resolve autonomously:
 
 1. **Level 1 — In-context clarification**: the agent requests clarification from the user within the current stage context. The orchestrator relays the question and provides the answer back to the agent. The stage continues.
+   - **In automode**: the orchestrator resolves the clarification autonomously based on project artifacts and context, without asking the user.
 2. **Level 2 — Upstream revision**: the agent signals that an upstream artifact is ambiguous, inconsistent, or incomplete. The orchestrator reports the issue to the user and proposes re-entry at the appropriate upstream stage (following R.5). The user confirms or overrides.
-3. **Level 3 — Fatal blockage**: the agent cannot proceed and no upstream revision would resolve the issue. The orchestrator applies R.2 (stop), documenting the blockage in the log.
+   - **In automode**: the orchestrator determines the appropriate re-entry stage autonomously, executes R.5, and the pipeline re-traverses all intermediate stages automatically (automode auto-proceeds through all gates). No user interaction required.
+3. **Level 3 — Fatal blockage**: the agent cannot proceed and no upstream revision would resolve the issue. The orchestrator applies R.2 (stop), documenting the blockage in the log. **This is the only escalation level that halts the pipeline even in automode.** The user must intervene to resume.
 
 ## R.9 — Progress Metrics
 
@@ -846,7 +854,9 @@ Automode allows the user to delegate all decisions to the pipeline, bypassing us
 
 **Exemptions**:
 - **O10 (Closure)**: always requires explicit user confirmation — automode does NOT auto-proceed past O10. The user must confirm closure or select iteration.
-- **R.8 Level 2/3 escalations**: always require user input, even in automode
+- **R.8 Level 3 (Fatal blockage)**: always halts the pipeline, even in automode. This is the only hard stop that cannot be bypassed.
+
+**Note**: R.8 Level 1 and Level 2 are NOT exempt from automode — the orchestrator handles them autonomously (see R.8 for details).
 
 **Deactivation**:
 - The user says "automode off" (or equivalent) at any time
