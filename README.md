@@ -183,6 +183,31 @@ Environment knobs (optional):
 - `OPENCODE_PIPELINE_COMPACTION_DRY_RUN=1` — detect checkpoints but do not call compaction (logs only)
 - `OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS=120000` — minimum time between autonomous compactions per session
 
+### Startup Health Check
+
+At session startup, the plugin runs a health check and emits diagnostic logs via `app.log`.
+
+Expected startup signals:
+
+- `Startup check: plugin ready` (level `info`) — plugin loaded, `session.summarize` available
+- `Startup check: session.summarize unavailable` (level `warn`) — plugin loaded but cannot trigger compaction API
+- `Startup check: invalid OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS...` (level `warn`) — invalid cooldown env value; fallback to `120000`
+
+What is validated:
+
+- dry-run state
+- effective cooldown
+- tracked checkpoint IDs
+- availability of `session.summarize` and `app.log`
+
+How to use it:
+
+1. Start OpenCode with desired env vars (or none).
+2. Verify startup diagnostic log appears once per session.
+3. Emit a checkpoint (`## Pipeline Checkpoint [...]`) and confirm behavior:
+   - normal mode: compaction runs automatically
+   - dry-run mode: only diagnostic log, no compaction
+
 Example (dry-run):
 
 ```bash

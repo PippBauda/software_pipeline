@@ -6,10 +6,11 @@ export const PipelineCompactionController = async ({ client }) => {
     "post-reentry",
   ])
 
-  const DRY_RUN = ["1", "true", "yes", "on"].includes(
-    String(process.env.OPENCODE_PIPELINE_COMPACTION_DRY_RUN || "").toLowerCase(),
-  )
-  const COOLDOWN_MS = Number(process.env.OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS || 120000)
+  const rawDryRun = String(process.env.OPENCODE_PIPELINE_COMPACTION_DRY_RUN || "")
+  const DRY_RUN = ["1", "true", "yes", "on"].includes(rawDryRun.toLowerCase())
+  const rawCooldown = process.env.OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS
+  const parsedCooldown = Number(rawCooldown || 120000)
+  const COOLDOWN_MS = Number.isFinite(parsedCooldown) && parsedCooldown >= 0 ? parsedCooldown : 120000
   const inFlight = new Set()
   const lastCompactionAt = new Map()
   const lastSignature = new Map()
@@ -96,6 +97,47 @@ export const PipelineCompactionController = async ({ client }) => {
   }
 
   return {
+    session: async () => {
+      const diagnostics = {
+        dryRun: DRY_RUN,
+        cooldownMs: COOLDOWN_MS,
+        targetCheckpoints: Array.from(TARGET_CHECKPOINTS),
+        hasSessionSummarize: Boolean(client?.session?.summarize),
+        hasAppLog: Boolean(client?.app?.log),
+      }
+
+      if (client?.app?.log) {
+        await client.app.log({
+          body: {
+            service: "pipeline-compaction-controller",
+            level: diagnostics.hasSessionSummarize ? "info" : "warn",
+            message: diagnostics.hasSessionSummarize
+              ? "Startup check: plugin ready"
+              : "Startup check: session.summarize unavailable",
+            extra: {
+              diagnostics,
+              rawEnv: {
+                OPENCODE_PIPELINE_COMPACTION_DRY_RUN: rawDryRun || undefined,
+                OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS: rawCooldown || undefined,
+              },
+            },
+          },
+        })
+
+        if (rawCooldown && COOLDOWN_MS === 120000 && rawCooldown !== "120000") {
+          await client.app.log({
+            body: {
+              service: "pipeline-compaction-controller",
+              level: "warn",
+              message:
+                "Startup check: invalid OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS, defaulting to 120000",
+              extra: { rawCooldown, effectiveCooldownMs: COOLDOWN_MS },
+            },
+          })
+        }
+      }
+    },
+
     event: async ({ event }) => {
       if (!event || event.type === "session.compacted") return
 
@@ -113,6 +155,7 @@ export const PipelineCompactionController = async ({ client }) => {
 
       const sessionID = extractSessionId(props) || extractSessionId(event)
       if (!sessionID) return
+      if (!client?.session?.summarize) return
 
       const signature = `${checkpoint.id}:${checkpoint.block}`
       await triggerCompaction(sessionID, signature)
