@@ -174,6 +174,35 @@ At each **user gate**, the pipeline pauses for your confirmation before proceedi
 - **Automode**: `automode on` / `automode off` — bypasses user gates with automatic "fix everything" policy
 - **Stop**: `stop` at any time to halt the pipeline
 
+### Autonomous Compaction (Optional)
+
+If `~/.config/opencode/plugins/pipeline-compaction-controller.js` is installed, OpenCode can trigger compaction automatically right after `Pipeline Checkpoint` emission at the defined breakpoints.
+
+Environment knobs (optional):
+
+- `OPENCODE_PIPELINE_COMPACTION_DRY_RUN=1` — detect checkpoints but do not call compaction (logs only)
+- `OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS=120000` — minimum time between autonomous compactions per session
+
+Example (dry-run):
+
+```bash
+export OPENCODE_PIPELINE_COMPACTION_DRY_RUN=1
+opencode
+```
+
+### Troubleshooting (Plugin)
+
+- Plugin not triggering:
+  - Verify deployment path: `~/.config/opencode/plugins/pipeline-compaction-controller.js`
+  - Restart OpenCode after copying plugin/config files
+  - Ensure the orchestrator actually emits `## Pipeline Checkpoint [post-cognitive|post-o3|post-o10|post-reentry]`
+- Compaction too frequent:
+  - Increase cooldown: `export OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS=180000`
+- Want safe validation first:
+  - Enable dry-run mode: `export OPENCODE_PIPELINE_COMPACTION_DRY_RUN=1`
+- Compaction quality looks wrong:
+  - Verify `~/.config/opencode/compaction-prompt.txt` exists and `opencode.json` uses `"prompt": "{file:compaction-prompt.txt}"`
+
 ## Key Design Principles
 
 - **Git as source of truth** — every stage transition produces a commit
