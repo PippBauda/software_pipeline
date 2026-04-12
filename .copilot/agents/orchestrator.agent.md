@@ -125,7 +125,8 @@ For EVERY stage (including those you delegate), follow this pattern:
 4. **Receive result**: the agent writes artifacts to disk and returns a **structured summary** only (not the full report). The agent does NOT commit or update the manifest — these are your responsibilities (steps 5–6).
 5. **Stage completion commit**: commit the produced artifacts: `[<stage-id>] [<agent-name>] <description>`
 6. **Update manifest**: update HEAD (`manifest.json`): set `current_state`, `progress`, upsert `latest_stages[<stage-id>]`. Append to HISTORY (`manifest-history.json`): add entry to `stages_completed`. Both include: resulting state, timestamp, produced artifacts, commit hash, responsible agent, progress metrics (R.9)
-7. **Executive summary**: write a brief summary for the user based on the agent's returned summary. Reference the full report on disk (e.g., "Full report: `docs/validator-report.md`"). Do NOT read the full report into your context — the agent's returned summary is sufficient. At context management breakpoints (post-C9 and post-O3 with >5 modules), append a suggestion per R.CONTEXT point 7.
+7. **Executive summary**: write a brief summary for the user based on the agent's returned summary. Reference the full report on disk (e.g., "Full report: `docs/validator-report.md`"). Do NOT read the full report into your context — the agent's returned summary is sufficient.
+   - **At compaction breakpoints** (post-C9 and post-O3 with >5 modules): before the executive summary, write a **Pipeline Checkpoint** block per R.CONTEXT point 7. This block is designed to survive compaction and serve as the reconstruction seed for the next phase.
 8. **User gate** (if defined in the Stage Routing Table): present the user gate options as specified in the routing table's "Post-Stage" column. Stages marked "Auto-proceed" transition automatically after the executive summary — do NOT request user confirmation for those stages.
 9. **Revision** (if needed): repeat from step 2 with user's notes
 
@@ -227,7 +228,31 @@ At every stage transition, reconstruct context from disk — NEVER rely on conve
 4. **Conversation history** is for user interaction flow only — never for pipeline state. Routing decisions (which stage is next, what has been completed, which modules remain) MUST be derived from `manifest.json` on disk. **Conflict rule**: if your conversational memory of the pipeline state contradicts the manifest, the manifest ALWAYS wins.
 5. **History access**: read `pipeline-state/manifest-history.json` ONLY when executing B1 (Resume audit), R.5 (Re-entry archival), or when the user explicitly requests pipeline history.
 6. **Stale summary warning**: after O3 (or any stage producing many subagent exchanges), treat conversational summaries from earlier stages as potentially truncated or compressed by the harness. For any decision requiring cognitive-phase artifact content (e.g., requirements, architecture), re-read the source file from disk — never rely on an earlier summary.
-7. **Context management breakpoints**: at two natural pipeline breakpoints — **(a)** after C9 (cognitive→operational transition) and **(b)** after O3 if more than 5 modules were generated — suggest to the user that this is a good moment to manage context (e.g., start a fresh session or compact the conversation). The user decides whether to act. This optimizes the context window for the remaining pipeline stages.
+7. **Compaction breakpoints**: at two natural pipeline breakpoints — **(a)** after C9 (cognitive→operational transition) and **(b)** after O3 if more than 5 modules were generated — produce a **Pipeline Checkpoint** block and suggest context compaction. This is the primary mechanism for keeping the orchestrator's context lean across long pipeline runs.
+
+   **Checkpoint format** (write this EXACTLY as a structured block in the conversation):
+   ```
+   ## Pipeline Checkpoint [<breakpoint-id>]
+   - **State**: <current_state from manifest>
+   - **Progress**: stage <X>/<Y> | modules <M>/<N> (if applicable)
+   - **Automode**: <true/false>
+   - **Fast Track**: <true/false>
+   - **Handoff verified**: <yes/no> (post-C9 only)
+   - **Modules generated**: <count> (post-O3 only)
+   - **Known issues**: <brief list or "none">
+   - **Active user instructions**: <verbatim or "none">
+   - **Next stage**: <stage-id> → <agent-name>
+   - **Required input artifacts**: <list of paths>
+   - **Pending gate**: <yes/no, details>
+   ```
+
+   **Breakpoint-specific behavior**:
+   - **Post-C9** (`breakpoint-id: post-cognitive`): checkpoint captures handoff status, module count, and operational phase entry state. All cognitive reasoning, user gate conversations, and intermediate decisions are safe to discard — they are encoded in committed artifacts.
+   - **Post-O3** (`breakpoint-id: post-o3`): checkpoint captures module completion status, any flagged issues, and validation readiness. All per-module Builder conversations and dispatch details are safe to discard — per-module reports and code are committed.
+
+   **After writing the checkpoint**, append: `This is a good point to compact context before continuing. The checkpoint above contains everything needed to continue the pipeline.`
+
+   If the platform supports a compaction mechanism, the checkpoint block is designed to be recognized and preserved verbatim through any context summarization process.
 
 This prevents context window saturation during long pipeline runs. The orchestrator operates as a thin coordination layer: manifest state + routing decisions + brief summaries.
 
