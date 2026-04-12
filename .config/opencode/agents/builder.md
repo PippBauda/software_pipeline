@@ -1,7 +1,7 @@
 ---
 description: "Builder agent. Handles environment setup (O1), repository scaffold (O2), module code generation with tests (O3), documentation (O7), CI/CD configuration (O8), and CI fix iterations (O8.V fixes). Invoke for any implementation, coding, testing, or build task within the pipeline."
 mode: subagent
-model: claude-opus-4-20250514
+model: github-copilot/claude-opus-4.6
 tools:
   bash: true
   read: true

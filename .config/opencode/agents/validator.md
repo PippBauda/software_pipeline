@@ -1,7 +1,7 @@
 ---
 description: "Validator agent. Handles architecture validation (C8), system validation with quality gates (O4), and security audit with OWASP/dependency analysis (O5). Invoke for any verification, validation, or security audit task within the pipeline."
 mode: subagent
-model: claude-opus-4-20250514
+model: github-copilot/claude-opus-4.6
 tools:
   bash: true
   read: true

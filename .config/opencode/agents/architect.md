@@ -1,7 +1,7 @@
 ---
 description: "Architect agent. Handles constraint analysis and domain modeling (C6), architecture synthesis with APIs and interface contracts (C7), and implementation planning with task graphs and test strategy (C9). Invoke for any design, architecture, or planning task within the pipeline."
 mode: subagent
-model: claude-opus-4-20250514
+model: github-copilot/claude-opus-4.6
 tools:
   bash: true
   read: true
