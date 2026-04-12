@@ -21,6 +21,7 @@ You are a runtime debugging and testing specialist. You focus on dynamic behavio
 - **Input**:
   - `src/` — complete source code
   - `docs/architecture.md`
+  - `docs/environment.md`
   - `docs/validator-report.md`
   - `docs/test-strategy.md`
   - `docs/security-audit-report.md` (optional — if O5 produced it)
@@ -34,6 +35,7 @@ You are a runtime debugging and testing specialist. You focus on dynamic behavio
       - Involved component (which module/component)
     - **Log analysis**: anomalies detected during execution
   - `logs/runtime-logs/` — raw logs captured during execution
+  - `logs/debugger-o6-smoke-test-<N>.md` — structured test log
 - **Execution approach**:
   1. **Review inputs**: read architecture, validator report, test strategy, and (if available) security audit report to understand the system and known issues
   2. **Design smoke tests**: create realistic end-to-end scenarios covering:

@@ -521,7 +521,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
 
 ## O8.V — CI Verification
 
-- **Agent**: Orchestrator (managed iterative loop)
+- **Agent**: Orchestrator (managed iterative loop, delegates analysis and fixes to Builder)
 - **Purpose**: verify that the CI/CD pipeline configured in O8 passes on the live GitHub environment, and iteratively fix failures until the workflow is green.
 - **Prerequisite**: GitHub CLI (`gh`) must be installed, authenticated, and the repository must have a GitHub remote. These are established during O1 and verified during O2.
 - **Input**:
@@ -541,25 +541,38 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   3. Monitor execution: `gh run watch` until completion
   4. Read result:
      - **PASS** → produce `docs/ci-verification-report.md`, proceed
-     - **FAIL** → analyze failure type and enter correction loop (see below)
+     - **FAIL** → collect raw failure log and enter correction loop (see below)
 - **CI failure correction loop**:
-  When CI fails, the orchestrator analyzes the failure log and classifies the error:
-  | Error type | Action | Agent |
-  |-----------|--------|-------|
-  | CI configuration error (YAML syntax, workflow config, build script) | In-place fix of workflow/build files | Builder (invoked within O8.V) |
-  | Code/test failure (test fail, lint fail, build error) | In-place fix for CI-environment compatibility | Builder (invoked within O8.V) |
-  | Dependency error (missing/incompatible dependency) | In-place fix of dependency config | Builder (invoked within O8.V) |
-  | Infrastructure error (GitHub service issue, runner unavailable) | Wait and retry | Orchestrator (retry after delay) |
+  When CI fails, the orchestrator collects the raw failure log (`gh run view --log-failed`) and invokes the **Builder** to analyze, classify, and fix the issue. The orchestrator does NOT classify the error itself — that is technical work delegated to the Builder.
 
-  All fixes are **in-place corrections within the O8.V loop** — the Builder is invoked to produce a targeted fix, the orchestrator commits and re-triggers CI. No re-entry into previous pipeline stages occurs within this loop.
+  **Builder receives**: raw CI failure log + relevant artifacts (`docs/cicd-configuration.md`, `docs/environment.md`, affected source files).
+
+  **Builder returns** a structured CI fix report:
+  | Field | Description |
+  |-------|-------------|
+  | `classification` | Error type: `ci-config`, `code-test`, `dependency`, or `infrastructure` |
+  | `root_cause` | Brief description of the root cause |
+  | `fix_applied` | Description of the fix (or "none" if infrastructure error) |
+  | `confidence` | `high`, `medium`, or `low` — Builder's confidence that the fix resolves the issue |
+  | `escalation_needed` | `true` if the fix is too significant for an in-place correction |
+  | `files_modified` | List of modified files |
+
+  **Orchestrator routing based on Builder report**:
+  | Condition | Orchestrator action |
+  |-----------|-------------------|
+  | `classification: infrastructure` | Wait and retry after delay (no Builder fix needed) |
+  | `escalation_needed: false` | Commit fix (`[O8V] [Builder] CI fix: <description>`), push, re-trigger CI |
+  | `escalation_needed: true` | Escalate via R.8 (see below) |
+
+  All fixes are **in-place corrections within the O8.V loop** — the Builder is invoked to analyze and fix, the orchestrator commits and re-triggers CI. No re-entry into previous pipeline stages occurs within this loop.
 
   After each correction:
-  1. The Builder produces the fix and returns
+  1. The Builder analyzes, classifies, fixes, and returns the structured report
   2. The orchestrator commits the fix: `[O8V] [Builder] CI fix: <description>`
   3. Push and re-trigger: `gh workflow run` → `gh run watch`
   4. Repeat until CI passes
 
-  **Escalation for significant changes**: if the fix required is too significant to be an in-place correction (e.g., a module needs substantial rewriting, an architectural contradiction emerges, or a dependency requires fundamental redesign), the orchestrator escalates via R.8:
+  **Escalation for significant changes**: if the Builder reports `escalation_needed: true` (e.g., a module needs substantial rewriting, an architectural contradiction emerges, or a dependency requires fundamental redesign), the orchestrator escalates via R.8:
   - **Normal mode**: R.8 Level 2 — the orchestrator proposes re-entry to the user at the appropriate stage (typically O3, O1, or earlier) via R.5. The user confirms.
   - **Automode**: R.8 Level 2 is resolved automatically — the orchestrator determines the appropriate re-entry stage, executes R.5 re-entry, and the pipeline re-traverses all intermediate stages (automode auto-proceeds through all gates). The pipeline will eventually return to O8.V for re-verification. **Anti-loop guard**: if after an automatic re-entry the CI fails again for the same root cause, the orchestrator does NOT perform a second automatic re-entry — instead it triggers R.8 Level 3 (fatal blockage), which halts the pipeline even in automode.
 - **Iteration limit**: after 5 consecutive in-place fix failures (without escalation), the orchestrator halts and escalates to the user (R.8 Level 2 in normal mode, automatic re-entry in automode as described above).

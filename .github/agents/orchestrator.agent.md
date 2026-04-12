@@ -348,27 +348,25 @@ O8.V verifies that the CI/CD pipeline configured in O8 actually passes on the li
 3. Monitor execution: `gh run watch` until completion
 4. Read result:
    - **PASS** → produce `docs/ci-verification-report.md`, set state `O8V_CI_VERIFIED`, proceed
-   - **FAIL** → analyze failure type and enter correction loop (see below)
+   - **FAIL** → collect raw failure log and enter correction loop (see below)
 
 **CI failure correction loop**:
-When CI fails, analyze the failure log and classify the error:
+When CI fails, collect the raw failure log (`gh run view --log-failed`) and invoke the Builder with: the raw log, `docs/cicd-configuration.md`, `docs/environment.md`, and affected source files. The Builder analyzes the failure, classifies the error, applies a fix, and returns a structured report with:
+- `classification`: error type (`ci-config`, `code-test`, `dependency`, or `infrastructure`)
+- `root_cause`: brief description of the failure cause
+- `fix_applied`: what was changed (or "none" for infrastructure errors)
+- `confidence`: `high`, `medium`, or `low`
+- `escalation_needed`: `true` if the fix is too significant for an in-place correction
+- `files_modified`: list of files changed by the fix
 
-| Error type | Action | Agent |
-|-----------|--------|-------|
-| CI configuration error (YAML syntax, workflow config, build script) | In-place fix of workflow/build files | Builder (invoked within O8.V) |
-| Code/test failure (test fail, lint fail, build error) | In-place fix for CI-environment compatibility | Builder (invoked within O8.V) |
-| Dependency error (missing/incompatible dependency) | In-place fix of dependency config | Builder (invoked within O8.V) |
-| Infrastructure error (GitHub service issue, runner unavailable) | Wait and retry | Orchestrator (retry after delay) |
+**Routing based on Builder report**:
+- `classification: infrastructure` → wait and retry (no code fix needed)
+- `escalation_needed: false` → commit fix (`[O8V] [Builder] CI fix: <description>`), push, re-trigger CI
+- `escalation_needed: true` → escalate via R.8 (see below)
 
-All fixes are **in-place corrections within the O8.V loop** — invoke the Builder to produce a targeted fix, commit and re-trigger CI. No re-entry into previous pipeline stages occurs within this loop.
+All fixes are **in-place corrections within the O8.V loop** — no re-entry into previous pipeline stages occurs within this loop. After each successful fix commit, push and re-trigger: `gh workflow run` → `gh run watch`. Repeat until CI passes.
 
-After each correction:
-1. Builder produces the fix and returns
-2. You commit the fix: `[O8V] [Builder] CI fix: <description>`
-3. Push and re-trigger: `gh workflow run` → `gh run watch`
-4. Repeat until CI passes
-
-**Escalation for significant changes**: if the fix required is too significant to be an in-place correction (e.g., a module needs substantial rewriting, an architectural contradiction emerges, or a dependency requires fundamental redesign), escalate via R.8:
+**Escalation for significant changes**: if the Builder reports `escalation_needed: true` (e.g., a module needs substantial rewriting, an architectural contradiction emerges, or a dependency requires fundamental redesign), escalate via R.8:
 - **Normal mode**: R.8 Level 2 — propose re-entry to the user at the appropriate stage (typically O3, O1, or earlier) via R.5. The user confirms.
 - **Automode**: R.8 Level 2 is resolved automatically — determine the appropriate re-entry stage, execute R.5 re-entry, and the pipeline re-traverses all intermediate stages (automode auto-proceeds through all gates). The pipeline will eventually return to O8.V for re-verification. **Anti-loop guard**: if after an automatic re-entry the CI fails again for the same root cause, do NOT perform a second automatic re-entry — instead trigger R.8 Level 3 (fatal blockage), which halts the pipeline even in automode.
 
@@ -389,6 +387,8 @@ After each correction:
 **Re-entry validation**:
 - Cognitive re-entry (C2–C9): invalidates ALL operational stages → archive all O1–O10 artifacts
 - Operational re-entry (O1–O9): preserve cognitive artifacts → archive only from re-entry point onward
+- Correction loops (R.7): NOT re-entries, no archival — validation reports are overwritten
+- `_IN_PROGRESS` recovery: re-execute stage from scratch, discard partial artifacts
 - ALWAYS report impact to user before executing
 
 ## Manifest Schema
@@ -464,6 +464,75 @@ O8_IN_PROGRESS, O8V_IN_PROGRESS, O9_IN_PROGRESS, O10_IN_PROGRESS
 ```
 
 If `current_state` is `_IN_PROGRESS`, the stage was started but never completed (interrupted invocation).
+
+## Valid Transitions
+
+```
+# Standard flow (dispatch → complete)
+C1_INITIALIZED           → C2_IN_PROGRESS
+C2_IN_PROGRESS           → C2_INTENT_CLARIFIED
+C2_INTENT_CLARIFIED      → C3_IN_PROGRESS
+C3_IN_PROGRESS           → C3_PROBLEM_FORMALIZED
+C3_PROBLEM_FORMALIZED    → C4_IN_PROGRESS
+C4_IN_PROGRESS           → C4_REQUIREMENTS_EXTRACTED
+C4_REQUIREMENTS_EXTRACTED → C5_IN_PROGRESS | C5_SKIPPED
+C5_IN_PROGRESS           → C5_EXTERNAL_ANALYZED
+C5_EXTERNAL_ANALYZED     → C6_IN_PROGRESS
+C5_SKIPPED               → C6_IN_PROGRESS
+C6_IN_PROGRESS           → C6_DOMAIN_MODELED
+C6_DOMAIN_MODELED        → C7_IN_PROGRESS
+C7_IN_PROGRESS           → C7_ARCHITECTURE_SYNTHESIZED
+C7_ARCHITECTURE_SYNTHESIZED → C8_IN_PROGRESS
+C8_IN_PROGRESS           → C8_ARCHITECTURE_VALIDATED
+C8_ARCHITECTURE_VALIDATED → C7_IN_PROGRESS             # architecture invalid — revision
+C8_ARCHITECTURE_VALIDATED → C9_IN_PROGRESS
+C9_IN_PROGRESS           → C9_IMPLEMENTATION_PLANNED
+C9_IMPLEMENTATION_PLANNED → O1_IN_PROGRESS              # after handoff check
+O1_IN_PROGRESS           → O1_ENVIRONMENT_READY
+O1_ENVIRONMENT_READY     → O2_IN_PROGRESS
+O2_IN_PROGRESS           → O2_SCAFFOLD_CREATED
+O2_SCAFFOLD_CREATED      → O3_IN_PROGRESS
+O3_IN_PROGRESS           → O3_MODULES_GENERATED
+O3_MODULES_GENERATED     → O4_IN_PROGRESS
+O4_IN_PROGRESS           → O4_SYSTEM_VALIDATED
+O4_SYSTEM_VALIDATED      → O3_IN_PROGRESS               # correction — R.7
+O4_SYSTEM_VALIDATED      → O5_IN_PROGRESS
+O5_IN_PROGRESS           → O5_SECURITY_AUDITED
+O5_SECURITY_AUDITED      → O3_IN_PROGRESS               # correction — R.7
+O5_SECURITY_AUDITED      → O6_IN_PROGRESS
+O6_IN_PROGRESS           → O6_DEBUG_COMPLETED
+O6_DEBUG_COMPLETED       → O3_IN_PROGRESS               # correction — R.7
+O6_DEBUG_COMPLETED       → O7_IN_PROGRESS
+O7_IN_PROGRESS           → O7_DOCUMENTATION_GENERATED
+O7_DOCUMENTATION_GENERATED → O8_IN_PROGRESS
+O8_IN_PROGRESS           → O8_CICD_CONFIGURED
+O8_CICD_CONFIGURED       → O8V_IN_PROGRESS
+O8V_IN_PROGRESS          → O8V_CI_VERIFIED
+O8V_CI_VERIFIED          → O9_IN_PROGRESS
+O9_IN_PROGRESS           → O9_RELEASED
+O9_RELEASED              → O10_IN_PROGRESS
+O10_IN_PROGRESS          → COMPLETED
+
+# Re-entry and auxiliary flows
+COMPLETED                → any C2–O9 _IN_PROGRESS       # re-entry — R.5
+any state                → STOPPED                       # user stop or fatal error
+STOPPED                  → B1_AUDITING                   # resume request
+STOPPED                  → C_ADO1_AUDITING               # adoption request
+C1_INITIALIZED           → C_ADO1_AUDITING               # adoption mode
+B1_AUDITING              → any C1–O9 state               # resumable
+B1_AUDITING              → C_ADO1_AUDITING               # not resumable
+C_ADO1_AUDITING          → any C1–O9 state               # plan complete
+any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scratch
+```
+
+## Invariants
+
+- Only one state active at any time
+- `current_state` always recorded in manifest
+- Every orchestrator↔subagent transition produces a commit (dispatch and return)
+- `_IN_PROGRESS` state always has a corresponding dispatch commit in Git history
+- Automode active: every gate resolves to "proceed" or "full correction" — never "skip" or "no correction"
+- Fast Track active: O4 never skipped; architectural finding cancels Fast Track
 
 ## Constraints
 

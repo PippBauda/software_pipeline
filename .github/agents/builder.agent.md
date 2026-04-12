@@ -101,7 +101,7 @@ You are an implementation engineer. You translate architectural plans into worki
   - per-module report is complete with all required sub-sections
 - **Error handling**: if the module fails, report details to orchestrator. The orchestrator (not you) handles user communication and skip/retry/stop decisions.
 - **Correction loops**: when invoked via R.7 with correction notes from O4/O5/O6, apply corrections only to the specified issues in the assigned module.
-- **Cumulative report**: the orchestrator may invoke you once more after all modules to produce `logs/builder-cumulative-report-<N>.md` summarizing all modules.
+- **Cumulative report**: the orchestrator may invoke you once more after all modules to produce `logs/builder-cumulative-report-<N>.md` — a summary of all modules: status, test results, issues encountered, overall assessment
 - **Resulting state**: `O3_MODULES_GENERATED` (set by orchestrator after all modules complete)
 
 ---
@@ -158,17 +158,18 @@ You are an implementation engineer. You translate architectural plans into worki
 
 ### O8.V — CI Fix Corrections (when invoked by orchestrator)
 
-During CI verification (O8.V), if the GitHub Actions workflow fails, the orchestrator may invoke you to fix the issue. You will receive:
-- **Input**:
-  - CI failure log (from `gh run view`)
-  - Error classification from orchestrator (CI config error, code/test error, or dependency error)
-  - Relevant artifacts depending on error type
-- **Action**:
-  - **CI configuration error**: fix workflow files in `.github/workflows/` or equivalent, update `docs/cicd-configuration.md` if needed
-  - **Code/test failure**: fix the affected module code or tests (same as O3 correction)
-  - **Dependency error**: fix `docs/environment.md` and dependency config files (same as O1 correction)
-- **Output**: corrected files + brief fix description returned to orchestrator
-- **Note**: the orchestrator manages the iteration loop (re-trigger CI, re-invoke you if needed). You focus on producing the fix for the specific failure.
+When CI fails during O8.V verification, the orchestrator invokes you with the **raw CI failure log** and relevant artifacts (`docs/cicd-configuration.md`, `docs/environment.md`, affected source files). You must:
+1. **Analyze** the failure log to identify the root cause
+2. **Classify** the error type: `ci-config`, `code-test`, `dependency`, or `infrastructure`
+3. **Fix** the issue (unless it's an infrastructure error — report it and return)
+4. **Return** a structured CI fix report:
+   - `classification`: error type
+   - `root_cause`: brief description
+   - `fix_applied`: what was changed (or "none" for infrastructure)
+   - `confidence`: `high`, `medium`, or `low`
+   - `escalation_needed`: `true` if the fix is too significant for an in-place correction (e.g., requires module rewriting or architectural changes)
+   - `files_modified`: list of modified files
+- **Note**: the orchestrator manages the iteration loop (re-trigger CI, re-invoke you if needed). You focus on analyzing, fixing, and reporting.
 
 ## Code Quality Standards
 

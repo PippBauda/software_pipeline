@@ -160,7 +160,7 @@ The Builder generates user-facing documentation: a README, API reference, and in
 The Builder sets up continuous integration: workflow files, triggers (push, PR, tag), and pipeline steps (install, lint, test, build), consistent with the test strategy.
 
 ### O8.V — CI Verification
-The orchestrator triggers the CI workflow on GitHub using `gh` CLI and monitors the result. If the workflow passes, the pipeline proceeds. If it fails, the orchestrator classifies the error and invokes the Builder for an in-place fix, then re-triggers CI. This loop repeats until CI is green. If a fix is too significant for an in-place correction, the orchestrator escalates — requesting user re-entry in normal mode, or performing automatic re-entry in automode. GitHub CLI (`gh`) is a mandatory pipeline requirement established during O1.
+The orchestrator triggers the CI workflow on GitHub using `gh` CLI and monitors the result. If the workflow passes, the pipeline proceeds. If it fails, the orchestrator collects the raw failure log and passes it to the Builder, who analyzes the error, classifies it, applies a fix, and returns a structured report. The orchestrator uses the report for routing: commit the fix and re-trigger CI, wait and retry for infrastructure issues, or escalate if the fix is too significant for an in-place correction. This loop repeats until CI is green. Escalation means requesting user re-entry in normal mode, or performing automatic re-entry in automode. GitHub CLI (`gh`) is a mandatory pipeline requirement established during O1.
 
 ### O9 — Release
 The orchestrator tags the release with a semantic version, generates a changelog and release notes, and optionally prepares deployment configuration.

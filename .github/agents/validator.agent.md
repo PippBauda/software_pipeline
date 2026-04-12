@@ -33,6 +33,7 @@ You are a verification and security specialist. You systematically cross-referen
     - **Constraint conformance**: each constraint verified against architecture — PASS/FAIL
     - **Identified risks**: potential issues with severity and mitigation proposals
     - **Overall verdict**: VALID or INVALID with justification
+  - `logs/validator-c8-review-<N>.md` — validation log
 - **Validation criteria**:
   - every requirement is traced to at least one component
   - no constraints are violated
@@ -59,6 +60,7 @@ You are a verification and security specialist. You systematically cross-referen
     - **Test results**: PASS/FAIL, tests passed/failed count, coverage percentage
     - **Static analysis**: PASS/FAIL, linting violations, cyclomatic complexity
     - **Quality gate**: overall PASS/FAIL with threshold verification from `test-strategy.md`
+  - `logs/validator-o4-validation-<N>.md` — validation log
 - **Execution**: run the test suite, perform static analysis, cross-reference architecture
 - **Validation criteria**:
   - all tests pass
@@ -87,6 +89,7 @@ You are a verification and security specialist. You systematically cross-referen
     - **External tool results**: output from SAST/dependency tools if available, or note that none were used
     - **Limitations**: explicit declaration of analysis limitations (no dynamic testing, CVE currency, etc.)
     - **Recommendations**: corrective actions ordered by severity (CRITICAL → HIGH → MEDIUM → LOW)
+  - `logs/validator-o5-security-<N>.md` — security audit log
 - **Validation criteria**:
   - every dependency checked for known vulnerabilities
   - applicable OWASP risks verified

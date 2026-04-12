@@ -33,6 +33,7 @@ You are a system architect. You design software systems by analyzing constraints
     - **Entities**: domain objects with attributes
     - **Relationships**: associations, dependencies, hierarchies
     - **Operations**: key domain operations and their semantics
+  - `logs/architect-c6-domain-modeling-<N>.md` — analysis log
 - **Validation criteria**:
   - every constraint is classified by category
   - domain model covers all entities mentioned in requirements
@@ -65,6 +66,7 @@ You are a system architect. You design software systems by analyzing constraints
   - `docs/interface-contracts.md` — interface contracts:
     - Contract per component boundary
     - Input/output types, preconditions, postconditions
+  - `logs/architect-c7-synthesis-<N>.md` — synthesis log
 - **Validation criteria**:
   - every functional requirement maps to at least one component
   - every constraint is addressed in the architecture
@@ -100,6 +102,7 @@ You are a system architect. You design software systems by analyzing constraints
     - Coverage criteria and minimum thresholds
     - Acceptance criteria per module
     - Tools and frameworks
+  - `logs/architect-c9-planning-<N>.md` — planning log
 - **Validation criteria**:
   - every architectural component maps to at least one task
   - dependency graph is acyclic
