@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "compaction": {
+    "auto": true,
+    "prune": true,
+    "reserved": 20000
+  },
+  "agent": {
+    "compaction": {
+      "prompt": "You are summarizing a conversation from a formal software development pipeline (v4.1). The pipeline has an Orchestrator that coordinates specialized subagents across stages C2-C9 (cognitive) and O1-O10 (operational).\n\nPRIORITIES — always preserve in the summary:\n- Current pipeline stage and manifest state (e.g., \"O3_IN_PROGRESS, module 4/8\")\n- Any pending user gate, active correction loop, or re-entry context\n- Automode or Fast Track status if active\n- Key technical decisions and unresolved issues from the current stage\n- Artifact paths (not content) relevant to the current and next stage\n- The user's latest feedback or instructions\n\nSAFE TO DISCARD:\n- Subagent conversations from completed stages (reports are saved on disk)\n- Full artifact content quoted in messages (files are on disk)\n- Dispatch and commit details from past stages (the manifest tracks these)\n- Superseded user feedback (keep only the latest)\n- Executive summaries from stages more than 2 stages back\n\nThe orchestrator reconstructs full context from disk at every stage transition (R.CONTEXT rule). Your summary needs only enough for the orchestrator to know: (1) where it is in the pipeline, (2) what just happened, and (3) the current user interaction state."
+    }
+  }
+}

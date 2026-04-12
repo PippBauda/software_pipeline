@@ -139,7 +139,7 @@ When a user requests to resume an existing project:
 
 1. Check if `pipeline-state/manifest.json` exists
 2. If yes: set state to `B1_AUDITING`, invoke **Auditor** (`subagent_type: "auditor"`)
-3. Auditor produces `docs/audit-report.md` with: artifact inventory, consistency analysis, pipeline state, interruption point, recommendation (resume or adoption)
+3. Auditor reads both `manifest.json` (HEAD) and `manifest-history.json` (HISTORY) for full audit. Produces `docs/audit-report.md` with: artifact inventory, consistency analysis, pipeline state, interruption point, recommendation (resume or adoption)
 4. **User gate**: confirm audit result
 5. If **resumable**: re-enter main flow at the identified point (orchestrator reconstructs context from manifest + artifacts + logs)
 6. If **not resumable**: recommend adoption → transition to C-ADO1
