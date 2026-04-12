@@ -126,7 +126,7 @@ For EVERY stage (including those you delegate), follow this pattern:
 5. **Stage completion commit**: commit the produced artifacts: `[<stage-id>] [<agent-name>] <description>`
 6. **Update manifest**: update HEAD (`manifest.json`): set `current_state`, `progress`, upsert `latest_stages[<stage-id>]`. Append to HISTORY (`manifest-history.json`): add entry to `stages_completed`. Both include: resulting state, timestamp, produced artifacts, commit hash, responsible agent, progress metrics (R.9)
 7. **Executive summary**: write a brief summary for the user based on the agent's returned summary. Reference the full report on disk (e.g., "Full report: `docs/validator-report.md`"). Do NOT read the full report into your context — the agent's returned summary is sufficient.
-   - **At compaction breakpoints** (post-C9 and post-O3 with >5 modules): before the executive summary, write a **Pipeline Checkpoint** block per R.CONTEXT point 7. This block is designed to survive compaction and serve as the reconstruction seed for the next phase.
+   - **At compaction breakpoints** (post-C9, post-O3 with >5 modules, post-O10, and post-reentry after R.5): before the executive summary, write a **Pipeline Checkpoint** block per R.CONTEXT point 7. This block is designed to survive compaction and serve as the reconstruction seed for the next phase.
 8. **User gate** (if defined in the Stage Routing Table): present the user gate options as specified in the routing table's "Post-Stage" column. Stages marked "Auto-proceed" transition automatically after the executive summary — do NOT request user confirmation for those stages.
 9. **Revision** (if needed): repeat from step 2 with user's notes
 
@@ -174,8 +174,10 @@ When re-entering from COMPLETED or auxiliary flows (B1/C-ADO1):
 1. **Archive**: move post-re-entry artifacts to `archive/<timestamp>/`
 2. **Update manifest**: set new state, reference archive
 3. **Commit**: `[RE-ENTRY] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
-4. **Resume**: from indicated stage with preceding artifacts intact
-5. **Delegation**: identify the agent responsible for the target stage from the Agent-to-Stage mapping and delegate using R.1 (starting from step 2, dispatch commit). You MUST NOT execute stages assigned to other agents.
+4. **Post-reentry checkpoint**: write `## Pipeline Checkpoint [post-reentry]` with: resulting state, `from_state -> target_stage`, archive path, scope impact, next stage/agent, required input artifacts, pending gate
+5. **Context compaction**: suggest immediate compaction after the checkpoint. If autonomous compaction support exists, allow automatic compaction at this point.
+6. **Resume**: from indicated stage with preceding artifacts intact
+7. **Delegation**: identify the agent responsible for the target stage from the Agent-to-Stage mapping and delegate using R.1 (starting from step 2, dispatch commit). You MUST NOT execute stages assigned to other agents.
 
 **Scope**: R.5 applies ONLY to user-initiated re-entry. Correction loops (O4/O5/O6→O3) use R.7 instead.
 **Archive policy**: never auto-deleted. Full traceability preserved.
@@ -228,7 +230,7 @@ At every stage transition, reconstruct context from disk — NEVER rely on conve
 4. **Conversation history** is for user interaction flow only — never for pipeline state. Routing decisions (which stage is next, what has been completed, which modules remain) MUST be derived from `manifest.json` on disk. **Conflict rule**: if your conversational memory of the pipeline state contradicts the manifest, the manifest ALWAYS wins.
 5. **History access**: read `pipeline-state/manifest-history.json` ONLY when executing B1 (Resume audit), R.5 (Re-entry archival), or when the user explicitly requests pipeline history.
 6. **Stale summary warning**: after O3 (or any stage producing many subagent exchanges), treat conversational summaries from earlier stages as potentially truncated or compressed by the harness. For any decision requiring cognitive-phase artifact content (e.g., requirements, architecture), re-read the source file from disk — never rely on an earlier summary.
-7. **Compaction breakpoints**: at two natural pipeline breakpoints — **(a)** after C9 (cognitive→operational transition) and **(b)** after O3 if more than 5 modules were generated — produce a **Pipeline Checkpoint** block and suggest context compaction. This is the primary mechanism for keeping the orchestrator's context lean across long pipeline runs.
+7. **Compaction breakpoints**: at four pipeline breakpoints — **(a)** after C9 (cognitive→operational transition), **(b)** after O3 if more than 5 modules were generated, **(c)** after O10 when state becomes `COMPLETED`, and **(d)** immediately after R.5 re-entry archival/commit — produce a **Pipeline Checkpoint** block and suggest context compaction. This is the primary mechanism for keeping the orchestrator's context lean across long pipeline runs and across pipeline restarts.
 
    **Checkpoint format** (write this EXACTLY as a structured block in the conversation):
    ```
@@ -239,6 +241,9 @@ At every stage transition, reconstruct context from disk — NEVER rely on conve
    - **Fast Track**: <true/false>
    - **Handoff verified**: <yes/no> (post-C9 only)
    - **Modules generated**: <count> (post-O3 only)
+   - **Completion state**: <COMPLETED|n/a> (post-O10 only)
+   - **Re-entry path**: <from-state -> target-stage|n/a> (post-reentry only)
+   - **Archive reference**: <archive/<timestamp>/|n/a> (post-reentry only)
    - **Known issues**: <brief list or "none">
    - **Active user instructions**: <verbatim or "none">
    - **Next stage**: <stage-id> → <agent-name>
@@ -249,6 +254,8 @@ At every stage transition, reconstruct context from disk — NEVER rely on conve
    **Breakpoint-specific behavior**:
    - **Post-C9** (`breakpoint-id: post-cognitive`): checkpoint captures handoff status, module count, and operational phase entry state. All cognitive reasoning, user gate conversations, and intermediate decisions are safe to discard — they are encoded in committed artifacts.
    - **Post-O3** (`breakpoint-id: post-o3`): checkpoint captures module completion status, any flagged issues, and validation readiness. All per-module Builder conversations and dispatch details are safe to discard — per-module reports and code are committed.
+   - **Post-O10** (`breakpoint-id: post-o10`): checkpoint captures final completion status, release context, and the current user iteration/closure decision state. All pre-O10 operational conversations are safe to discard — final artifacts and manifest are committed.
+   - **Post-reentry** (`breakpoint-id: post-reentry`): checkpoint captures re-entry target stage, archive path, scope impact, and immediate next dispatch. All superseded conversations from invalidated scope are safe to discard.
 
    **After writing the checkpoint**, append: `This is a good point to compact context before continuing. The checkpoint above contains everything needed to continue the pipeline.`
 

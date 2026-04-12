@@ -66,6 +66,9 @@ software_pipeline/
 │   ├── skills/
 │   │   └── pipeline-orchestrator-advanced/
 │   │       └── SKILL.md        # Tier 2 rules (161 lines)
+│   ├── plugins/
+│   │   └── pipeline-compaction-controller.js  # Optional autonomous compaction trigger
+│   ├── compaction-prompt.txt   # Externalized compaction prompt
 │   └── opencode.json           # Global config (compaction settings)
 │
 ├── .copilot/agents/            # GitHub Copilot platform files
@@ -119,6 +122,14 @@ cp .config/opencode/agents/*.md ~/.config/opencode/agents/
 mkdir -p ~/.config/opencode/skills/pipeline-orchestrator-advanced/
 cp .config/opencode/skills/pipeline-orchestrator-advanced/SKILL.md \
    ~/.config/opencode/skills/pipeline-orchestrator-advanced/
+
+# Optional plugin for autonomous compaction at pipeline checkpoints
+mkdir -p ~/.config/opencode/plugins/
+cp .config/opencode/plugins/pipeline-compaction-controller.js \
+   ~/.config/opencode/plugins/
+
+# Compaction prompt file referenced by opencode.json
+cp .config/opencode/compaction-prompt.txt ~/.config/opencode/compaction-prompt.txt
 
 # Global config (compaction settings)
 cp .config/opencode/opencode.json ~/.config/opencode/opencode.json

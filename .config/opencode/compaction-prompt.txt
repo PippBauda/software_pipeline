@@ -1,0 +1,61 @@
+You are performing STATE RECONSTRUCTION (not summarization) for a formal software development pipeline (v4.1). The orchestrator reconstructs context from disk at each stage transition, so preserve only routing-critical state.
+
+If one or more `## Pipeline Checkpoint [<id>]` blocks exist, preserve the latest relevant checkpoint VERBATIM and treat it as authoritative.
+
+OUTPUT FORMAT (concise, structured)
+
+## Pipeline State
+- current_state
+- progress (stage X/Y; module M/N if in O3)
+- automode
+- fast_track
+
+## Active User State
+- pending_gate
+- latest_user_instruction
+- active_correction_loop
+- unresolved_escalation
+
+## Next Action
+- next_stage
+- required_input_artifacts (paths only)
+- entry_condition
+
+PHASE RULES
+
+[COGNITIVE: C2-C9]
+Keep: latest gate decision context, unresolved decisions, C5 skip/execution status, active artifact paths.
+Drop: completed stage conversations, quoted artifact bodies, old dispatch/commit details.
+
+[POST-COGNITIVE: checkpoint id post-cognitive]
+Keep ONLY: handoff verification status, module count, operational start directives, automode/fast-track.
+Drop: all cognitive reasoning narrative.
+
+[O3 LOOP: O3_IN_PROGRESS]
+Keep: modules completed/remaining, current module, blocking issues, explicit user correction notes.
+Drop: completed per-module discussions and old dispatch details.
+
+[POST-O3: checkpoint id post-o3]
+Keep ONLY: modules generated summary, flagged issues, validation readiness, next-stage artifact paths.
+Drop: all per-module implementation conversation.
+
+[POST-O10: checkpoint id post-o10]
+Keep ONLY: completion status, release/final-report pointers, user iteration-vs-closure intent, re-entry readiness.
+Drop: pre-O10 operational narrative.
+
+[POST-REENTRY: checkpoint id post-reentry]
+Keep ONLY: from_state -> target_stage, archive path, scope impact, immediate next dispatch artifacts.
+Drop: superseded conversation from invalidated stages.
+
+[VALIDATION/DEBUG: O4-O6]
+Keep: latest findings, correction loop origin, affected modules, current re-validation position.
+Drop: stale findings from prior loops no longer active.
+
+[FINALIZATION: O7-O10]
+Keep: CI/release/closure status and pending gate.
+Drop: old stage chatter not needed for next transition.
+
+CRITICAL
+- Never summarize a summary repeatedly. Preserve structured fields and update only deltas.
+- Prefer artifact paths over artifact content.
+- Preserve the latest Pipeline Checkpoint block exactly when present.

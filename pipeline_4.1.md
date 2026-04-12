@@ -717,7 +717,7 @@ Every stage follows this 9-step pattern:
 5. **Stage completion commit**: the orchestrator commits the produced artifacts with message `[<stage-id>] [<agent-name>] <description>`
 6. **Manifest update**: the orchestrator updates HEAD (`manifest.json`): set `current_state`, `progress`, upsert `latest_stages[<stage-id>]`. Append to HISTORY (`manifest-history.json`): add entry to `stages_completed`. Both include: resulting state, timestamp, produced artifacts, commit hash, responsible agent, progress metrics (see R.9)
 7. **Executive summary**: the orchestrator writes in the chat a brief summary based on the agent's returned summary, indicating the location of the full report in the repository (e.g., "Full report: `docs/validator-report.md`"). The orchestrator does NOT read the full report into its context — the agent's returned summary is sufficient.
-   - **At compaction breakpoints** (post-C9 and post-O3 with >5 modules): before the executive summary, the orchestrator writes a **Pipeline Checkpoint** block per R.CONTEXT point 7. This structured block is designed to survive context compaction and serve as the reconstruction seed for the next phase.
+   - **At compaction breakpoints** (post-C9, post-O3 with >5 modules, post-O10, and post-reentry after R.5): before the executive summary, the orchestrator writes a **Pipeline Checkpoint** block per R.CONTEXT point 7. This structured block is designed to survive context compaction and serve as the reconstruction seed for the next phase.
 8. **User gate** (if required): awaits confirmation or feedback
 9. **Revision** (if needed): the cycle repeats from step 2 with the user's notes
 
@@ -777,8 +777,10 @@ When the user chooses to re-enter the pipeline at a previous point (from O10/COM
 1. **Archival**: artifacts produced by stages after the re-entry point are moved to `archive/<timestamp>/`, preserving the original structure
 2. **Manifest update**: `manifest.json` is updated to reflect the new state (the re-entry stage state), with reference to the archive for traceability
 3. **Commit**: the re-entry is committed with message `[RE-ENTRY] [Orchestrator] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
-4. **Resumption**: execution resumes from the indicated stage with artifacts from preceding stages intact
-5. **Delegation**: the orchestrator identifies the agent responsible for the target stage from the Agent-to-Stage mapping and delegates to that agent following R.1 (starting from step 2, dispatch commit). The orchestrator MUST NOT execute stages assigned to other agents.
+4. **Post-reentry checkpoint**: the orchestrator writes a `Pipeline Checkpoint [post-reentry]` containing: resulting state, `from_state -> target_stage`, archive path, scope impact, next stage/agent, required input artifacts, pending gate
+5. **Context compaction suggestion**: after writing the post-reentry checkpoint, the orchestrator suggests immediate context compaction. If the platform supports autonomous compaction, this point may trigger compaction automatically.
+6. **Resumption**: execution resumes from the indicated stage with artifacts from preceding stages intact
+7. **Delegation**: the orchestrator identifies the agent responsible for the target stage from the Agent-to-Stage mapping and delegates to that agent following R.1 (starting from step 2, dispatch commit). The orchestrator MUST NOT execute stages assigned to other agents.
 
 **Scope**: R.5 applies ONLY to user-initiated re-entry (from COMPLETED or from auxiliary flows B1/C-ADO1). Correction loops (O4→O3, O5→O3, O6→O3) are governed by R.7 and do NOT trigger archival.
 
@@ -839,13 +841,15 @@ At every stage transition, the orchestrator reconstructs context from disk — N
 4. **Conversation history** is for user interaction flow only — never for pipeline state. Routing decisions (which stage is next, what has been completed, which modules remain) MUST be derived from `manifest.json` on disk. **Conflict rule**: if the orchestrator's conversational memory of the pipeline state contradicts the manifest, the manifest ALWAYS wins.
 5. **History access**: read `pipeline-state/manifest-history.json` ONLY when executing B1 (Resume audit), R.5 (Re-entry archival), or when the user explicitly requests pipeline history.
 6. **Stale summary warning**: after O3 (or any stage producing many subagent exchanges), treat conversational summaries from earlier stages as potentially truncated or compressed by the harness. For any decision requiring cognitive-phase artifact content (e.g., requirements, architecture), re-read the source file from disk — never rely on an earlier summary.
-7. **Compaction breakpoints**: at two natural pipeline breakpoints — **(a)** after C9 (cognitive→operational transition) and **(b)** after O3 if more than 5 modules were generated — the orchestrator produces a **Pipeline Checkpoint** block and suggests context compaction. This is the primary mechanism for keeping the orchestrator's context lean across long pipeline runs.
+7. **Compaction breakpoints**: at four pipeline breakpoints — **(a)** after C9 (cognitive→operational transition), **(b)** after O3 if more than 5 modules were generated, **(c)** after O10 when state becomes `COMPLETED`, and **(d)** immediately after R.5 re-entry archival/commit — the orchestrator produces a **Pipeline Checkpoint** block and suggests context compaction. This is the primary mechanism for keeping the orchestrator's context lean across long pipeline runs and across pipeline restarts.
 
    The checkpoint is a structured block written directly in the conversation containing: current state, progress, automode/fast-track status, known issues, active user instructions, next stage with required input artifacts, and pending gate status. The checkpoint format is defined by each platform's agent configuration.
 
    **Breakpoint-specific behavior**:
    - **Post-C9** (`post-cognitive`): checkpoint captures handoff status, module count, and operational phase entry state. All cognitive reasoning, user gate conversations, and intermediate decisions are safe to discard — they are fully encoded in committed artifacts.
    - **Post-O3** (`post-o3`): checkpoint captures module completion status, any flagged issues, and validation readiness. All per-module subagent conversations and dispatch details are safe to discard — per-module reports and code are committed.
+   - **Post-O10** (`post-o10`): checkpoint captures final completion status, release context, and the current user iteration/closure decision state. All pre-O10 operational conversations are safe to discard — final artifacts and manifest are committed.
+   - **Post-reentry** (`post-reentry`): checkpoint captures re-entry target stage, archive path, scope impact, and immediate next dispatch. All superseded conversations from invalidated scope are safe to discard.
 
    After writing the checkpoint, the orchestrator suggests context compaction. If the platform supports automatic compaction, the checkpoint block must be preserved verbatim through any summarization process. The user decides whether to compact manually; automatic compaction serves as a safety net.
 
