@@ -123,7 +123,7 @@ mkdir -p ~/.config/opencode/skills/pipeline-orchestrator-advanced/
 cp .config/opencode/skills/pipeline-orchestrator-advanced/SKILL.md \
    ~/.config/opencode/skills/pipeline-orchestrator-advanced/
 
-# Optional plugin for autonomous compaction at pipeline checkpoints
+# Required plugin for autonomous compaction at pipeline checkpoints
 mkdir -p ~/.config/opencode/plugins/
 cp .config/opencode/plugins/pipeline-compaction-controller.js \
    ~/.config/opencode/plugins/
@@ -174,9 +174,9 @@ At each **user gate**, the pipeline pauses for your confirmation before proceedi
 - **Automode**: `automode on` / `automode off` — bypasses user gates with automatic "fix everything" policy
 - **Stop**: `stop` at any time to halt the pipeline
 
-### Autonomous Compaction (Optional)
+### Autonomous Compaction
 
-If `~/.config/opencode/plugins/pipeline-compaction-controller.js` is installed, OpenCode can trigger compaction automatically right after `Pipeline Checkpoint` emission at the defined breakpoints.
+OpenCode deployments are expected to include `~/.config/opencode/plugins/pipeline-compaction-controller.js` so compaction is triggered automatically right after `Pipeline Checkpoint` emission at the defined breakpoints.
 
 Environment knobs (optional):
 

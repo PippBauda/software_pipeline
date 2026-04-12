@@ -192,7 +192,7 @@ When O4, O5, or O6 find issues, the user can request full or selective correctio
 From a completed project, the user can re-enter at any stage. Cognitive re-entry (C2–C9) invalidates all operational artifacts. Operational re-entry (O1–O9) preserves cognitive artifacts. Artifacts from invalidated stages are archived, never deleted. For focused changes that don't require architectural modifications, Fast Track mode offers a shortened path (see below).
 
 ### Context Compaction
-The orchestrator emits structured **Pipeline Checkpoint** blocks at compaction breakpoints so context can be compressed without losing routing-critical state. The canonical breakpoints are: post-C9 (cognitive→operational handoff), post-O3 when many modules were generated, post-O10 (pipeline completion), and post-reentry immediately after archival. On platforms with autonomous compaction support, compaction can be triggered automatically after checkpoint emission; otherwise the user can compact manually.
+The orchestrator emits structured **Pipeline Checkpoint** blocks at compaction breakpoints so context can be compressed without losing routing-critical state. The canonical breakpoints are: post-C9 (cognitive→operational handoff), post-O3 when many modules were generated, post-O10 (pipeline completion), and post-reentry immediately after archival. In OpenCode, compaction is plugin-driven and expected to run automatically after checkpoint emission; manual compaction remains a fallback.
 
 ### Commit Conventions
 Every action produces a Git commit. The format is `[<stage-id>] <description>` for orchestrator actions, and `[<stage-id>] [<agent-name>] <description>` for stage completions, so the git log clearly shows who produced what.

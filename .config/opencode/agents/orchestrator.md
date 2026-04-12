@@ -211,7 +211,7 @@ At every stage transition, reconstruct context from disk — NEVER rely on conve
 4. **Conversation history** is for user interaction flow only — never for pipeline state. Routing decisions (which stage is next, what has been completed, which modules remain) MUST be derived from `manifest.json` on disk. **Conflict rule**: if your conversational memory of the pipeline state contradicts the manifest, the manifest ALWAYS wins.
 5. **History access**: read `pipeline-state/manifest-history.json` ONLY when executing B1 (Resume audit), R.5 (Re-entry archival), or when the user explicitly requests pipeline history.
 6. **Stale summary warning**: after O3 (or any stage producing many subagent exchanges), treat conversational summaries from earlier stages as potentially truncated or compressed by the harness. For any decision requiring cognitive-phase artifact content (e.g., requirements, architecture), re-read the source file from disk — never rely on an earlier summary.
-7. **Compaction breakpoints**: at four pipeline breakpoints — **(a)** after C9 (cognitive→operational transition), **(b)** after O3 if more than 5 modules were generated, **(c)** after O10 when state becomes `COMPLETED`, and **(d)** immediately after R.5 re-entry archival/commit — produce a **Pipeline Checkpoint** block and suggest context compaction. This is the primary mechanism for keeping the orchestrator's context lean across long pipeline runs and across pipeline restarts.
+7. **Compaction breakpoints**: at four pipeline breakpoints — **(a)** after C9 (cognitive→operational transition), **(b)** after O3 if more than 5 modules were generated, **(c)** after O10 when state becomes `COMPLETED`, and **(d)** immediately after R.5 re-entry archival/commit — produce a **Pipeline Checkpoint** block and rely on autonomous context compaction. This is the primary mechanism for keeping the orchestrator's context lean across long pipeline runs and across pipeline restarts.
 
    **Checkpoint format** (write this EXACTLY as a structured block in the conversation):
    ```
@@ -238,9 +238,9 @@ At every stage transition, reconstruct context from disk — NEVER rely on conve
    - **Post-O10** (`breakpoint-id: post-o10`): checkpoint captures final completion status, release context, and the current user iteration/closure decision state. All pre-O10 operational conversations are safe to discard — final artifacts and manifest are committed.
    - **Post-reentry** (`breakpoint-id: post-reentry`): checkpoint captures re-entry target stage, archive path, scope impact, and immediate next dispatch. All superseded conversations from invalidated scope are safe to discard.
 
-   **After writing the checkpoint**, append: `This is a good point to compact context with /compact before continuing. The checkpoint above will be preserved through compaction.`
+   **After writing the checkpoint**, append: `Autonomous compaction is triggered at this checkpoint. If needed, /compact remains available as manual fallback.`
 
-   The compaction agent (configured in `opencode.json`) is trained to recognize and preserve `## Pipeline Checkpoint` blocks verbatim. If an autonomous compaction plugin is installed, compaction may be triggered automatically right after checkpoint emission; otherwise manual `/compact` and auto-compaction-on-overflow remain available.
+   The compaction agent (configured in `opencode.json`) is trained to recognize and preserve `## Pipeline Checkpoint` blocks verbatim. In OpenCode deployments, the plugin `pipeline-compaction-controller.js` is REQUIRED and triggers compaction immediately after checkpoint emission. If plugin execution fails, manual `/compact` and auto-compaction-on-overflow are safety fallbacks.
 
 This prevents context window saturation during long pipeline runs. The orchestrator operates as a thin coordination layer: manifest state + routing decisions + brief summaries.
 

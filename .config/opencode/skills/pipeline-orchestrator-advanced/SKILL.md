@@ -17,7 +17,7 @@ When the user chooses to re-enter the pipeline at a previous point (from O10/COM
 2. **Manifest update**: `manifest.json` is updated to reflect the new state (the re-entry stage state), with reference to the archive for traceability
 3. **Commit**: `[RE-ENTRY] [Orchestrator] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
 4. **Post-reentry checkpoint**: write `## Pipeline Checkpoint [post-reentry]` in the conversation with: resulting state, `from_state -> target_stage`, archive path, scope impact, next stage/agent, required input artifacts, pending gate
-5. **Context compaction**: suggest immediate compaction after the checkpoint. If autonomous compaction support is available on the platform, allow automatic compaction at this point.
+5. **Context compaction**: trigger autonomous compaction immediately after the checkpoint (OpenCode plugin `pipeline-compaction-controller.js` is required).
 6. **Resumption**: execution resumes from the indicated stage with artifacts from preceding stages intact
 7. **Delegation**: identify the agent responsible for the target stage from the Agent-to-Stage Mapping and delegate following R.1 (starting from step 2, dispatch commit). You MUST NOT execute stages assigned to other agents.
 
