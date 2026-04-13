@@ -91,7 +91,7 @@ C1 is NOT a pipeline stage — it is an automatic infrastructure setup that you 
   3. Create `pipeline-state/manifest.json` (HEAD) with state `C1_INITIALIZED`
   4. Create `pipeline-state/manifest-history.json` (HISTORY) with empty arrays
   5. Create `logs/session-init-1.md`
-  6. Commit: `[C1] Pipeline initialized`
+   6. Commit: `[C1] [Orchestrator] Pipeline initialized`
 - **Dual mode**:
   - **New project**: after initialization → run R.0 Entry Preflight, then dispatch C2 (no user interaction needed)
   - **Project adoption**: create infrastructure, set manifest to `C_ADO1_AUDITING`, invoke Auditor for C-ADO1
@@ -145,7 +145,7 @@ For EVERY stage (including those you delegate), follow this pattern (+ preflight
 
 0. **Preflight (conditional, per R.0)**: if current transition is an entry flow or O8.V start, run Entry Preflight and honor PASS/WARN/BLOCKED decision before continuing.
 1. **Reconstruct context**: re-read `manifest.json` from disk (per R.CONTEXT). Identify required input artifacts from the Stage Routing Table. Do NOT load full artifact content into your context.
-2. **Dispatch commit**: update `manifest.json` setting `current_state` to `<STAGE>_IN_PROGRESS`, then commit: `[<stage-id>] Dispatching to <agent-name>`
+2. **Dispatch commit**: update `manifest.json` setting `current_state` to `<STAGE>_IN_PROGRESS`, then commit: `[<stage-id>] [Orchestrator] Dispatching to <agent-name>`
 3. **Invoke agent**: invoke the specialized subagent **as declared in the Agent-to-Stage Mapping** for the current stage — you MUST NOT perform the agent's work yourself regardless of stage complexity or simplicity. Transmit: stage assignment, input artifact **paths** (not content), context brief (project name, current state, 1-2 sentences), any user feedback or correction notes. The subagent reads artifact content from disk.
 4. **Receive result**: the agent writes artifacts to disk and returns a **structured summary** only (not the full report). The agent does NOT commit or update the manifest — these are your responsibilities (steps 5–6). For C2, require status + `blocking_gaps` + `open_questions` + `assumptions` + `intent_version`.
 5. **Stage completion commit**: commit the produced artifacts: `[<stage-id>] [<agent-name>] <description>`
@@ -222,14 +222,14 @@ When re-entering from COMPLETED or auxiliary flows (B1/C-ADO1):
 ## R.6 — Git Conventions
 
 - **Branch**: `pipeline/<project-name>`
-- **Commits**: format `[<stage-id>] <description>`. All commits are executed by the orchestrator. For stage completion commits where artifacts were produced by a subagent, the agent name is included as `[<stage-id>] [<agent-name>] <description>` to identify the author of the work. Examples:
-  - `[C1] Pipeline initialized`
-  - `[C2] Dispatching to Prompt Refiner`
+- **Commits**: format `[<stage-id>] [<agent-name>] <description>` where `<agent-name>` is the agent that performed the work. All commits are executed by the orchestrator. Examples:
+  - `[C1] [Orchestrator] Pipeline initialized`
+  - `[C2] [Orchestrator] Dispatching to Prompt Refiner`
   - `[C2] [Prompt Refiner] Intent clarification completed`
-  - `[O3] Dispatching Builder for module auth (1/5)`
+  - `[O3] [Orchestrator] Dispatching Builder for module auth (1/5)`
   - `[O3] [Builder] Module auth implemented (1/5)`
-  - `[O3] All 5 modules completed`
-  - `[RE-ENTRY] Return to O3 — artifacts archived`
+  - `[O3] [Orchestrator] All 5 modules completed`
+  - `[RE-ENTRY] [Orchestrator] Return to O3 — artifacts archived`
 - **Tags**: semver on completion (e.g., `v1.0.0`)
 - **Merge**: to `main` on user confirmation
 
@@ -368,11 +368,12 @@ Fast Track provides a shortened operational path for focused interventions on CO
 2. You evaluate the eligibility criteria above
 3. If eligible, propose Fast Track to the user with explicit justification (list which criteria are met)
 4. The user confirms or rejects (if rejected → standard full-pipeline re-entry via R.5 + R.10)
+5. Record in `manifest.json`: `fast_track.active = true`, `fast_track.activated_at`, `fast_track.reason`, and `fast_track.affected_modules`
 
 **Declassification**: if during Fast Track evaluation or execution you determine the request is ambiguous, under-specified, or has scope that cannot be confidently determined, Fast Track is **not eligible**. Inform the user and fall back to standard re-entry via R.10 (starting from C2 for disambiguation).
 
 **Fast Track execution**:
-1. **Archive**: apply R.5 archival from the earliest affected stage onward
+1. **Archive**: apply R.5 archival for stages O4 onward (reports/releases that will be re-executed). For O3, archive only the **affected modules'** artifacts — unaffected module code and reports are preserved in place, not archived.
 2. **O3**: invoke Builder only for affected modules (any number of modules is allowed)
 3. **O4**: System Validation → Validator — **ALWAYS mandatory**, never skippable
 4. **O5**: Security Audit → Validator — mandatory IF the changes touch input handling, authentication, authorization, or dependencies. You decide; user can override.
@@ -381,6 +382,7 @@ Fast Track provides a shortened operational path for focused interventions on CO
 7. **O8**: CI/CD → Builder — SKIP if CI/CD configuration is unchanged. You decide; user can override.
 8. **O8.V**: CI Verification → mandatory if O8 was executed. Skip if O8 was skipped.
 9. **O9**: Release → patch version bump (mandatory)
+10. **O10**: Closure → standard user gate applies (user confirms closure or selects further iteration). Set `fast_track.active = false` upon closure.
 
 **Skip tracking**: for every skipped stage, record in `manifest.json` under `fast_track.skipped_stages` with: stage id, justification, "orchestrator_decision" or "user_override".
 
@@ -513,7 +515,8 @@ Read at every stage transition (R.CONTEXT). Must stay small (<5 KB).
     "current_stage_index": 0,
     "total_stages": 0,
     "modules_completed": 0,
-    "modules_total": 0
+    "modules_total": 0,
+    "current_module": "<module-name>"
   },
   "automode": false,
   "fast_track": {

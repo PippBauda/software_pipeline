@@ -980,11 +980,12 @@ Fast Track provides a shortened operational path for focused interventions on CO
 2. The orchestrator evaluates the eligibility criteria above
 3. If eligible, the orchestrator proposes Fast Track to the user with explicit justification (listing which criteria are met and why)
 4. The user confirms Fast Track (if rejected → standard full-pipeline re-entry via R.5 + R.10)
+5. The orchestrator records in `manifest.json`: `fast_track.active = true`, `fast_track.activated_at`, `fast_track.reason`, and `fast_track.affected_modules`
 
 **Declassification**: if during Fast Track evaluation or execution the orchestrator determines the request is ambiguous, under-specified, or has scope that cannot be confidently determined, Fast Track is **not eligible**. The orchestrator informs the user and falls back to standard re-entry via R.10 (starting from C2 for disambiguation).
 
 **Fast Track execution**:
-1. **Archive**: apply R.5 archival from the earliest affected stage onward
+1. **Archive**: apply R.5 archival for stages O4 onward (reports/releases that will be re-executed). For O3, archive only the **affected modules'** artifacts — unaffected module code and reports are preserved in place, not archived.
 2. **O3**: invoke Builder only for affected modules (any number of modules is allowed — scope is determined by the intervention, not an arbitrary limit)
 3. **O4**: System Validation → Validator — **ALWAYS mandatory**, never skippable
 4. **O5**: Security Audit → Validator — mandatory IF the changes touch input handling, authentication, authorization, or dependencies. The orchestrator decides; user can override.
@@ -993,6 +994,7 @@ Fast Track provides a shortened operational path for focused interventions on CO
 7. **O8**: CI/CD → Builder — SKIP if CI/CD configuration is unchanged. The orchestrator decides; user can override.
 8. **O8.V**: CI Verification → Orchestrator — mandatory if O8 was executed. Skip if O8 was skipped.
 9. **O9**: Release → Orchestrator — patch version bump (mandatory)
+10. **O10**: Closure → Orchestrator — standard user gate applies (user confirms closure or selects further iteration). Set `fast_track.active = false` upon closure.
 
 **Skip tracking**: for every skipped stage, the orchestrator records in `manifest.json` under `fast_track.skipped_stages`: stage id, justification, and whether it was the orchestrator's decision or user override.
 

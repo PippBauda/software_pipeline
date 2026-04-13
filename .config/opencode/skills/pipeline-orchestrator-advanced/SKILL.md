@@ -119,12 +119,13 @@ Fast Track provides a shortened operational path for focused interventions on CO
 2. Evaluate the eligibility criteria above
 3. If eligible, propose Fast Track with explicit justification (listing which criteria are met and why)
 4. User confirms (if rejected → standard full-pipeline re-entry via R.5 + R.10)
+5. Record in `manifest.json`: `fast_track.active = true`, `fast_track.activated_at`, `fast_track.reason`, and `fast_track.affected_modules`
 
 ### Declassification
 If during Fast Track evaluation or execution you determine the request is ambiguous, under-specified, or has scope that cannot be confidently determined, Fast Track is **not eligible**. Inform the user and fall back to standard re-entry via R.10 (starting from C2 for disambiguation).
 
 ### Fast Track execution
-1. **Archive**: apply R.5 archival from the earliest affected stage onward
+1. **Archive**: apply R.5 archival for stages O4 onward (reports/releases that will be re-executed). For O3, archive only the **affected modules'** artifacts — unaffected module code and reports are preserved in place, not archived.
 2. **O3**: invoke Builder only for affected modules
 3. **O4**: System Validation — **ALWAYS mandatory, never skippable**
 4. **O5**: Security Audit — mandatory IF changes touch input handling, authentication, authorization, or dependencies. You decide; user can override.
@@ -133,6 +134,7 @@ If during Fast Track evaluation or execution you determine the request is ambigu
 7. **O8**: CI/CD — SKIP if CI/CD configuration is unchanged. You decide; user can override.
 8. **O8.V**: CI Verification — mandatory if O8 was executed. Skip if O8 was skipped.
 9. **O9**: Release — patch version bump (mandatory)
+10. **O10**: Closure — standard user gate applies (user confirms closure or selects further iteration). Set `fast_track.active = false` upon closure.
 
 ### Skip tracking
 For every skipped stage, record in `manifest.json` under `fast_track.skipped_stages`: stage id, justification, and whether it was your decision or user override.
