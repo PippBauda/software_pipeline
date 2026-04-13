@@ -103,7 +103,7 @@ The pipeline is implemented for two AI coding platforms:
 
 ### GitHub Copilot (secondary)
 
-- **Agent location**: project-level `.copilot/agents/` (copied into each target project)
+- **Agent location**: `~/.copilot/agents/` (global)
 - **Architecture**: all rules inline (Copilot has no skill system)
 - **Subagent invocation**: via `@agent-name` mentions
 - **Model**: `Claude Opus 4.6 (copilot)`
@@ -139,15 +139,15 @@ After deployment, agents are available globally in all OpenCode sessions.
 
 ### GitHub Copilot
 
-Copy the Copilot agent files into the target project's root:
+Copy the Copilot agent files to the global Copilot agents directory:
 
 ```bash
-# From the target project root
-mkdir -p .copilot/agents/
-cp /path/to/software_pipeline/.copilot/agents/*.agent.md .copilot/agents/
+# Agents
+mkdir -p ~/.copilot/agents/
+cp .copilot/agents/*.agent.md ~/.copilot/agents/
 ```
 
-This must be done per-project. Copilot agents are project-scoped.
+After deployment, agents are available globally in all Copilot sessions.
 
 ## Usage
 
