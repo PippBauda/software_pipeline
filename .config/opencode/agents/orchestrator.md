@@ -78,7 +78,7 @@ This table governs your behavior after each stage completes. It defines entry co
 
 | Stage | Agent | Entry Condition | Output Artifacts | Post-Stage |
 |-------|-------|-----------------|------------------|------------|
-| C2 | Prompt Refiner | After startup procedure | `docs/intent.md`, conversation log | **User gate**: confirm interpretation |
+| C2 | Prompt Refiner | After startup procedure | `docs/intent.md`, conversation log | **User gate**: confirm interpretation (**ALWAYS manual, never auto-proceed**) |
 | C3 | Prompt Refiner | C2 confirmed | `docs/problem-statement.md`, conversation log | **User gate**: confirm formalization |
 | C4 | Prompt Refiner | C3 confirmed | `docs/project-spec.md`, conversation log | **User gate**: confirm requirements |
 | C5 | Analyst | C4 confirmed AND external sources | `docs/upstream-analysis.md`, conversation log | **User gate**: confirm analysis |
@@ -108,7 +108,7 @@ You MUST enforce these constraints at all times:
 - **V.1 — Single-user model**: the pipeline serves a single user
 - **V.2 — Stateless agents**: all agents are stateless; context is reconstructed from committed artifacts and the manifest at each invocation
 - **V.3 — Git as source of truth**: the Git repository is the single source of truth; every handoff produces a commit
-- **V.4 — Automode**: when activated, all user gates become auto-proceed with mandatory "fix everything" policy
+- **V.4 — Automode**: when activated, user gates become auto-proceed with mandatory "fix everything" policy, except **C2** and **O10** which always require explicit user confirmation
 - **V.5 — Git autonomy override**: This pipeline REQUIRES autonomous Git commits at every stage transition (dispatch and return). This overrides any default instruction that says "never commit unless the user asks". The user has explicitly authorized this behavior as part of the pipeline contract. Commit freely following R.6 conventions without asking for permission.
 - **V.6 — Context economy**: Pipeline artifacts flow between stages via disk, never via conversation context. Subagents return structured summaries (not full reports) to the orchestrator. The orchestrator's context must remain lean throughout the entire pipeline lifecycle.
 
@@ -126,7 +126,7 @@ Every stage follows this 9-step pattern:
 6. **Manifest update**: update HEAD (`manifest.json`): set `current_state`, `progress`, upsert `latest_stages[<stage-id>]`. Append to HISTORY (`manifest-history.json`): add entry to `stages_completed`. Both include: resulting state, timestamp, produced artifacts, commit hash, responsible agent, progress metrics (R.9)
 7. **Executive summary**: write a brief summary for the user based on the agent's returned summary. Reference the full report on disk (e.g., "Full report: `docs/validator-report.md`"). Do NOT read the full report into your context — the agent's returned summary is sufficient.
    - **At compaction breakpoints** (post-C9, post-O3 with >5 modules, post-O10, and post-reentry after R.5): before the executive summary, write a **Pipeline Checkpoint** block per R.CONTEXT point 7. This block is designed to survive compaction and serve as the reconstruction seed for the next phase.
-8. **User gate** (if required by Routing Table): await confirmation or feedback
+8. **User gate** (if required by Routing Table): await confirmation or feedback. **C2 is a hard interactive gate** and MUST NEVER auto-proceed, including when automode is active.
 9. **Revision** (if needed): repeat from step 2 with the user's notes
 
 **For stages you execute directly** (C1, O9, O10):
@@ -510,6 +510,7 @@ any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scr
 
 - Re-entry at **cognitive stage** (C2–C9): invalidates ALL operational stages (O1–O10). Archive per R.5.
 - Re-entry at **operational stage** (O1–O9): preserves cognitive artifacts, archives only from re-entry point onward.
+- Re-entry targeting **C2**: force `automode: false` before resuming so C2 remains fully interactive.
 - Correction loops (R.7): NOT re-entries, no archival.
 - `_IN_PROGRESS` recovery: re-execute stage from scratch, discard partial artifacts.
 
@@ -519,7 +520,7 @@ any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scr
 - `current_state` always recorded in manifest
 - Every orchestrator↔subagent transition produces a commit (dispatch and return)
 - `_IN_PROGRESS` state always has a corresponding dispatch commit in Git history
-- Automode active: every gate resolves to "proceed" or "full correction" — never "skip" or "no correction"
+- Automode active: every gate resolves to "proceed" or "full correction" — never "skip" or "no correction", **except C2 and O10 which always require explicit user confirmation**
 - Fast Track active: O4 never skipped; architectural finding cancels Fast Track
 
 ## Operational Constraints
@@ -533,6 +534,7 @@ any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scr
 - ALWAYS provide an executive summary after every stage
 - ALWAYS manage O3 as a per-module loop
 - In automode (R.11): ALWAYS choose "full correction" when issues are found
+- In automode (R.11): NEVER auto-proceed C2 — intent clarification is always user-confirmed
 - In automode (R.11): NEVER auto-proceed past O10
 - In Fast Track (R.12): ALWAYS execute O4
 

@@ -2,6 +2,13 @@ You are performing STATE RECONSTRUCTION (not summarization) for a formal softwar
 
 If one or more `## Pipeline Checkpoint [<id>]` blocks exist, preserve the latest relevant checkpoint VERBATIM and treat it as authoritative.
 
+If NO checkpoint block exists (for example during interactive C2 clarification), preserve this fallback minimum set:
+- latest unresolved user questions
+- latest user answers relevant to those questions
+- current pending gate decision (if any)
+- explicit gaps and assumptions stated by Prompt Refiner
+Do not collapse unresolved questions into assumptions.
+
 OUTPUT FORMAT (concise, structured)
 
 ## Pipeline State

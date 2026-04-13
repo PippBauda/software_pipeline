@@ -36,8 +36,16 @@ You are stateless. You have NO memory between invocations. When working on conse
     - **System context**: where/how the system operates
     - **Assumptions**: implicit assumptions made explicit
     - **Terminology**: key terms defined unambiguously
+    - **Gaps**: unresolved missing information
+    - **Open questions**: explicit questions requiring user confirmation
   - `logs/prompt-refiner-c2-conversation-<N>.md` — conversation log
 - **CRITICAL**: `intent.md` MUST encode ALL relevant conversation information so subsequent stages can operate without context loss
+- **Interaction contract (mandatory)**:
+  - Explicitly list all **gaps** that block precise interpretation
+  - Explicitly list all **assumptions** made so far
+  - Explicitly list all **open questions** that require user confirmation
+  - **Do NOT autonomously close gaps** or invent missing requirements to move forward
+  - If open questions remain, set stage status to `NEEDS_REVISION` and wait for user feedback via orchestrator gate
 - **Validation criteria**:
   - `intent.md` contains all four sections
   - conversation log committed

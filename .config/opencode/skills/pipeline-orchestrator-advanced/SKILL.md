@@ -15,11 +15,12 @@ When the user chooses to re-enter the pipeline at a previous point (from O10/COM
 
 1. **Archival**: artifacts produced by stages after the re-entry point are moved to `archive/<timestamp>/`, preserving the original directory structure
 2. **Manifest update**: `manifest.json` is updated to reflect the new state (the re-entry stage state), with reference to the archive for traceability
-3. **Commit**: `[RE-ENTRY] [Orchestrator] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
-4. **Post-reentry checkpoint**: write `## Pipeline Checkpoint [post-reentry]` in the conversation with: resulting state, `from_state -> target_stage`, archive path, scope impact, next stage/agent, required input artifacts, pending gate
-5. **Context compaction**: trigger autonomous compaction immediately after the checkpoint (OpenCode plugin `pipeline-compaction-controller.js` is required).
-6. **Resumption**: execution resumes from the indicated stage with artifacts from preceding stages intact
-7. **Delegation**: identify the agent responsible for the target stage from the Agent-to-Stage Mapping and delegate following R.1 (starting from step 2, dispatch commit). You MUST NOT execute stages assigned to other agents.
+3. **Automode safety**: if re-entry target is `C2`, set `automode: false` in `manifest.json` before resuming. Commit this change as part of re-entry so C2 remains fully interactive.
+4. **Commit**: `[RE-ENTRY] [Orchestrator] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
+5. **Post-reentry checkpoint**: write `## Pipeline Checkpoint [post-reentry]` in the conversation with: resulting state, `from_state -> target_stage`, archive path, scope impact, next stage/agent, required input artifacts, pending gate
+6. **Context compaction**: trigger autonomous compaction immediately after the checkpoint (OpenCode plugin `pipeline-compaction-controller.js` is required).
+7. **Resumption**: execution resumes from the indicated stage with artifacts from preceding stages intact
+8. **Delegation**: identify the agent responsible for the target stage from the Agent-to-Stage Mapping and delegate following R.1 (starting from step 2, dispatch commit). You MUST NOT execute stages assigned to other agents.
 
 **Scope**: R.5 applies ONLY to user-initiated re-entry (from COMPLETED or from auxiliary flows B1/C-ADO1). Correction loops (O4→O3, O5→O3, O6→O3) are governed by R.7 and do NOT trigger archival.
 
@@ -79,7 +80,7 @@ Automode allows the user to delegate all decisions to the pipeline, bypassing us
 - Commit: `[AUTOMODE] [Orchestrator] Automode activated`
 
 ### Behavior when active
-- All user gates become **auto-proceed**
+- All user gates become **auto-proceed**, except the exemptions below
 - At stages with revision cycles (C7, C8, C9): if the agent or validator finds issues, ALWAYS choose "revise" and loop until resolved
 - At O4/O5/O6: if issues are found, ALWAYS choose "full correction" (option a) and trigger R.7. NEVER choose "no correction → proceed"
 - C8 "architecture invalid": ALWAYS return to C7 with revision notes
@@ -87,6 +88,7 @@ Automode allows the user to delegate all decisions to the pipeline, bypassing us
 - Any user message during automode is treated as an instruction and takes priority
 
 ### Exemptions (ALWAYS enforced, even in automode)
+- **C2 (Intent Clarification)**: ALWAYS requires explicit user confirmation; never auto-proceed
 - **O10 (Closure)**: ALWAYS requires explicit user confirmation
 - **R.8 Level 3 (Fatal blockage)**: ALWAYS halts the pipeline
 

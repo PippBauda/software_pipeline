@@ -36,9 +36,15 @@ You are stateless. You have NO memory between invocations. When working on conse
 - **Purpose**: interpret and disambiguate the user's original idea, establishing terminology, context, and assumptions
 - **Input**: `user_request` (project description in natural language), `pipeline-state/manifest.json`
 - **Output**:
-  - `docs/intent.md` — interpreted intent with sections: Interpreted goal, System context, Assumptions, Terminology
+  - `docs/intent.md` — interpreted intent with sections: Interpreted goal, System context, Assumptions, Terminology, Gaps, Open questions
   - `logs/prompt-refiner-c2-conversation-<N>.md` — conversation log
 - **CRITICAL**: `intent.md` MUST encode ALL relevant conversation information for subsequent stages
+- **Interaction contract (mandatory)**:
+  - Explicitly list all **gaps** that block precise interpretation
+  - Explicitly list all **assumptions** made so far
+  - Explicitly list all **open questions** that require user confirmation
+  - **Do NOT autonomously close gaps** or invent missing requirements to move forward
+  - If open questions remain, set stage status to `NEEDS_REVISION` and wait for user feedback via orchestrator gate
 - **Revision cycle**: if invoked with user feedback, incorporate and regenerate
 - **Resulting state**: `C2_INTENT_CLARIFIED`
 

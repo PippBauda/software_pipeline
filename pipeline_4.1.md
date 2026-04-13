@@ -7,7 +7,7 @@
 - **V.1 — Single-user model**: the pipeline is designed for a single user interacting with the orchestrator. No role management, permissions, or multi-user interactions are supported.
 - **V.2 — Stateless agents**: all agents (including the orchestrator) are stateless. Context is reconstructed at each invocation from committed artifacts and the pipeline manifest. No implicit memory exists between invocations. When the same agent is invoked across consecutive stages (e.g., Prompt Refiner in C2→C3→C4), all relevant information from prior invocations MUST be fully encoded in the output artifacts — the agent cannot rely on conversational memory from previous stages. For stages with internal iteration (O3), the orchestrator applies V.2 by invoking the subagent once per iteration unit (module), ensuring each invocation has full context independent of previous iterations.
 - **V.3 — Git as source of truth**: the Git repository is the single source of truth. The pipeline state is always determinable from the manifest and committed artifacts. Every handoff between orchestrator and subagent produces a commit, ensuring that interruptions at any point are traceable.
-- **V.4 — Automode**: when activated by the user, all user gates become auto-proceed. The orchestrator makes decisions autonomously with the mandatory constraint of resolving ALL issues found at every stage (always "full correction"). Automode can be activated at any point after C4 and deactivated at any time. Only two things can halt the pipeline in automode: O10 (Closure) requires explicit user confirmation, and R.8 Level 3 (fatal blockage) forces a hard stop. See R.11.
+- **V.4 — Automode**: when activated by the user, user gates become auto-proceed except **C2** and **O10**, which always require explicit user confirmation. The orchestrator makes decisions autonomously with the mandatory constraint of resolving ALL issues found at every stage (always "full correction"). Automode can be activated at any point after C4 and deactivated at any time. Only two things can halt the pipeline in automode: O10 (Closure) requires explicit user confirmation, and R.8 Level 3 (fatal blockage) forces a hard stop. See R.11.
 - **V.6 — Context economy**: Pipeline artifacts flow between stages via disk, never via conversation context. Subagents return structured summaries (not full reports) to the orchestrator. The orchestrator's context must remain lean throughout the entire pipeline lifecycle. Full reports and large artifacts are always written to disk; only paths and brief summaries travel through the orchestrator.
 
 ---
@@ -71,14 +71,16 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
   - `user_request` — project description in natural language
   - `pipeline-state/manifest.json` — current pipeline state
 - **Output**:
-  - `docs/intent.md` — interpreted intent: goal, system context, assumptions, clarified terminology. This artifact MUST encode all relevant conversation information so that subsequent stages can operate without context loss (see V.2).
+  - `docs/intent.md` — interpreted intent: goal, system context, assumptions, clarified terminology, explicit gaps, and open questions. This artifact MUST encode all relevant conversation information so that subsequent stages can operate without context loss (see V.2).
   - `logs/prompt-refiner-c2-conversation-1.md` — conversation log
 - **Transformation**: an informally expressed idea is analyzed to identify the actual goal, usage context, and implicit assumptions, producing a structured intent document.
 - **Validation criteria**:
   - `intent.md` contains sections for: interpreted goal, system context, assumptions, terminology
+  - unresolved **gaps**, explicit **assumptions**, and **open questions** are captured when present
+  - no unresolved gap is silently converted into a requirement without user confirmation
   - the user has confirmed that the interpretation is correct (user gate passed)
   - the conversation log has been committed
-- **User gate**: confirmation of the interpreted intent
+- **User gate**: confirmation of the interpreted intent (**ALWAYS manual, never auto-proceed**)
 - **Revision cycle**: if the user is unsatisfied, feedback is passed to the Prompt Refiner and the stage repeats
 - **Resulting state**: `C2_INTENT_CLARIFIED`
 
@@ -718,7 +720,7 @@ Every stage follows this 9-step pattern:
 6. **Manifest update**: the orchestrator updates HEAD (`manifest.json`): set `current_state`, `progress`, upsert `latest_stages[<stage-id>]`. Append to HISTORY (`manifest-history.json`): add entry to `stages_completed`. Both include: resulting state, timestamp, produced artifacts, commit hash, responsible agent, progress metrics (see R.9)
 7. **Executive summary**: the orchestrator writes in the chat a brief summary based on the agent's returned summary, indicating the location of the full report in the repository (e.g., "Full report: `docs/validator-report.md`"). The orchestrator does NOT read the full report into its context — the agent's returned summary is sufficient.
    - **At compaction breakpoints** (post-C9, post-O3 with >5 modules, post-O10, and post-reentry after R.5): before the executive summary, the orchestrator writes a **Pipeline Checkpoint** block per R.CONTEXT point 7. This structured block is designed to survive context compaction and serve as the reconstruction seed for the next phase.
-8. **User gate** (if required): awaits confirmation or feedback
+8. **User gate** (if required): awaits confirmation or feedback. **C2 is a hard interactive gate and MUST NEVER auto-proceed, including when automode is active.**
 9. **Revision** (if needed): the cycle repeats from step 2 with the user's notes
 
 **For stages the orchestrator executes directly** (C1, O9, O10):
@@ -776,11 +778,12 @@ When the user chooses to re-enter the pipeline at a previous point (from O10/COM
 
 1. **Archival**: artifacts produced by stages after the re-entry point are moved to `archive/<timestamp>/`, preserving the original structure
 2. **Manifest update**: `manifest.json` is updated to reflect the new state (the re-entry stage state), with reference to the archive for traceability
-3. **Commit**: the re-entry is committed with message `[RE-ENTRY] [Orchestrator] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
-4. **Post-reentry checkpoint**: the orchestrator writes a `Pipeline Checkpoint [post-reentry]` containing: resulting state, `from_state -> target_stage`, archive path, scope impact, next stage/agent, required input artifacts, pending gate
-5. **Context compaction**: after writing the post-reentry checkpoint, the orchestrator triggers autonomous context compaction (on OpenCode via plugin). Manual compaction remains a fallback.
-6. **Resumption**: execution resumes from the indicated stage with artifacts from preceding stages intact
-7. **Delegation**: the orchestrator identifies the agent responsible for the target stage from the Agent-to-Stage mapping and delegates to that agent following R.1 (starting from step 2, dispatch commit). The orchestrator MUST NOT execute stages assigned to other agents.
+3. **Automode safety**: if re-entry target is `C2`, the orchestrator sets `automode: false` in `manifest.json` before resuming so C2 remains fully interactive.
+4. **Commit**: the re-entry is committed with message `[RE-ENTRY] [Orchestrator] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
+5. **Post-reentry checkpoint**: the orchestrator writes a `Pipeline Checkpoint [post-reentry]` containing: resulting state, `from_state -> target_stage`, archive path, scope impact, next stage/agent, required input artifacts, pending gate
+6. **Context compaction**: after writing the post-reentry checkpoint, the orchestrator triggers autonomous context compaction (on OpenCode via plugin). Manual compaction remains a fallback.
+7. **Resumption**: execution resumes from the indicated stage with artifacts from preceding stages intact
+8. **Delegation**: the orchestrator identifies the agent responsible for the target stage from the Agent-to-Stage mapping and delegates to that agent following R.1 (starting from step 2, dispatch commit). The orchestrator MUST NOT execute stages assigned to other agents.
 
 **Scope**: R.5 applies ONLY to user-initiated re-entry (from COMPLETED or from auxiliary flows B1/C-ADO1). Correction loops (O4→O3, O5→O3, O6→O3) are governed by R.7 and do NOT trigger archival.
 
@@ -888,7 +891,7 @@ Automode allows the user to delegate all decisions to the pipeline, bypassing us
 - Commit: `[AUTOMODE] [Orchestrator] Automode activated`
 
 **Behavior when active**:
-- All user gates become **auto-proceed**
+- All user gates become **auto-proceed**, except exemptions below
 - At stages with revision cycles (C7, C8, C9): if the agent or validator finds issues, the orchestrator ALWAYS chooses "revise" and loops until resolved
 - At O4/O5/O6: if issues are found, the orchestrator ALWAYS chooses "full correction" (option a) and triggers R.7. The orchestrator NEVER chooses "no correction → proceed"
 - C8 "architecture invalid": the orchestrator ALWAYS returns to C7 with revision notes
@@ -896,6 +899,7 @@ Automode allows the user to delegate all decisions to the pipeline, bypassing us
 - The user can intervene at any time: any user message during automode is treated as an instruction and takes priority over automode behavior
 
 **Exemptions**:
+- **C2 (Intent Clarification)**: always requires explicit user confirmation — automode does NOT auto-proceed at C2.
 - **O10 (Closure)**: always requires explicit user confirmation — automode does NOT auto-proceed past O10. The user must confirm closure or select iteration.
 - **R.8 Level 3 (Fatal blockage)**: always halts the pipeline, even in automode. This is the only hard stop that cannot be bypassed.
 
@@ -1181,6 +1185,7 @@ any *_IN_PROGRESS state  → same stage _IN_PROGRESS         [re-execute from sc
 **Re-entry validation**: when the user requests re-entry from COMPLETED, the orchestrator validates the re-entry point:
 - Re-entry at a **cognitive stage** (C2–C9) automatically invalidates all operational stages (O1–O10). All operational artifacts are archived per R.5.
 - Re-entry at an **operational stage** (O1–O9) preserves cognitive artifacts and archives only operational artifacts from the re-entry point onward.
+- Re-entry targeting **C2** forces `automode: false` before resumption, preserving mandatory interactive clarification.
 - The orchestrator reports the impact to the user before executing the re-entry.
 
 **Correction loops vs re-entry**: correction loops (O4/O5/O6→O3) are governed by R.7 and do NOT trigger R.5. They are internal operational cycles, not re-entries.
@@ -1197,7 +1202,7 @@ any *_IN_PROGRESS state  → same stage _IN_PROGRESS         [re-execute from sc
 - Auxiliary flow states (`B1_AUDITING`, `C_ADO1_AUDITING`) are transient — they resolve to a main pipeline state
 - Every transition between orchestrator and subagent produces a commit (dispatch and return)
 - An `_IN_PROGRESS` state always has a corresponding dispatch commit in the Git history
-- When automode is active, every user gate resolves to "proceed" or "full correction" — never to "skip" or "no correction"
+- When automode is active, every user gate resolves to "proceed" or "full correction" — never to "skip" or "no correction", except C2 and O10 which always require explicit user confirmation
 - When Fast Track is active, O4 is never skipped and any architectural finding cancels the Fast Track
 
 ---

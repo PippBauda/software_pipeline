@@ -183,13 +183,13 @@ For existing projects not built with this pipeline, the Auditor inventories what
 ## Key Mechanisms
 
 ### User Gates
-Certain stages require the user's explicit confirmation before the pipeline moves forward — for example, confirming the interpreted intent (C2), approving the architecture (C7), deciding the outcome of architecture validation (C8), or deciding whether to correct validation findings (O4/O5/O6). All user gate definitions are centralized in the orchestrator's Stage Routing Table. Stages without a user gate transition automatically. In automode, all user gates are auto-proceeded by the orchestrator.
+Certain stages require the user's explicit confirmation before the pipeline moves forward — for example, confirming the interpreted intent (C2), approving the architecture (C7), deciding the outcome of architecture validation (C8), or deciding whether to correct validation findings (O4/O5/O6). All user gate definitions are centralized in the orchestrator's Stage Routing Table. Stages without a user gate transition automatically. In automode, user gates are auto-proceeded except C2 and O10, which always remain manual.
 
 ### Correction Loops
 When O4, O5, or O6 find issues, the user can request full or selective correction. The pipeline returns to O3 (only for affected modules), then re-runs all validation stages sequentially up to the one that found the issues. Each re-traversed stage is delegated to its assigned agent — the orchestrator never executes these stages itself.
 
 ### Re-Entry
-From a completed project, the user can re-enter at any stage. Cognitive re-entry (C2–C9) invalidates all operational artifacts. Operational re-entry (O1–O9) preserves cognitive artifacts. Artifacts from invalidated stages are archived, never deleted. For focused changes that don't require architectural modifications, Fast Track mode offers a shortened path (see below).
+From a completed project, the user can re-enter at any stage. Cognitive re-entry (C2–C9) invalidates all operational artifacts. Operational re-entry (O1–O9) preserves cognitive artifacts. Artifacts from invalidated stages are archived, never deleted. Re-entry targeting C2 forces `automode=false` before resuming so clarification remains fully interactive. For focused changes that don't require architectural modifications, Fast Track mode offers a shortened path (see below).
 
 ### Context Compaction
 The orchestrator emits structured **Pipeline Checkpoint** blocks at compaction breakpoints so context can be compressed without losing routing-critical state. The canonical breakpoints are: post-C9 (cognitive→operational handoff), post-O3 when many modules were generated, post-O10 (pipeline completion), and post-reentry immediately after archival. In OpenCode, compaction is plugin-driven and expected to run automatically after checkpoint emission; manual compaction remains a fallback.
@@ -201,7 +201,7 @@ Every action produces a Git commit. The format is `[<stage-id>] <description>` f
 All agents are stateless — they have no memory between invocations. Everything they need is in the committed artifacts and the manifest files. This means the pipeline can survive interruptions, session changes, and context resets without losing progress.
 
 ### Automode
-After the requirements phase (C4), the user can activate automode. In this mode, the orchestrator bypasses all user gates and drives the pipeline autonomously with a mandatory policy: every issue found at every stage must be resolved (always "full correction"). The orchestrator handles escalations autonomously too — only fatal blockages and the final closure (O10) require the user to intervene. Automode can be turned off at any time.
+After the requirements phase (C4), the user can activate automode. In this mode, the orchestrator drives the pipeline autonomously with a mandatory policy: every issue found at every stage must be resolved (always "full correction"). User gates are auto-proceeded except C2 (Intent Clarification) and O10 (Closure), which always require explicit user confirmation. The orchestrator handles escalations autonomously too — only fatal blockages force a hard stop. Automode can be turned off at any time.
 
 ### Fast Track
 For interventions on completed projects that don't change the architecture or requirements (bug fixes, dependency updates, documentation tweaks), the orchestrator can propose Fast Track mode. This provides a shortened path: only the affected modules are re-implemented (O3), system validation (O4) is always executed, and other stages are included or skipped based on the nature of the change. O4 acts as a safety net — if it finds architectural issues, Fast Track is automatically cancelled and the full pipeline path is restored.
