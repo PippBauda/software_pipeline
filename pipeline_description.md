@@ -182,6 +182,9 @@ For existing projects not built with this pipeline, the Auditor inventories what
 
 ## Key Mechanisms
 
+### Entry Preflight
+Before any entry flow (new start after C1, resume via B1, adoption via C-ADO1, re-entry via R.5, and before O8.V), the orchestrator runs a runtime/tooling preflight. It verifies baseline CLI availability (`git`, and `gh` when CI verification is in path), repository readiness, and declared runtime/tooling availability from `docs/environment.md` when present. Results are written to `docs/runtime-preflight.md` and `logs/orchestrator-preflight-<N>.md` with decision `PASS`, `WARN`, or `BLOCKED`. `BLOCKED` always stops progression until user intervention, even in automode.
+
 ### User Gates
 Certain stages require the user's explicit confirmation before the pipeline moves forward — for example, confirming the interpreted intent (C2), approving the architecture (C7), deciding the outcome of architecture validation (C8), or deciding whether to correct validation findings (O4/O5/O6). All user gate definitions are centralized in the orchestrator's Stage Routing Table. Stages without a user gate transition automatically. In automode, user gates are auto-proceeded except C2 and O10, which always remain manual.
 
@@ -194,7 +197,7 @@ When O4, O5, or O6 find issues, the user can request full or selective correctio
 From a completed project, the user can re-enter at any stage. Cognitive re-entry (C2–C9) invalidates all operational artifacts. Operational re-entry (O1–O9) preserves cognitive artifacts. Artifacts from invalidated stages are archived, never deleted. Re-entry targeting C2 forces `automode=false` before resuming so clarification remains fully interactive. For focused changes that don't require architectural modifications, Fast Track mode offers a shortened path (see below).
 
 ### Context Compaction
-The orchestrator emits structured **Pipeline Checkpoint** blocks at compaction breakpoints so context can be compressed without losing routing-critical state. The canonical breakpoints are: post-C9 (cognitive→operational handoff), post-O3 when many modules were generated, post-O10 (pipeline completion), and post-reentry immediately after archival. In OpenCode, compaction is plugin-driven and expected to run automatically after checkpoint emission; manual compaction remains a fallback.
+The orchestrator emits structured **Pipeline Checkpoint** blocks at compaction breakpoints so context can be compressed without losing routing-critical state. The canonical breakpoints are: post-C9 (cognitive→operational handoff), post-O3 when many modules were generated, post-O10 (pipeline completion), and post-reentry immediately after archival. In OpenCode, compaction is plugin-driven and requires the compaction controller plugin for autonomous execution after checkpoint emission; manual compaction remains a fallback if the plugin is unavailable.
 
 ### Commit Conventions
 Every action produces a Git commit. The format is `[<stage-id>] <description>` for orchestrator actions, and `[<stage-id>] [<agent-name>] <description>` for stage completions, so the git log clearly shows who produced what.
@@ -203,7 +206,7 @@ Every action produces a Git commit. The format is `[<stage-id>] <description>` f
 All agents are stateless — they have no memory between invocations. Everything they need is in the committed artifacts and the manifest files. This means the pipeline can survive interruptions, session changes, and context resets without losing progress.
 
 ### Automode
-After the requirements phase (C4), the user can activate automode. In this mode, the orchestrator drives the pipeline autonomously with a mandatory policy: every issue found at every stage must be resolved (always "full correction"). User gates are auto-proceeded except C2 (Intent Clarification) and O10 (Closure), which always require explicit user confirmation. The orchestrator handles escalations autonomously too — only fatal blockages force a hard stop. Automode can be turned off at any time.
+After the requirements phase (C4), the user can activate automode. In this mode, the orchestrator drives the pipeline autonomously with a mandatory policy: every issue found at every stage must be resolved (always "full correction"). User gates are auto-proceeded except C2 (Intent Clarification) and O10 (Closure), which always require explicit user confirmation. The orchestrator handles escalations autonomously too; hard stops remain possible on fatal blockage (R.8 Level 3) and on preflight `BLOCKED` conditions. Automode can be turned off at any time.
 
 ### Fast Track
 For interventions on completed projects that don't change the architecture or requirements (bug fixes, dependency updates, documentation tweaks), the orchestrator can propose Fast Track mode. This provides a shortened path: only the affected modules are re-implemented (O3), system validation (O4) is always executed, and other stages are included or skipped based on the nature of the change. O4 acts as a safety net — if it finds architectural issues, Fast Track is automatically cancelled and the full pipeline path is restored.

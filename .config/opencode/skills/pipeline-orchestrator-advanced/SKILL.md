@@ -5,7 +5,7 @@ description: "Advanced pipeline features for the Orchestrator: re-entry protocol
 
 # Pipeline Orchestrator — Advanced Features
 
-These features are loaded on-demand by the orchestrator when a specific trigger condition is met. They complement the core rules (R.1, R.2, R.3, R.4, R.6, R.7, R.9) which are always available inline.
+These features are loaded on-demand by the orchestrator when a specific trigger condition is met. They complement the core rules (R.0, R.1, R.2, R.3, R.4, R.6, R.7, R.9) which are always available inline.
 
 ---
 
@@ -20,7 +20,8 @@ When the user chooses to re-enter the pipeline at a previous point (from O10/COM
 5. **Post-reentry checkpoint**: write `## Pipeline Checkpoint [post-reentry]` in the conversation with: resulting state, `from_state -> target_stage`, archive path, scope impact, next stage/agent, required input artifacts, pending gate
 6. **Context compaction**: trigger autonomous compaction immediately after the checkpoint (OpenCode plugin `pipeline-compaction-controller.js` is required).
 7. **Resumption**: execution resumes from the indicated stage with artifacts from preceding stages intact
-8. **Delegation**: identify the agent responsible for the target stage from the Agent-to-Stage Mapping and delegate following R.1 (starting from step 2, dispatch commit). You MUST NOT execute stages assigned to other agents.
+8. **Preflight**: run R.0 Entry Preflight before first post-reentry dispatch. If preflight is `BLOCKED`, halt and request user intervention.
+9. **Delegation**: identify the agent responsible for the target stage from the Agent-to-Stage Mapping and delegate following R.1 (starting from step 2, dispatch commit). You MUST NOT execute stages assigned to other agents.
 
 **Scope**: R.5 applies ONLY to user-initiated re-entry (from COMPLETED or from auxiliary flows B1/C-ADO1). Correction loops (O4→O3, O5→O3, O6→O3) are governed by R.7 and do NOT trigger archival.
 
@@ -38,10 +39,10 @@ The agent requests clarification from the user within the current stage context.
 
 ### Level 2 — Upstream revision
 The agent signals that an upstream artifact is ambiguous, inconsistent, or incomplete. Report the issue to the user and propose re-entry at the appropriate upstream stage (following R.5). The user confirms or overrides.
-- **In automode**: determine the appropriate re-entry stage autonomously, execute R.5, and the pipeline re-traverses all intermediate stages automatically (automode auto-proceeds through all gates). No user interaction required.
+- **In automode**: determine the appropriate re-entry stage autonomously, execute R.5, and the pipeline re-traverses all intermediate stages automatically (automode auto-proceeds through applicable gates, except C2 and O10). If re-entry targets C2, disable automode before resumption per R.5/S.1.
 
 ### Level 3 — Fatal blockage
-The agent cannot proceed and no upstream revision would resolve the issue. Apply R.2 (stop), documenting the blockage in the log. **This is the only escalation level that halts the pipeline even in automode.** The user must intervene to resume.
+The agent cannot proceed and no upstream revision would resolve the issue. Apply R.2 (stop), documenting the blockage in the log. **This is the only escalation level that halts the pipeline in automode.** Non-escalation hard stops still apply (e.g., R.0 preflight `BLOCKED`, O10 manual closure gate). The user must intervene to resume.
 
 ---
 
@@ -91,6 +92,7 @@ Automode allows the user to delegate all decisions to the pipeline, bypassing us
 - **C2 (Intent Clarification)**: ALWAYS requires explicit user confirmation; never auto-proceed
 - **O10 (Closure)**: ALWAYS requires explicit user confirmation
 - **R.8 Level 3 (Fatal blockage)**: ALWAYS halts the pipeline
+- **R.0 preflight `BLOCKED`**: ALWAYS halts progression until user intervention
 
 ### Deactivation
 - User says "automode off" (or equivalent) at any time
@@ -144,9 +146,10 @@ When a user requests to resume an existing project:
 1. Check if `pipeline-state/manifest.json` exists
 2. If yes: set state to `B1_AUDITING`, invoke **Auditor** (`subagent_type: "auditor"`)
 3. Auditor reads both `manifest.json` (HEAD) and `manifest-history.json` (HISTORY) for full audit. Produces `docs/audit-report.md` with: artifact inventory, consistency analysis, pipeline state, interruption point, recommendation (resume or adoption)
-4. **User gate**: confirm audit result
-5. If **resumable**: re-enter main flow at the identified point (orchestrator reconstructs context from manifest + artifacts + logs)
-6. If **not resumable**: recommend adoption → transition to C-ADO1
+4. Run R.0 Entry Preflight before executing audit recommendation (resume/adoption transition). If preflight is `BLOCKED`, halt and request user intervention.
+5. **User gate**: confirm audit result
+6. If **resumable**: re-enter main flow at the identified point (orchestrator reconstructs context from manifest + artifacts + logs)
+7. If **not resumable**: recommend adoption → transition to C-ADO1
 
 **Key**: if manifest `current_state` ends with `_IN_PROGRESS`, the stage was interrupted — re-execute from scratch.
 
@@ -158,8 +161,9 @@ When adopting a non-conforming repository:
 
 1. Set state to `C_ADO1_AUDITING`, invoke **Auditor** (`subagent_type: "auditor"`)
 2. Auditor produces `docs/adoption-report.md` with: inventory, gap analysis, conformance plan, entry point
-3. **User gate**: confirm adoption plan
-4. Execute the conformance plan: invoke appropriate agents for each missing artifact, in order specified by the plan
-5. Once complete: re-enter main flow at the identified point
+3. Run R.0 Entry Preflight before plan execution. If preflight is `BLOCKED`, halt and request user intervention.
+4. **User gate**: confirm adoption plan
+5. Execute the conformance plan: invoke appropriate agents for each missing artifact, in order specified by the plan
+6. Once complete: re-enter main flow at the identified point
 
 **Entry points**: from C1 in adoption mode, from B1 when not resumable, or from STOPPED state on user request.

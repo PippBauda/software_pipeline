@@ -8,6 +8,8 @@ export const PipelineCompactionController = async ({ client }) => {
 
   const rawDryRun = String(process.env.OPENCODE_PIPELINE_COMPACTION_DRY_RUN || "")
   const DRY_RUN = ["1", "true", "yes", "on"].includes(rawDryRun.toLowerCase())
+  const rawDebug = String(process.env.OPENCODE_PIPELINE_COMPACTION_DEBUG || "")
+  const DEBUG = ["1", "true", "yes", "on"].includes(rawDebug.toLowerCase())
   const rawCooldown = process.env.OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS
   const parsedCooldown = Number(rawCooldown || 120000)
   const COOLDOWN_MS = Number.isFinite(parsedCooldown) && parsedCooldown >= 0 ? parsedCooldown : 120000
@@ -60,13 +62,51 @@ export const PipelineCompactionController = async ({ client }) => {
     return String(role).toLowerCase() === "assistant"
   }
 
+  const looksLikeOrchestratorCheckpoint = (text) => {
+    return (
+      /##\s*Pipeline Checkpoint\s*\[[^\]]+\]/i.test(text) &&
+      /-\s*\*\*State\*\*:/i.test(text) &&
+      /-\s*\*\*Next stage\*\*:/i.test(text) &&
+      /-\s*\*\*Required input artifacts\*\*:/i.test(text)
+    )
+  }
+
+  const debugLog = async (message, extra) => {
+    if (!DEBUG || !client?.app?.log) return
+    try {
+      await client.app.log({
+        body: {
+          service: "pipeline-compaction-controller",
+          level: "debug",
+          message,
+          extra,
+        },
+      })
+    } catch {
+      // ignore debug-log failures
+    }
+  }
+
   const triggerCompaction = async (sessionID, signature) => {
     const now = Date.now()
     const lastAt = lastCompactionAt.get(sessionID) || 0
 
-    if (inFlight.has(sessionID)) return
-    if (now - lastAt < COOLDOWN_MS) return
-    if (lastSignature.get(sessionID) === signature) return
+    if (inFlight.has(sessionID)) {
+      await debugLog("Skip compaction: already in-flight", { sessionID })
+      return
+    }
+    if (now - lastAt < COOLDOWN_MS) {
+      await debugLog("Skip compaction: cooldown active", {
+        sessionID,
+        cooldownMs: COOLDOWN_MS,
+        elapsedMs: now - lastAt,
+      })
+      return
+    }
+    if (lastSignature.get(sessionID) === signature) {
+      await debugLog("Skip compaction: duplicate checkpoint signature", { sessionID, signature })
+      return
+    }
 
     inFlight.add(sessionID)
     lastSignature.set(sessionID, signature)
@@ -82,6 +122,7 @@ export const PipelineCompactionController = async ({ client }) => {
           },
         })
         lastCompactionAt.set(sessionID, Date.now())
+        await debugLog("Dry-run compaction event handled", { sessionID, signature })
         return
       }
 
@@ -90,7 +131,9 @@ export const PipelineCompactionController = async ({ client }) => {
         body: {},
       })
       lastCompactionAt.set(sessionID, Date.now())
+      await debugLog("Autonomous compaction executed", { sessionID, signature })
     } catch {
+      await debugLog("Compaction attempt failed (fail-open)", { sessionID, signature })
       // fail-open: pipeline continues without autonomous compaction
     } finally {
       inFlight.delete(sessionID)
@@ -104,6 +147,7 @@ export const PipelineCompactionController = async ({ client }) => {
 
     const diagnostics = {
       dryRun: DRY_RUN,
+      debug: DEBUG,
       cooldownMs: COOLDOWN_MS,
       targetCheckpoints: Array.from(TARGET_CHECKPOINTS),
       hasSessionSummarize: Boolean(client?.session?.summarize),
@@ -124,6 +168,7 @@ export const PipelineCompactionController = async ({ client }) => {
           diagnostics,
           rawEnv: {
             OPENCODE_PIPELINE_COMPACTION_DRY_RUN: rawDryRun || undefined,
+            OPENCODE_PIPELINE_COMPACTION_DEBUG: rawDebug || undefined,
             OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS: rawCooldown || undefined,
           },
         },
@@ -164,10 +209,22 @@ export const PipelineCompactionController = async ({ client }) => {
       const checkpoint = extractCheckpoint(text)
       if (!checkpoint) return
       if (!TARGET_CHECKPOINTS.has(checkpoint.id)) return
+      if (!looksLikeOrchestratorCheckpoint(text)) {
+        await debugLog("Skip compaction: checkpoint does not match orchestrator format", {
+          checkpointId: checkpoint.id,
+        })
+        return
+      }
 
       const sessionID = extractSessionId(props) || extractSessionId(event)
-      if (!sessionID) return
-      if (!client?.session?.summarize) return
+      if (!sessionID) {
+        await debugLog("Skip compaction: missing session id", {})
+        return
+      }
+      if (!client?.session?.summarize) {
+        await debugLog("Skip compaction: session.summarize unavailable", { sessionID })
+        return
+      }
 
       await emitStartupCheck(sessionID)
 

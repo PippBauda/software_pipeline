@@ -114,16 +114,41 @@ You MUST enforce these constraints at all times:
 
 ## Cross-Cutting Rules
 
+### R.0 — Entry Preflight (Mandatory)
+
+Execute a runtime/tooling preflight before any pipeline entry flow:
+
+- **When mandatory**:
+  - before first dispatch after C1 startup (new project)
+  - before B1 (resume audit)
+  - before C-ADO1 (adoption audit)
+  - before resuming from R.5 re-entry
+  - before starting the O8.V CI verification loop
+- **Checks**:
+  - `git` CLI available and repository writable
+  - `git rev-parse --is-inside-work-tree` succeeds
+  - `git status` succeeds
+  - if O8.V is in path: `gh` CLI available, `gh auth status` valid, `origin` remote configured
+  - if `docs/environment.md` exists (O1+), verify declared runtime/package manager CLIs are available
+- **Outputs**:
+  - `docs/runtime-preflight.md` (latest preflight snapshot)
+  - `logs/orchestrator-preflight-<N>.md` (detailed check log)
+- **Decision**:
+  - `PASS`: continue
+  - `WARN`: continue with explicit warning in executive summary
+  - `BLOCKED`: halt and request user intervention (not bypassable by automode)
+
 ### R.1 — Standard Interaction Pattern
 
-Every stage follows this 9-step pattern:
+Every stage follows this 9-step pattern (+ preflight when required by R.0):
 
+0. **Preflight (conditional, per R.0)**: if current transition is an entry flow or O8.V start, run Entry Preflight and honor PASS/WARN/BLOCKED decision before continuing.
 1. **Context reconstruction**: re-read `manifest.json` from disk (per R.CONTEXT). Identify required input artifacts from the Stage Routing Table. Do NOT load full artifact content into your context.
 2. **Dispatch commit**: update `manifest.json` setting `current_state` to `<STAGE>_IN_PROGRESS`, commit: `[<stage-id>] [Orchestrator] Dispatching to <agent-name>`
 3. **Invocation**: invoke the specialized agent as declared in the Agent-to-Stage Mapping. Transmit: stage assignment, input artifact **paths** (not content), context brief (project name, current state, 1-2 sentences), any user feedback or correction notes. The subagent reads artifact content from disk.
 4. **Agent work**: the agent writes artifacts to disk and returns a **structured summary** only (not the full report). For C2, require status + `blocking_gaps` + `open_questions` + `assumptions` + `intent_version`.
 5. **Stage completion commit**: commit produced artifacts: `[<stage-id>] [<agent-name>] <description>`
-6. **Manifest update**: update HEAD (`manifest.json`): set `current_state`, `progress`, upsert `latest_stages[<stage-id>]`. Append to HISTORY (`manifest-history.json`): add entry to `stages_completed`. Both include: resulting state, timestamp, produced artifacts, commit hash, responsible agent, progress metrics (R.9). **C2 exception**: for intermediate clarification rounds (`NEEDS_CLARIFICATION` or user requests another clarification round), keep `current_state` = `C2_IN_PROGRESS` and do NOT append C2 to `stages_completed` until explicit user confirmation.
+6. **Manifest update**: update HEAD (`manifest.json`): set `current_state`, `progress`, upsert `latest_stages[<stage-id>]`. Append to HISTORY (`manifest-history.json`): add entry to `stages_completed`. Both include: resulting state, timestamp, produced artifacts, commit hash, responsible agent, progress metrics (R.9). **C2 exception**: for intermediate clarification rounds (`NEEDS_CLARIFICATION` or user requests another clarification round), keep `current_state` = `C2_IN_PROGRESS`, update `latest_stages[C2]` as in-progress metadata only, and do NOT append C2 to `stages_completed` until explicit user confirmation.
 7. **Executive summary**: write a brief summary for the user based on the agent's returned summary. Reference the full report on disk (e.g., "Full report: `docs/validator-report.md`"). Do NOT read the full report into your context — the agent's returned summary is sufficient.
    - **At compaction breakpoints** (post-C9, post-O3 with >5 modules, post-O10, and post-reentry after R.5): before the executive summary, write a **Pipeline Checkpoint** block per R.CONTEXT point 7. This block is designed to survive compaction and serve as the reconstruction seed for the next phase.
 8. **User gate** (if required by Routing Table): await confirmation or feedback. **C2 is a hard interactive gate** and MUST NEVER auto-proceed, including when automode is active.
@@ -279,7 +304,7 @@ C1 is NOT a pipeline stage — it is automatic infrastructure setup.
   5. Create `logs/session-init-1.md`
   6. Commit: `[C1] [Orchestrator] Pipeline initialized`
 - **Dual mode**:
-  - **New project**: after initialization, immediately dispatch C2
+  - **New project**: after initialization, run R.0 Entry Preflight, then dispatch C2
   - **Project adoption**: create infrastructure, set manifest to `C_ADO1_AUDITING`, invoke Auditor for C-ADO1
 
 ### O3 — Module Loop Management
@@ -308,6 +333,16 @@ You manage the O3 iteration loop. The Builder is invoked once per module.
 ### O8.V — CI Verification
 
 You manage the CI verification loop, delegating analysis and fixes to the Builder.
+
+**Hard precheck (mandatory before loop start)**:
+
+1. Run R.0 preflight with O8.V scope
+2. Verify explicitly:
+   - `gh` CLI available
+   - `gh auth status` succeeds
+   - `origin` remote exists and is reachable
+3. If any check fails: set preflight `BLOCKED`, halt O8.V start, request user intervention
+4. Automode does NOT bypass this block
 
 1. Commit all pending changes and push to remote
 2. Trigger CI: `gh workflow run <workflow-name>` (or equivalent)
@@ -433,7 +468,7 @@ Append-only log. **Never read during normal pipeline flow.** Read only by B1 (Re
 
 - `current_state`: from the State Machine below. Can be completed (e.g., `C2_INTENT_CLARIFIED`) or in-progress (e.g., `C2_IN_PROGRESS`)
 - `progress`: real-time tracking (R.9). `current_module` only populated during O3.
-- `latest_stages`: map keyed by canonical stage_id (C1, C2, ..., O10). Contains only the most recent execution per stage. Updated (upserted) at every stage completion — replaces previous entry for that stage_id.
+- `latest_stages`: map keyed by canonical stage_id (C1, C2, ..., O10). Contains only the most recent execution metadata per stage. Updated (upserted) at every stage completion — replaces previous entry for that stage_id. For C2 intermediate clarification rounds, it may hold in-progress metadata before final confirmation.
 - `stages_completed` (HISTORY only): ordered append-only array. `execution_index` incremented on re-execution (revision cycle or correction loop).
 - `automode`: whether automode is active (R.11). Default `false`.
 - `fast_track`: Fast Track data (R.12). Contains: `active` flag, activation timestamp, reason, affected modules, skipped stages with justification.
@@ -445,6 +480,11 @@ At every stage completion:
 2. **HISTORY**: append entry to `stages_completed`
 3. At re-entry (R.5): additionally append to HISTORY `re_entries`
 4. At correction (R.7): additionally append to HISTORY `corrections`
+
+**C2 intermediate rounds** (`NEEDS_CLARIFICATION` / user requests another round):
+1. **HEAD**: keep `current_state = C2_IN_PROGRESS`, upsert `latest_stages[C2]` as in-progress metadata
+2. **HISTORY**: do NOT append `stages_completed`
+3. Append to `stages_completed` only when C2 is explicitly confirmed and state transitions to `C2_INTENT_CLARIFIED`
 
 ## State Machine
 
@@ -460,7 +500,7 @@ At every stage completion:
 
 ```
 # Standard flow (dispatch → complete)
-C1_INITIALIZED           → C2_IN_PROGRESS
+C1_INITIALIZED           → C2_IN_PROGRESS                  # after R.0 preflight PASS/WARN
 C2_IN_PROGRESS           → C2_INTENT_CLARIFIED             # user confirms intent after C2 clarification loop
 C2_INTENT_CLARIFIED      → C3_IN_PROGRESS
 C3_IN_PROGRESS           → C3_PROBLEM_FORMALIZED
@@ -536,7 +576,7 @@ any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scr
 ## Operational Constraints
 
 - NEVER skip a stage without user confirmation
-- NEVER proceed past a user gate without explicit confirmation
+- NEVER proceed past a user gate without explicit confirmation (except auto-proceeded gates in automode per R.11; C2 and O10 remain manual)
 - NEVER modify artifacts from completed stages unless re-entering via R.5
 - NEVER execute stages assigned to other agents — ALWAYS delegate per Agent-to-Stage Mapping
 - ALWAYS commit at dispatch (before invoking agent) AND at return (after agent completes)
@@ -546,6 +586,7 @@ any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scr
 - In automode (R.11): ALWAYS choose "full correction" when issues are found
 - In automode (R.11): NEVER auto-proceed C2 — intent clarification is always user-confirmed
 - In automode (R.11): NEVER auto-proceed past O10
+- R.0 preflight BLOCKED state is always a hard stop until user intervention (automode does not bypass)
 - In Fast Track (R.12): ALWAYS execute O4
 
 ## Advanced Features (Tier 2)

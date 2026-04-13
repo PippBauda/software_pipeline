@@ -67,7 +67,7 @@ software_pipeline/
 │   │   └── pipeline-orchestrator-advanced/
 │   │       └── SKILL.md        # Tier 2 rules (161 lines)
 │   ├── plugins/
-│   │   └── pipeline-compaction-controller.js  # Optional autonomous compaction trigger
+│   │   └── pipeline-compaction-controller.js  # Required autonomous compaction trigger
 │   ├── compaction-prompt.txt   # Externalized compaction prompt
 │   └── opencode.json           # Global config (compaction settings)
 │
@@ -96,7 +96,7 @@ The pipeline is implemented for two AI coding platforms:
 - **Skills**: `~/.config/opencode/skills/`
 - **Config**: `~/.config/opencode/opencode.json`
 - **Architecture**: 2-tier rule system
-  - **Tier 1** (inline in `orchestrator.md`): core rules always available (R.1-R.4, R.6, R.7, R.9, R.CONTEXT, State Machine, Manifest Schema)
+  - **Tier 1** (inline in `orchestrator.md`): core rules always available (R.0-R.4, R.6, R.7, R.9, R.CONTEXT, State Machine, Manifest Schema)
   - **Tier 2** (on-demand skill `pipeline-orchestrator-advanced`): advanced features loaded only when needed (R.5, R.8, R.10, R.11, R.12, B1/C-ADO1)
 - **Subagent invocation**: via `Task` tool with `subagent_type` parameter
 - **Model**: `github-copilot/claude-opus-4.6`
@@ -171,17 +171,31 @@ At each **user gate**, the pipeline pauses for your confirmation before proceedi
 - **Start new project**: describe your idea
 - **Resume existing project**: `resume` (triggers B1 audit)
 - **Adopt existing codebase**: `adopt` (triggers C-ADO1 audit)
-- **Automode**: `automode on` / `automode off` — bypasses user gates with automatic "fix everything" policy
+- **Automode**: `automode on` / `automode off` — auto-proceeds gates with automatic "fix everything" policy (except C2 and O10)
 - **Stop**: `stop` at any time to halt the pipeline
+
+### Entry Preflight
+
+Before entry flows (new start after C1, resume, adoption, re-entry) and before O8.V, the orchestrator runs a mandatory runtime/tooling preflight.
+
+- `PASS`: continues
+- `WARN`: continues with warning
+- `BLOCKED`: halts until user intervention (not bypassed by automode)
+
+Artifacts:
+
+- `docs/runtime-preflight.md`
+- `logs/orchestrator-preflight-<N>.md`
 
 ### Autonomous Compaction
 
-OpenCode deployments are expected to include `~/.config/opencode/plugins/pipeline-compaction-controller.js` so compaction is triggered automatically right after `Pipeline Checkpoint` emission at the defined breakpoints.
+OpenCode deployments must include `~/.config/opencode/plugins/pipeline-compaction-controller.js` so compaction is triggered automatically right after `Pipeline Checkpoint` emission at the defined breakpoints.
 
 Environment knobs (optional):
 
 - `OPENCODE_PIPELINE_COMPACTION_DRY_RUN=1` — detect checkpoints but do not call compaction (logs only)
 - `OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS=120000` — minimum time between autonomous compactions per session
+- `OPENCODE_PIPELINE_COMPACTION_DEBUG=1` — emit debug logs for skip reasons (cooldown, dedup, format mismatch, etc.)
 
 ### Startup Health Check
 
@@ -196,6 +210,7 @@ Expected startup signals:
 What is validated:
 
 - dry-run state
+- debug state
 - effective cooldown
 - tracked checkpoint IDs
 - availability of `session.summarize` and `app.log`
@@ -227,6 +242,7 @@ opencode
   - Verify deployment path: `~/.config/opencode/plugins/pipeline-compaction-controller.js`
   - Restart OpenCode after copying plugin/config files
   - Ensure the orchestrator actually emits `## Pipeline Checkpoint [post-cognitive|post-o3|post-o10|post-reentry]`
+  - Enable debug logs: `export OPENCODE_PIPELINE_COMPACTION_DEBUG=1`
 - Compaction too frequent:
   - Increase cooldown: `export OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS=180000`
 - Want safe validation first:
@@ -240,14 +256,15 @@ opencode
 - **Stateless agents** — context reconstructed from disk artifacts at each invocation
 - **Manifest-driven state** — `pipeline-state/manifest.json` tracks all progress
 - **Split manifest** — HEAD (small, read every transition) + HISTORY (append-only log, read only for audits)
+- **Entry preflight** — mandatory runtime/tooling checks before entry flows and before O8.V
 - **Context economy** — artifacts flow via disk, agents return summaries only
 - **Correction loops** — validation stages (O4/O5/O6) can send code back for fixes without full re-entry
 - **Re-entry protocol** — return to any previous stage from a completed pipeline, with archival
 
 ## Pipeline Definition
 
-- `pipeline_4.1.md` — the complete formal specification (1233 lines), serves as the canonical reference
-- `pipeline_description.md` — a concise human-readable overview (204 lines)
+- `pipeline_4.1.md` — the complete formal specification, serves as the canonical reference
+- `pipeline_description.md` — a concise human-readable overview
 
 ## Version
 
