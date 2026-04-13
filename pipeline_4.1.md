@@ -75,14 +75,19 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
   - `logs/prompt-refiner-c2-conversation-1.md` — conversation log
 - **Transformation**: an informally expressed idea is analyzed to identify the actual goal, usage context, and implicit assumptions, producing a structured intent document.
 - **Validation criteria**:
-  - `intent.md` contains sections for: interpreted goal, system context, assumptions, terminology
+  - `intent.md` contains sections for: interpreted goal, system context, assumptions, terminology, gaps, open questions
   - unresolved **gaps**, explicit **assumptions**, and **open questions** are captured when present
   - no unresolved gap is silently converted into a requirement without user confirmation
   - the user has confirmed that the interpretation is correct (user gate passed)
   - the conversation log has been committed
 - **User gate**: confirmation of the interpreted intent (**ALWAYS manual, never auto-proceed**)
+- **Loop behavior (mandatory)**:
+  - Prompt Refiner returns `NEEDS_CLARIFICATION` or `READY_FOR_CONFIRMATION`
+  - On `NEEDS_CLARIFICATION`, the orchestrator collects user answers and re-runs C2
+  - On `READY_FOR_CONFIRMATION`, user either confirms or requests another clarification round
+  - C2 remains `C2_IN_PROGRESS` until explicit user confirmation
 - **Revision cycle**: if the user is unsatisfied, feedback is passed to the Prompt Refiner and the stage repeats
-- **Resulting state**: `C2_INTENT_CLARIFIED`
+- **Resulting state**: `C2_INTENT_CLARIFIED` only after explicit user confirmation and no unresolved blocking gaps
 
 ---
 
@@ -715,13 +720,23 @@ Every stage follows this 9-step pattern:
 1. **Context reconstruction**: the orchestrator re-reads `manifest.json` (HEAD) from disk to determine current state and progress (per R.CONTEXT). It identifies required input artifacts from the Stage Routing Table by path. The orchestrator does NOT load full artifact content into its own context.
 2. **Dispatch commit**: the orchestrator updates `manifest.json` setting `current_state` to `<STAGE>_IN_PROGRESS`, then commits with message `[<stage-id>] [Orchestrator] Dispatching to <agent-name>`
 3. **Invocation**: the orchestrator invokes the specialized agent **as declared in each stage's Agent field and in the Agent table** — the orchestrator MUST NOT perform the agent's work itself regardless of stage complexity or simplicity. The orchestrator transmits: stage assignment, input artifact **paths** (not content), a context brief (project name, current state, 1-2 sentences), any user feedback or correction notes. The subagent reads artifact content from disk using its own tools.
-4. **Agent work**: the agent writes artifacts to disk and returns a **structured summary** only (not the full report) to the orchestrator
+4. **Agent work**: the agent writes artifacts to disk and returns a **structured summary** only (not the full report) to the orchestrator. For C2, the summary includes: status, `blocking_gaps`, `open_questions`, `assumptions`, and `intent_version`.
 5. **Stage completion commit**: the orchestrator commits the produced artifacts with message `[<stage-id>] [<agent-name>] <description>`
-6. **Manifest update**: the orchestrator updates HEAD (`manifest.json`): set `current_state`, `progress`, upsert `latest_stages[<stage-id>]`. Append to HISTORY (`manifest-history.json`): add entry to `stages_completed`. Both include: resulting state, timestamp, produced artifacts, commit hash, responsible agent, progress metrics (see R.9)
+6. **Manifest update**: the orchestrator updates HEAD (`manifest.json`): set `current_state`, `progress`, upsert `latest_stages[<stage-id>]`. Append to HISTORY (`manifest-history.json`): add entry to `stages_completed`. Both include: resulting state, timestamp, produced artifacts, commit hash, responsible agent, progress metrics (see R.9). **C2 exception**: for intermediate clarification rounds (`NEEDS_CLARIFICATION` or user requests another clarification round), keep `current_state` = `C2_IN_PROGRESS` and do NOT append C2 to `stages_completed` until explicit user confirmation.
 7. **Executive summary**: the orchestrator writes in the chat a brief summary based on the agent's returned summary, indicating the location of the full report in the repository (e.g., "Full report: `docs/validator-report.md`"). The orchestrator does NOT read the full report into its context — the agent's returned summary is sufficient.
    - **At compaction breakpoints** (post-C9, post-O3 with >5 modules, post-O10, and post-reentry after R.5): before the executive summary, the orchestrator writes a **Pipeline Checkpoint** block per R.CONTEXT point 7. This structured block is designed to survive context compaction and serve as the reconstruction seed for the next phase.
 8. **User gate** (if required): awaits confirmation or feedback. **C2 is a hard interactive gate and MUST NEVER auto-proceed, including when automode is active.**
 9. **Revision** (if needed): the cycle repeats from step 2 with the user's notes
+
+### C2 — Mandatory Interactive Clarification Loop
+
+Treat C2 as a loop, not a single-pass stage:
+
+1. Prompt Refiner returns one of: `NEEDS_CLARIFICATION`, `READY_FOR_CONFIRMATION`, or `FAILED`
+2. On `NEEDS_CLARIFICATION`: keep state `C2_IN_PROGRESS`, present numbered open questions to the user, and wait for manual answers
+3. On `READY_FOR_CONFIRMATION`: present final gate — user either confirms intent (exit C2) or requests further clarification (loop continues)
+4. Exit condition: transition to `C2_INTENT_CLARIFIED` ONLY after explicit user confirmation and no unresolved blocking gaps
+5. Automode does not bypass any C2 loop step
 
 **For stages the orchestrator executes directly** (C1, O9, O10):
 1. Set `current_state` to `<STAGE>_IN_PROGRESS`, commit: `[<stage-id>] [Orchestrator] Stage started`
@@ -1119,7 +1134,7 @@ C_ADO1_AUDITING
 ```
 # Dispatch transitions (orchestrator sets IN_PROGRESS before invoking agent)
 C1_INITIALIZED           → C2_IN_PROGRESS                  [dispatch to Prompt Refiner]
-C2_IN_PROGRESS           → C2_INTENT_CLARIFIED             [agent completes]
+C2_IN_PROGRESS           → C2_INTENT_CLARIFIED             [user confirms intent after C2 clarification loop]
 C2_INTENT_CLARIFIED      → C3_IN_PROGRESS                  [dispatch to Prompt Refiner]
 C3_IN_PROGRESS           → C3_PROBLEM_FORMALIZED           [agent completes]
 C3_PROBLEM_FORMALIZED    → C4_IN_PROGRESS                  [dispatch to Prompt Refiner]

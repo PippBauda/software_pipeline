@@ -45,12 +45,19 @@ You are stateless. You have NO memory between invocations. When working on conse
   - Explicitly list all **assumptions** made so far
   - Explicitly list all **open questions** that require user confirmation
   - **Do NOT autonomously close gaps** or invent missing requirements to move forward
-  - If open questions remain, set stage status to `NEEDS_REVISION` and wait for user feedback via orchestrator gate
+  - If open questions remain, set stage status to `NEEDS_CLARIFICATION` and wait for user feedback via orchestrator gate
+  - If no blocking gaps remain and intent is stable, set stage status to `READY_FOR_CONFIRMATION`
+- **Structured C2 return fields (required)**:
+  - `status`: `NEEDS_CLARIFICATION` | `READY_FOR_CONFIRMATION` | `FAILED`
+  - `blocking_gaps`: numbered list
+  - `open_questions`: numbered list
+  - `assumptions`: numbered list
+  - `intent_version`: short version id or timestamp marker for the current `intent.md`
 - **Validation criteria**:
-  - `intent.md` contains all four sections
+  - `intent.md` contains all required sections (goal, context, assumptions, terminology, gaps, open questions)
   - conversation log committed
 - **Revision cycle**: if invoked with user feedback, incorporate it and regenerate
-- **Resulting state**: `C2_INTENT_CLARIFIED`
+- **Resulting state**: `C2_INTENT_CLARIFIED` only when user confirmation is explicitly granted by orchestrator; otherwise C2 remains `C2_IN_PROGRESS`
 
 ---
 
@@ -113,7 +120,7 @@ When you complete a stage, follow this return sequence:
 
 **Summary template**:
 - **Stage**: [stage-id]
-- **Status**: COMPLETED | FAILED | NEEDS_REVISION
+- **Status**: COMPLETED | FAILED | NEEDS_REVISION | NEEDS_CLARIFICATION | READY_FOR_CONFIRMATION
 - **Key findings**: [bullet points summarizing the most important results]
 - **Artifacts produced**: [list of file paths written to disk]
 - **Blocking issues**: none | [brief description]

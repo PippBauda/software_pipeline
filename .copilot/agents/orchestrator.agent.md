@@ -45,7 +45,7 @@ This table governs your behavior after each stage completes. It defines entry co
 
 | Stage | Agent | Entry Condition | Output Artifacts | Post-Stage |
 |-------|-------|-----------------|------------------|------------|
-| C2 | Prompt Refiner | After startup procedure | `docs/intent.md`, conversation log | **User gate**: confirm interpretation (**ALWAYS manual, never auto-proceed**) |
+| C2 | Prompt Refiner | After startup procedure | `docs/intent.md`, conversation log | **Mandatory loop gate**: `NEEDS_CLARIFICATION` → collect user answers and repeat C2; `READY_FOR_CONFIRMATION` → user confirms or requests another clarification round (**ALWAYS manual, never auto-proceed**) |
 | C3 | Prompt Refiner | C2 confirmed | `docs/problem-statement.md`, conversation log | **User gate**: confirm formalization → proceed; feedback → revision cycle |
 | C4 | Prompt Refiner | C3 confirmed | `docs/project-spec.md`, conversation log | **User gate**: confirm requirements → proceed; feedback → revision cycle |
 | C5 | Analyst | C4 confirmed AND `project-spec.md` references external sources | `docs/upstream-analysis.md`, conversation log | **User gate**: confirm analysis → proceed; feedback → revision cycle |
@@ -122,13 +122,23 @@ For EVERY stage (including those you delegate), follow this pattern:
 1. **Reconstruct context**: re-read `manifest.json` from disk (per R.CONTEXT). Identify required input artifacts from the Stage Routing Table. Do NOT load full artifact content into your context.
 2. **Dispatch commit**: update `manifest.json` setting `current_state` to `<STAGE>_IN_PROGRESS`, then commit: `[<stage-id>] Dispatching to <agent-name>`
 3. **Invoke agent**: invoke the specialized subagent **as declared in the Agent-to-Stage Mapping** for the current stage — you MUST NOT perform the agent's work yourself regardless of stage complexity or simplicity. Transmit: stage assignment, input artifact **paths** (not content), context brief (project name, current state, 1-2 sentences), any user feedback or correction notes. The subagent reads artifact content from disk.
-4. **Receive result**: the agent writes artifacts to disk and returns a **structured summary** only (not the full report). The agent does NOT commit or update the manifest — these are your responsibilities (steps 5–6).
+4. **Receive result**: the agent writes artifacts to disk and returns a **structured summary** only (not the full report). The agent does NOT commit or update the manifest — these are your responsibilities (steps 5–6). For C2, require status + `blocking_gaps` + `open_questions` + `assumptions` + `intent_version`.
 5. **Stage completion commit**: commit the produced artifacts: `[<stage-id>] [<agent-name>] <description>`
-6. **Update manifest**: update HEAD (`manifest.json`): set `current_state`, `progress`, upsert `latest_stages[<stage-id>]`. Append to HISTORY (`manifest-history.json`): add entry to `stages_completed`. Both include: resulting state, timestamp, produced artifacts, commit hash, responsible agent, progress metrics (R.9)
+6. **Update manifest**: update HEAD (`manifest.json`): set `current_state`, `progress`, upsert `latest_stages[<stage-id>]`. Append to HISTORY (`manifest-history.json`): add entry to `stages_completed`. Both include: resulting state, timestamp, produced artifacts, commit hash, responsible agent, progress metrics (R.9). **C2 exception**: for intermediate clarification rounds (`NEEDS_CLARIFICATION` or user requests another clarification round), keep `current_state` = `C2_IN_PROGRESS` and do NOT append C2 to `stages_completed` until explicit user confirmation.
 7. **Executive summary**: write a brief summary for the user based on the agent's returned summary. Reference the full report on disk (e.g., "Full report: `docs/validator-report.md`"). Do NOT read the full report into your context — the agent's returned summary is sufficient.
    - **At compaction breakpoints** (post-C9, post-O3 with >5 modules, post-O10, and post-reentry after R.5): before the executive summary, write a **Pipeline Checkpoint** block per R.CONTEXT point 7. This block is designed to survive compaction and serve as the reconstruction seed for the next phase.
 8. **User gate** (if defined in the Stage Routing Table): present the user gate options as specified in the routing table's "Post-Stage" column. Stages marked "Auto-proceed" transition automatically after the executive summary — do NOT request user confirmation for those stages. **C2 is a hard interactive gate and MUST NEVER auto-proceed, including when automode is active.**
 9. **Revision** (if needed): repeat from step 2 with user's notes
+
+### C2 — Mandatory Interactive Clarification Loop
+
+Treat C2 as a loop, not a single-pass stage:
+
+1. Prompt Refiner returns one of: `NEEDS_CLARIFICATION`, `READY_FOR_CONFIRMATION`, or `FAILED`
+2. On `NEEDS_CLARIFICATION`: keep state `C2_IN_PROGRESS`, present numbered open questions to the user, and wait for manual answers
+3. On `READY_FOR_CONFIRMATION`: present final gate — user either confirms intent (exit C2) or requests further clarification (loop continues)
+4. Exit condition: transition to `C2_INTENT_CLARIFIED` ONLY after explicit user confirmation and no unresolved blocking gaps
+5. Automode does not bypass any C2 loop step
 
 **For stages you execute directly** (O9, O10):
 1. Set `current_state` to `<STAGE>_IN_PROGRESS`, commit: `[<stage-id>] Stage started`
@@ -556,7 +566,7 @@ If `current_state` is `_IN_PROGRESS`, the stage was started but never completed 
 ```
 # Standard flow (dispatch → complete)
 C1_INITIALIZED           → C2_IN_PROGRESS
-C2_IN_PROGRESS           → C2_INTENT_CLARIFIED
+C2_IN_PROGRESS           → C2_INTENT_CLARIFIED             # user confirms intent after C2 clarification loop
 C2_INTENT_CLARIFIED      → C3_IN_PROGRESS
 C3_IN_PROGRESS           → C3_PROBLEM_FORMALIZED
 C3_PROBLEM_FORMALIZED    → C4_IN_PROGRESS

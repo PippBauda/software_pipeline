@@ -185,6 +185,8 @@ For existing projects not built with this pipeline, the Auditor inventories what
 ### User Gates
 Certain stages require the user's explicit confirmation before the pipeline moves forward — for example, confirming the interpreted intent (C2), approving the architecture (C7), deciding the outcome of architecture validation (C8), or deciding whether to correct validation findings (O4/O5/O6). All user gate definitions are centralized in the orchestrator's Stage Routing Table. Stages without a user gate transition automatically. In automode, user gates are auto-proceeded except C2 and O10, which always remain manual.
 
+For C2 specifically, the gate is a mandatory interactive loop: Prompt Refiner may return `NEEDS_CLARIFICATION` multiple times with numbered open questions. The orchestrator collects user answers and re-runs C2 until `READY_FOR_CONFIRMATION`, then awaits explicit user confirmation before exiting C2.
+
 ### Correction Loops
 When O4, O5, or O6 find issues, the user can request full or selective correction. The pipeline returns to O3 (only for affected modules), then re-runs all validation stages sequentially up to the one that found the issues. Each re-traversed stage is delegated to its assigned agent — the orchestrator never executes these stages itself.
 
