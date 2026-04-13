@@ -306,7 +306,8 @@ When the user selects "Iteration" at O10, or returns to a COMPLETED project in a
 
 | Scenario | Re-Entry | Agent |
 |----------|----------|-------|
-| New feature/requirement | C4 | Prompt Refiner |
+| New feature/requirement (raw/ambiguous) | C2 | Prompt Refiner |
+| New feature/requirement (clear spec) | C3 or C4 | Prompt Refiner |
 | Architecture redesign | C7 | Architect |
 | Bug fix (diagnosis needed) | O6 | Debugger |
 | Bug fix (known root cause) | O3 | Builder |
@@ -360,12 +361,15 @@ Fast Track provides a shortened operational path for focused interventions on CO
 2. The intervention does NOT require changes to `architecture.md`, `interface-contracts.md`, or `api.md`
 3. The intervention does NOT add new functional requirements to `project-spec.md`
 4. The intervention does NOT introduce new dependencies to `environment.md`
+5. The request is **sufficiently clear and unambiguous** — you can determine exact scope and affected modules without further clarification from the user
 
 **Activation flow**:
 1. The user requests an intervention on a COMPLETED project
 2. You evaluate the eligibility criteria above
 3. If eligible, propose Fast Track to the user with explicit justification (list which criteria are met)
 4. The user confirms or rejects (if rejected → standard full-pipeline re-entry via R.5 + R.10)
+
+**Declassification**: if during Fast Track evaluation or execution you determine the request is ambiguous, under-specified, or has scope that cannot be confidently determined, Fast Track is **not eligible**. Inform the user and fall back to standard re-entry via R.10 (starting from C2 for disambiguation).
 
 **Fast Track execution**:
 1. **Archive**: apply R.5 archival from the earliest affected stage onward

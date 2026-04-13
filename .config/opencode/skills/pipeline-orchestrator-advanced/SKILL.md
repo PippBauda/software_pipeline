@@ -52,7 +52,8 @@ When the user selects "Iteration" at O10, or returns to a COMPLETED project in a
 
 | Scenario | Recommended Re-Entry | Agent | Rationale |
 |----------|---------------------|-------|-----------|
-| New feature or requirement | C4 | Prompt Refiner | Update project-spec with new requirements, then cascade through design and implementation |
+| New feature or requirement (raw/ambiguous request) | C2 | Prompt Refiner | Disambiguate intent, then formalize → extract requirements → cascade through design and implementation |
+| New feature or requirement (clear, well-defined spec) | C3 or C4 | Prompt Refiner | Formalize or extract requirements directly, then cascade through design and implementation |
 | Architecture redesign | C7 | Architect | Redesign architecture; all operational stages will be re-executed |
 | Bug fix (diagnosis needed) | O6 | Debugger | Diagnose via smoke tests, then correction loop R.7 for code fix |
 | Bug fix (known root cause) | O3 | Builder | Direct code fix, then re-validation through O4→O5→O6 |
@@ -111,12 +112,16 @@ Fast Track provides a shortened operational path for focused interventions on CO
 2. The intervention does NOT require changes to `architecture.md`, `interface-contracts.md`, or `api.md`
 3. The intervention does NOT add new functional requirements to `project-spec.md`
 4. The intervention does NOT introduce new dependencies to `environment.md`
+5. The request is **sufficiently clear and unambiguous** — you can determine exact scope and affected modules without further clarification from the user
 
 ### Activation flow
 1. User requests an intervention on a COMPLETED project
 2. Evaluate the eligibility criteria above
 3. If eligible, propose Fast Track with explicit justification (listing which criteria are met and why)
 4. User confirms (if rejected → standard full-pipeline re-entry via R.5 + R.10)
+
+### Declassification
+If during Fast Track evaluation or execution you determine the request is ambiguous, under-specified, or has scope that cannot be confidently determined, Fast Track is **not eligible**. Inform the user and fall back to standard re-entry via R.10 (starting from C2 for disambiguation).
 
 ### Fast Track execution
 1. **Archive**: apply R.5 archival from the earliest affected stage onward
