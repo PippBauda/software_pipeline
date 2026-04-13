@@ -14,6 +14,7 @@ export const PipelineCompactionController = async ({ client }) => {
   const inFlight = new Set()
   const lastCompactionAt = new Map()
   const lastSignature = new Map()
+  const startupLogged = new Set()
 
   const extractSessionId = (obj) => {
     const candidates = [
@@ -96,50 +97,61 @@ export const PipelineCompactionController = async ({ client }) => {
     }
   }
 
-  return {
-    session: async () => {
-      const diagnostics = {
-        dryRun: DRY_RUN,
-        cooldownMs: COOLDOWN_MS,
-        targetCheckpoints: Array.from(TARGET_CHECKPOINTS),
-        hasSessionSummarize: Boolean(client?.session?.summarize),
-        hasAppLog: Boolean(client?.app?.log),
-      }
+  const emitStartupCheck = async (sessionID) => {
+    const key = sessionID || "global"
+    if (startupLogged.has(key)) return
+    startupLogged.add(key)
 
-      if (client?.app?.log) {
-        await client.app.log({
-          body: {
-            service: "pipeline-compaction-controller",
-            level: diagnostics.hasSessionSummarize ? "info" : "warn",
-            message: diagnostics.hasSessionSummarize
-              ? "Startup check: plugin ready"
-              : "Startup check: session.summarize unavailable",
-            extra: {
-              diagnostics,
-              rawEnv: {
-                OPENCODE_PIPELINE_COMPACTION_DRY_RUN: rawDryRun || undefined,
-                OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS: rawCooldown || undefined,
-              },
-            },
+    const diagnostics = {
+      dryRun: DRY_RUN,
+      cooldownMs: COOLDOWN_MS,
+      targetCheckpoints: Array.from(TARGET_CHECKPOINTS),
+      hasSessionSummarize: Boolean(client?.session?.summarize),
+      hasAppLog: Boolean(client?.app?.log),
+      sessionID: sessionID || undefined,
+    }
+
+    if (!client?.app?.log) return
+
+    await client.app.log({
+      body: {
+        service: "pipeline-compaction-controller",
+        level: diagnostics.hasSessionSummarize ? "info" : "warn",
+        message: diagnostics.hasSessionSummarize
+          ? "Startup check: plugin ready"
+          : "Startup check: session.summarize unavailable",
+        extra: {
+          diagnostics,
+          rawEnv: {
+            OPENCODE_PIPELINE_COMPACTION_DRY_RUN: rawDryRun || undefined,
+            OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS: rawCooldown || undefined,
           },
-        })
+        },
+      },
+    })
 
-        if (rawCooldown && COOLDOWN_MS === 120000 && rawCooldown !== "120000") {
-          await client.app.log({
-            body: {
-              service: "pipeline-compaction-controller",
-              level: "warn",
-              message:
-                "Startup check: invalid OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS, defaulting to 120000",
-              extra: { rawCooldown, effectiveCooldownMs: COOLDOWN_MS },
-            },
-          })
-        }
-      }
-    },
+    if (rawCooldown && COOLDOWN_MS === 120000 && rawCooldown !== "120000") {
+      await client.app.log({
+        body: {
+          service: "pipeline-compaction-controller",
+          level: "warn",
+          message:
+            "Startup check: invalid OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS, defaulting to 120000",
+          extra: { rawCooldown, effectiveCooldownMs: COOLDOWN_MS, sessionID: sessionID || undefined },
+        },
+      })
+    }
+  }
 
+  return {
     event: async ({ event }) => {
       if (!event || event.type === "session.compacted") return
+
+      if (event.type === "session.created") {
+        const createdSessionID = extractSessionId(event.properties) || extractSessionId(event)
+        await emitStartupCheck(createdSessionID)
+        return
+      }
 
       if (event.type !== "message.updated" && event.type !== "message.part.updated") {
         return
@@ -156,6 +168,8 @@ export const PipelineCompactionController = async ({ client }) => {
       const sessionID = extractSessionId(props) || extractSessionId(event)
       if (!sessionID) return
       if (!client?.session?.summarize) return
+
+      await emitStartupCheck(sessionID)
 
       const signature = `${checkpoint.id}:${checkpoint.block}`
       await triggerCompaction(sessionID, signature)

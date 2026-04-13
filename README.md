@@ -185,7 +185,7 @@ Environment knobs (optional):
 
 ### Startup Health Check
 
-At session startup, the plugin runs a health check and emits diagnostic logs via `app.log`.
+When a session is created, the plugin runs a health check and emits diagnostic logs via `app.log`.
 
 Expected startup signals:
 
@@ -203,10 +203,16 @@ What is validated:
 How to use it:
 
 1. Start OpenCode with desired env vars (or none).
-2. Verify startup diagnostic log appears once per session.
-3. Emit a checkpoint (`## Pipeline Checkpoint [...]`) and confirm behavior:
+2. Create/open a session (the check runs on `session.created`; if your environment does not expose it, it runs on first checkpoint trigger).
+3. Verify startup diagnostic log appears once per session.
+4. Emit a checkpoint (`## Pipeline Checkpoint [...]`) and confirm behavior:
    - normal mode: compaction runs automatically
    - dry-run mode: only diagnostic log, no compaction
+
+How to see the logs:
+
+- Terminal launch: run `opencode --print-logs --log-level DEBUG` to stream logs directly
+- File logs (Linux/macOS): check `~/.local/share/opencode/log/` for timestamped log files
 
 Example (dry-run):
 
