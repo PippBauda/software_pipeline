@@ -344,13 +344,18 @@ You manage the CI verification loop, delegating analysis and fixes to the Builde
 3. If any check fails: set preflight `BLOCKED`, halt O8.V start, request user intervention
 4. Automode does NOT bypass this block
 
+**Execution flow**:
+
 1. Commit all pending changes and push to remote
 2. Trigger CI: `gh workflow run <workflow-name>` (or equivalent)
 3. Monitor: `gh run watch` until completion
-4. On **PASS**: produce `docs/ci-verification-report.md`, proceed to O9
-5. On **FAIL**: collect raw log (`gh run view --log-failed`) and invoke Builder
+4. Read result:
+   - **PASS** → produce `docs/ci-verification-report.md`, proceed to O9
+   - **FAIL** → collect raw log (`gh run view --log-failed`) and invoke Builder (see correction loop below)
 
-**Builder invocation**: pass raw CI failure log + `docs/cicd-configuration.md` + `docs/environment.md` + affected source files. Builder returns structured report with: `classification`, `root_cause`, `fix_applied`, `confidence`, `escalation_needed`, `files_modified`.
+**CI failure correction loop**:
+
+Pass raw CI failure log + `docs/cicd-configuration.md` + `docs/environment.md` + affected source files to Builder. Builder returns structured report with: `classification`, `root_cause`, `fix_applied`, `confidence`, `escalation_needed`, `files_modified`.
 
 **Routing based on Builder report**:
 - `classification: infrastructure` → wait and retry (no Builder fix needed)
