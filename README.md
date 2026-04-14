@@ -53,38 +53,41 @@ Plus two auxiliary flows: **B1** (Resume) and **C-ADO1** (Adoption) for existing
 
 ```
 software_pipeline/
-├── .config/opencode/           # OpenCode platform files
+├── opencode/                   # OpenCode platform files (deployment source)
 │   ├── agents/                 # Agent definitions (8 agents)
-│   │   ├── orchestrator.md     # Primary agent (520 lines)
-│   │   ├── builder.md          # Subagent (130 lines)
-│   │   ├── architect.md        # Subagent (98 lines)
-│   │   ├── validator.md        # Subagent (103 lines)
-│   │   ├── auditor.md          # Subagent (129 lines)
-│   │   ├── debugger.md         # Subagent (73 lines)
-│   │   ├── analyst.md          # Subagent (79 lines)
-│   │   └── prompt-refiner.md   # Subagent (97 lines)
+│   │   ├── orchestrator.md     # Primary agent
+│   │   ├── builder.md          # Subagent
+│   │   ├── architect.md        # Subagent
+│   │   ├── validator.md        # Subagent
+│   │   ├── auditor.md          # Subagent
+│   │   ├── debugger.md         # Subagent
+│   │   ├── analyst.md          # Subagent
+│   │   └── prompt-refiner.md   # Subagent
 │   ├── skills/
 │   │   └── pipeline-orchestrator-advanced/
-│   │       └── SKILL.md        # Tier 2 rules (161 lines)
+│   │       └── SKILL.md        # Tier 2 rules
 │   ├── plugins/
 │   │   └── pipeline-compaction-controller.js  # Required autonomous compaction trigger
 │   ├── compaction-prompt.txt   # Externalized compaction prompt
-│   └── opencode.json           # Global config (compaction settings)
+│   └── opencode.json           # Project-level config (compaction prompt reference)
 │
-├── .copilot/agents/            # GitHub Copilot platform files
-│   ├── orchestrator.agent.md   # (607 lines — includes Tier 2 inline)
-│   ├── builder.agent.md        # (210 lines)
-│   ├── architect.agent.md      # (146 lines)
-│   ├── validator.agent.md      # (132 lines)
-│   ├── auditor.agent.md        # (155 lines)
-│   ├── debugger.agent.md       # (80 lines)
-│   ├── analyst.agent.md        # (74 lines)
-│   └── prompt-refiner.agent.md # (121 lines)
+├── copilot/                    # GitHub Copilot platform files (deployment source)
+│   └── agents/
+│       ├── orchestrator.agent.md   # (includes Tier 2 inline)
+│       ├── builder.agent.md
+│       ├── architect.agent.md
+│       ├── validator.agent.md
+│       ├── auditor.agent.md
+│       ├── debugger.agent.md
+│       ├── analyst.agent.md
+│       └── prompt-refiner.agent.md
 │
-├── pipeline_4.1.md             # Formal pipeline definition (1233 lines)
-├── pipeline_description.md     # Human-readable pipeline description (204 lines)
+├── pipeline_4.1.md             # Formal pipeline definition
+├── pipeline_description.md     # Human-readable pipeline description
 └── README.md                   # This file
 ```
+
+> **Note**: The `opencode/` and `copilot/` folders are **not** dot-prefixed so they are not auto-detected by the respective tools. This is intentional — this repo is the pipeline definition source, not a pipeline project. See [Deployment](#deployment) for how to install them.
 
 ## Supported Platforms
 
@@ -92,9 +95,6 @@ The pipeline is implemented for two AI coding platforms:
 
 ### OpenCode (primary)
 
-- **Agent location**: `~/.config/opencode/agents/`
-- **Skills**: `~/.config/opencode/skills/`
-- **Config**: `~/.config/opencode/opencode.json`
 - **Architecture**: 2-tier rule system
   - **Tier 1** (inline in `orchestrator.md`): core rules always available (R.0-R.4, R.6, R.7, R.9, R.CONTEXT, State Machine, Manifest Schema)
   - **Tier 2** (on-demand skill `pipeline-orchestrator-advanced`): advanced features loaded only when needed (R.5, R.8, R.10, R.11, R.12, B1/C-ADO1)
@@ -103,51 +103,82 @@ The pipeline is implemented for two AI coding platforms:
 
 ### GitHub Copilot (secondary)
 
-- **Agent location**: `~/.copilot/agents/` (global)
 - **Architecture**: all rules inline (Copilot has no skill system)
 - **Subagent invocation**: via `@agent-name` mentions
 - **Model**: `Claude Opus 4.6 (copilot)`
 
 ## Deployment
 
+The pipeline agents can be deployed **globally** (available in all sessions) or **per-project** (available only when working in a specific project).
+
 ### OpenCode
 
-Copy (or symlink) the config files from this repo to the system-wide OpenCode config directory:
+#### Global deployment
+
+Copy the files from `opencode/` to the system-wide OpenCode config directory (`~/.config/opencode/`):
 
 ```bash
 # Agents
-cp .config/opencode/agents/*.md ~/.config/opencode/agents/
+cp opencode/agents/*.md ~/.config/opencode/agents/
 
 # Skill
 mkdir -p ~/.config/opencode/skills/pipeline-orchestrator-advanced/
-cp .config/opencode/skills/pipeline-orchestrator-advanced/SKILL.md \
+cp opencode/skills/pipeline-orchestrator-advanced/SKILL.md \
    ~/.config/opencode/skills/pipeline-orchestrator-advanced/
 
 # Required plugin for autonomous compaction at pipeline checkpoints
 mkdir -p ~/.config/opencode/plugins/
-cp .config/opencode/plugins/pipeline-compaction-controller.js \
+cp opencode/plugins/pipeline-compaction-controller.js \
    ~/.config/opencode/plugins/
 
 # Compaction prompt file referenced by opencode.json
-cp .config/opencode/compaction-prompt.txt ~/.config/opencode/compaction-prompt.txt
+cp opencode/compaction-prompt.txt ~/.config/opencode/compaction-prompt.txt
 
-# Global config (compaction settings)
-cp .config/opencode/opencode.json ~/.config/opencode/opencode.json
+# Config (compaction prompt reference)
+cp opencode/opencode.json ~/.config/opencode/opencode.json
 ```
 
 After deployment, agents are available globally in all OpenCode sessions.
 
-### GitHub Copilot
+#### Per-project deployment
 
-Copy the Copilot agent files to the global Copilot agents directory:
+Copy the files into the target project. OpenCode auto-detects `.opencode/` at the workspace root and `opencode.json` in the project root:
 
 ```bash
-# Agents
+cd /path/to/your/project
+
+# Agents, skills, plugins, compaction prompt
+cp -r /path/to/software_pipeline/opencode .opencode
+
+# Config (must be at project root, not inside .opencode/)
+mv .opencode/opencode.json opencode.json
+```
+
+After deployment, agents are available only when working in that project.
+
+### GitHub Copilot
+
+#### Global deployment
+
+Copy the agent files to the global Copilot agents directory:
+
+```bash
 mkdir -p ~/.copilot/agents/
-cp .copilot/agents/*.agent.md ~/.copilot/agents/
+cp copilot/agents/*.agent.md ~/.copilot/agents/
 ```
 
 After deployment, agents are available globally in all Copilot sessions.
+
+#### Per-project deployment
+
+Copy the agent files into the target project. Copilot auto-detects `.copilot/agents/` at the workspace root:
+
+```bash
+cd /path/to/your/project
+cp -r /path/to/software_pipeline/copilot .copilot
+```
+
+After deployment, agents are available only when working in that project.
 
 ## Usage
 
@@ -189,7 +220,12 @@ Artifacts:
 
 ### Autonomous Compaction
 
-OpenCode deployments must include `~/.config/opencode/plugins/pipeline-compaction-controller.js` so compaction is triggered automatically right after `Pipeline Checkpoint` emission at the defined breakpoints.
+The compaction plugin must be deployed for autonomous compaction to work. Depending on deployment mode:
+
+- **Global**: `~/.config/opencode/plugins/pipeline-compaction-controller.js`
+- **Per-project**: `.opencode/plugins/pipeline-compaction-controller.js`
+
+The plugin triggers compaction automatically right after `Pipeline Checkpoint` emission at the defined breakpoints.
 
 Environment knobs (optional):
 
@@ -239,7 +275,7 @@ opencode
 ### Troubleshooting (Plugin)
 
 - Plugin not triggering:
-  - Verify deployment path: `~/.config/opencode/plugins/pipeline-compaction-controller.js`
+  - Verify deployment path: `~/.config/opencode/plugins/pipeline-compaction-controller.js` (global) or `.opencode/plugins/pipeline-compaction-controller.js` (per-project)
   - Restart OpenCode after copying plugin/config files
   - Ensure the orchestrator actually emits `## Pipeline Checkpoint [post-cognitive|post-o3|post-o10|post-reentry]`
   - Enable debug logs: `export OPENCODE_PIPELINE_COMPACTION_DEBUG=1`
@@ -248,7 +284,7 @@ opencode
 - Want safe validation first:
   - Enable dry-run mode: `export OPENCODE_PIPELINE_COMPACTION_DRY_RUN=1`
 - Compaction quality looks wrong:
-  - Verify `~/.config/opencode/compaction-prompt.txt` exists and `opencode.json` uses `"prompt": "{file:compaction-prompt.txt}"`
+  - Verify `compaction-prompt.txt` exists alongside the plugin and `opencode.json` uses `"prompt": "{file:compaction-prompt.txt}"`
 
 ## Key Design Principles
 
