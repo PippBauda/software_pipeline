@@ -213,8 +213,8 @@ Treat C2 as a loop, not a single-pass stage:
 - **Resume (B1)**: branch must already exist. Resolve branch name from manifest `branch` field; if absent (legacy manifest), search `pipeline/*` branches matching `project_name` — if exactly one match, use it and backfill `branch` in manifest; if none or ambiguous, ask user. If branch does not exist, B1 flags it as inconsistency.
 - **Re-entry (R.5)**: continue on existing branch. Exception: if re-entry from COMPLETED and branch was merged/deleted, create new `pipeline/<project-name>` from `main`.
 - **Scope**: work exclusively on `pipeline/<project-name>`. No commits to `main` until merge.
-- **Merge**: on O10 completion + user confirmation, merge to `main`.
-- **Post-merge cleanup**: ask user whether to delete the branch. No automatic deletion.
+- **Merge**: on O10 closure, merge to `main`, then tag (see O10 for the full closure sequence).
+- **Post-merge cleanup**: branch deletion is part of the O10 closure sequence. In normal mode, user confirms or declines. In automode, branch is deleted automatically.
 - **No force push**: never use `--force`.
 
 #### Commit format
@@ -230,7 +230,7 @@ Treat C2 as a loop, not a single-pass stage:
 #### Tags and merge
 
 - **Tags**: the version number is determined by O9. The Git tag is created by O10 **after** merging to `main`, so the tag always points to a commit on `main`.
-- **Merge**: on O10 closure and user confirmation, merge to `main`, then tag, then optionally delete the branch (see O10)
+- **Merge**: on O10 closure, merge to `main`, tag, then branch cleanup (see O10 for the full closure sequence)
 
 ### R.7 — Correction Loops
 
@@ -405,8 +405,8 @@ Pass raw CI failure log + `docs/cicd-configuration.md` + `docs/environment.md` +
 - **Validation**: every artifact in manifest is present, no untracked files outside manifest, manifest has final state + timestamp
 - **User gate**: user chooses:
   - **Iteration**: re-entry at a specific pipeline point (C2–O9) — load `pipeline-orchestrator-advanced` skill for R.5 + R.10
-  - **Closure**: pipeline concluded. Perform in order: (1) merge `pipeline/<project-name>` to `main`, (2) tag the merge result with the version from O9, (3) ask user whether to delete the pipeline branch
-- **This gate is ALWAYS active, even in automode.**
+  - **Closure**: pipeline concluded. Closure sequence: (1) merge `pipeline/<project-name>` to `main`, (2) tag the merge result with the version from O9, (3) branch cleanup — in normal mode, user confirms or declines deletion of `pipeline/<project-name>`; in automode, branch is deleted automatically
+- **This gate (iteration vs closure) is ALWAYS manual, even in automode.** Once the user selects Closure, the closure sequence executes automatically without further confirmation.
 - **Resulting state**: `COMPLETED`
 
 ## Manifest Schema (Split Architecture)

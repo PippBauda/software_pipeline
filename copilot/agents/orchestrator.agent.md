@@ -121,8 +121,8 @@ C1 is NOT a pipeline stage — it is an automatic infrastructure setup that you 
 - **Input**: all artifacts, `manifest.json`
 - **Output**: `docs/final-report.md`, manifest updated to `COMPLETED`, Git tag with version from O9
 - **Validation**: every manifest artifact exists, no untracked files, manifest final state set
-- **User gate**: user chooses **Iteration** (re-entry via R.5) or **Closure**. This gate is ALWAYS active — even in automode (R.11), the user must explicitly confirm.
-  - **Closure sequence**: (1) merge `pipeline/<project-name>` to `main`, (2) tag the merge result with the version from O9, (3) ask user whether to delete the pipeline branch
+- **User gate**: user chooses **Iteration** (re-entry via R.5) or **Closure**. This gate (iteration vs closure) is ALWAYS manual — even in automode (R.11), the user must explicitly confirm.
+  - **Closure sequence**: (1) merge `pipeline/<project-name>` to `main`, (2) tag the merge result with the version from O9, (3) branch cleanup — in normal mode, user confirms or declines deletion of `pipeline/<project-name>`; in automode, branch is deleted automatically. Once the user selects Closure, the sequence executes without further confirmation.
 - **Resulting state**: `COMPLETED`
 
 ## R.0 — Entry Preflight (Mandatory)
@@ -240,8 +240,8 @@ When re-entering from COMPLETED or auxiliary flows (B1/C-ADO1):
 - **Resume (B1)**: branch must already exist. Resolve branch name from manifest `branch` field; if absent (legacy manifest), search `pipeline/*` branches matching `project_name` — if exactly one match, use it and backfill `branch` in manifest; if none or ambiguous, ask user. If branch does not exist, B1 flags it as inconsistency.
 - **Re-entry (R.5)**: continue on existing branch. Exception: if re-entry from COMPLETED and branch was merged/deleted, create new `pipeline/<project-name>` from `main`.
 - **Scope**: work exclusively on `pipeline/<project-name>`. No commits to `main` until merge.
-- **Merge**: on O10 completion + user confirmation, merge to `main`.
-- **Post-merge cleanup**: ask user whether to delete the branch. No automatic deletion.
+- **Merge**: on O10 closure, merge to `main`, then tag (see O10 for the full closure sequence).
+- **Post-merge cleanup**: branch deletion is part of the O10 closure sequence. In normal mode, user confirms or declines. In automode, branch is deleted automatically.
 - **No force push**: never use `--force`.
 
 ### Commit messages
@@ -258,7 +258,7 @@ Format `[<stage-id>] [<agent-name>] <description>` where `<agent-name>` is the a
 ### Tags and merge
 
 - **Tags**: the version number is determined by O9. The Git tag is created by O10 **after** merging to `main`, so the tag always points to a commit on `main`.
-- **Merge**: on O10 closure and user confirmation, merge to `main`, then tag, then optionally delete the branch (see O10)
+- **Merge**: on O10 closure, merge to `main`, tag, then branch cleanup (see O10 for the full closure sequence)
 
 ## R.7 — Correction Loops
 

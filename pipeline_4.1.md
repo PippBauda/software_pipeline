@@ -151,6 +151,8 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
   - `upstream-analysis.md` links each extracted element to its original source
   - the user has confirmed analysis quality (user gate passed)
 - **Access error handling**: if an external source is inaccessible (authentication, network, invalid URL), the Analyst documents the failure in the report with: source, error type, estimated impact on the project, and requests user instructions to proceed (alternative source, skip, credentials).
+- **User gate**: confirmation of analysis quality
+- **Revision cycle**: if the user is unsatisfied, feedback is passed to the Analyst and the stage repeats
 - **Bypass**: if no external sources exist, the stage is skipped and `upstream-analysis.md` is not produced. Subsequent stages must function with or without this artifact.
 - **Resulting state**: `C5_EXTERNAL_ANALYZED` (or `C5_SKIPPED`)
 
@@ -219,9 +221,10 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
   - every requirement is traced to at least one component
   - no constraints are violated
   - identified risks have mitigation proposals
-- **Decision rule**:
-  - if architecture is invalid → return to C7 with revision notes
-  - if architecture is valid → proceed
+- **User gate**: the user chooses between:
+  - **a)** valid → proceed to C9
+  - **b)** revise → return to C7 with revision notes
+  - **c)** override → proceed to C9 despite issues
 - **Resulting state**: `C8_ARCHITECTURE_VALIDATED`
 
 ---
@@ -648,10 +651,11 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - the manifest is updated with final state and timestamp
 - **User gate**: the user chooses between:
   - **Iteration**: re-entry at a specific pipeline point (C2–O9) providing instructions. On re-entry the **Re-Entry Protocol** (R.5) is applied. The re-entry point is validated by the orchestrator (see S.1 under State Machine). The orchestrator presents the **Re-Entry Guide** (R.10) to help the user select the correct re-entry stage.
-  - **Closure**: the pipeline is concluded. The orchestrator performs the following in order:
+  - **Closure**: the pipeline is concluded. The orchestrator performs the closure sequence:
     1. Merge `pipeline/<project-name>` to `main` (per R.6)
     2. Tag the merge result on `main` with the version from O9 (e.g., `git tag v1.0.0`)
-    3. Ask the user whether to delete the `pipeline/<project-name>` branch
+    3. **Branch cleanup**: in normal mode, the user confirms or declines deletion of `pipeline/<project-name>`. In automode, the branch is deleted automatically.
+- **Automode behavior**: O10 user gate (iteration vs closure) is ALWAYS manual (R.11 exemption). Once the user selects **Closure**, the closure sequence (merge, tag, branch deletion) executes automatically without further confirmation.
 - **Resulting state**: `COMPLETED`
 
 ---
@@ -873,8 +877,8 @@ When the user chooses to re-enter the pipeline at a previous point (from O10/COM
 - **Resume (B1)**: the branch must already exist. The orchestrator resolves the branch name from the manifest `branch` field; if absent (legacy manifest), it searches `pipeline/*` branches to find the one matching `project_name` (see B1 — Branch resolution). If the branch does not exist, B1 flags this as an inconsistency in the audit report.
 - **Re-entry (R.5)**: the branch already exists — continue working on it. Exception: if re-entry happens from COMPLETED state and the branch was already merged/deleted, create a new `pipeline/<project-name>` from `main`.
 - **Scope**: the orchestrator works exclusively on `pipeline/<project-name>` during pipeline execution. No commits to `main` until merge.
-- **Merge**: on O10 closure and user confirmation, merge `pipeline/<project-name>` to `main`, then tag the version (see O10 for the full closure sequence).
-- **Post-merge cleanup**: after successful merge and tagging, the orchestrator asks the user whether to delete the `pipeline/<project-name>` branch. No automatic deletion.
+- **Merge**: on O10 closure, merge `pipeline/<project-name>` to `main`, then tag the version (see O10 for the full closure sequence).
+- **Post-merge cleanup**: branch deletion is part of the O10 closure sequence. In normal mode, the user confirms or declines deletion. In automode, the branch is deleted automatically after merge and tagging.
 - **No force push**: the pipeline never uses `--force` on any branch.
 
 ### Commit messages
@@ -890,7 +894,7 @@ Format `[<stage-id>] [<agent-name>] <description>` where `<agent-name>` is the a
 ### Tags and merge
 
 - **Tags**: the version number is determined by O9 (see O9 — Version determination). The Git tag is created by O10 **after** merging `pipeline/<project-name>` to `main`, so the tag always points to a commit on `main`. This ensures the tag remains valid after the pipeline branch is deleted.
-- **Merge**: on O10 closure and user confirmation, merge `pipeline/<project-name>` to `main`, then tag, then optionally delete the branch (see O10 and Branch management above)
+- **Merge**: on O10 closure, merge `pipeline/<project-name>` to `main`, tag, then branch cleanup (see O10 for the full closure sequence)
 
 ## R.7 — Correction Loops
 
