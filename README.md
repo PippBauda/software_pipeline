@@ -202,7 +202,7 @@ At each **user gate**, the pipeline pauses for your confirmation before proceedi
 - **Start new project**: describe your idea
 - **Resume existing project**: `resume` (triggers B1 audit)
 - **Adopt existing codebase**: `adopt` (triggers C-ADO1 audit)
-- **Automode**: `automode on` / `automode off` — auto-proceeds gates with automatic "fix everything" policy (except C2 and O10)
+- **Automode**: `automode on` / `automode off` — auto-proceeds gates with automatic "fix everything" policy (except C2)
 - **Stop**: `stop` at any time to halt the pipeline
 
 ### Entry Preflight

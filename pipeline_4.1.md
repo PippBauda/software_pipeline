@@ -7,7 +7,7 @@
 - **V.1 — Single-user model**: the pipeline is designed for a single user interacting with the orchestrator. No role management, permissions, or multi-user interactions are supported.
 - **V.2 — Stateless agents**: all agents (including the orchestrator) are stateless. Context is reconstructed at each invocation from committed artifacts and the pipeline manifest. No implicit memory exists between invocations. When the same agent is invoked across consecutive stages (e.g., Prompt Refiner in C2→C3→C4), all relevant information from prior invocations MUST be fully encoded in the output artifacts — the agent cannot rely on conversational memory from previous stages. For stages with internal iteration (O3), the orchestrator applies V.2 by invoking the subagent once per iteration unit (module), ensuring each invocation has full context independent of previous iterations.
 - **V.3 — Git as source of truth**: the Git repository is the single source of truth. The pipeline state is always determinable from the manifest and committed artifacts. Every handoff between orchestrator and subagent produces a commit, ensuring that interruptions at any point are traceable.
-- **V.4 — Automode**: when activated by the user, user gates become auto-proceed except **C2** and **O10**, which always require explicit user confirmation. The orchestrator makes decisions autonomously with the mandatory constraint of resolving ALL issues found at every stage (always "full correction"). Automode can be activated at any point after C4 and deactivated at any time. In automode, hard stops are: O10 user confirmation, R.8 Level 3 fatal blockage, and R.0 preflight `BLOCKED`. See R.11.
+- **V.4 — Automode**: when activated by the user, user gates become auto-proceed except **C2**, which always requires explicit user confirmation. The orchestrator makes decisions autonomously with the mandatory constraint of resolving ALL issues found at every stage (always "full correction"). Automode can be activated at any point after C4 and deactivated at any time. In automode, hard stops are: R.8 Level 3 fatal blockage and R.0 preflight `BLOCKED`. See R.11.
 - **V.6 — Context economy**: Pipeline artifacts flow between stages via disk, never via conversation context. Subagents return structured summaries (not full reports) to the orchestrator. The orchestrator's context must remain lean throughout the entire pipeline lifecycle. Full reports and large artifacts are always written to disk; only paths and brief summaries travel through the orchestrator.
 
 ---
@@ -591,7 +591,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
 
   **Escalation for significant changes**: if the Builder reports `escalation_needed: true` (e.g., a module needs substantial rewriting, an architectural contradiction emerges, or a dependency requires fundamental redesign), the orchestrator escalates via R.8:
   - **Normal mode**: R.8 Level 2 — the orchestrator proposes re-entry to the user at the appropriate stage (typically O3, O1, or earlier) via R.5. The user confirms.
-  - **Automode**: R.8 Level 2 is resolved automatically — the orchestrator determines the appropriate re-entry stage, executes R.5 re-entry, and the pipeline re-traverses all intermediate stages (automode auto-proceeds through applicable gates; C2 and O10 remain manual). If re-entry targets C2, automode is disabled before resumption per R.5/S.1. The pipeline will eventually return to O8.V for re-verification. **Anti-loop guard**: if after an automatic re-entry the CI fails again for the same root cause, the orchestrator does NOT perform a second automatic re-entry — instead it triggers R.8 Level 3 (fatal blockage), which halts the pipeline in automode.
+  - **Automode**: R.8 Level 2 is resolved automatically — the orchestrator determines the appropriate re-entry stage, executes R.5 re-entry, and the pipeline re-traverses all intermediate stages (automode auto-proceeds through applicable gates; C2 remains manual). If re-entry targets C2, automode is disabled before resumption per R.5/S.1. The pipeline will eventually return to O8.V for re-verification. **Anti-loop guard**: if after an automatic re-entry the CI fails again for the same root cause, the orchestrator does NOT perform a second automatic re-entry — instead it triggers R.8 Level 3 (fatal blockage), which halts the pipeline in automode.
 - **Iteration limit**: after 5 consecutive in-place fix failures (without escalation), the orchestrator halts and escalates to the user (R.8 Level 2 in normal mode, automatic re-entry in automode as described above).
 - **Validation criteria**:
   - the CI workflow has passed on the live GitHub environment
@@ -649,13 +649,13 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - every artifact declared in the manifest is present in the repository
   - no untracked files remain outside the manifest
   - the manifest is updated with final state and timestamp
-- **User gate**: the user chooses between:
+- **User gate** (normal mode): the user chooses between:
   - **Iteration**: re-entry at a specific pipeline point (C2–O9) providing instructions. On re-entry the **Re-Entry Protocol** (R.5) is applied. The re-entry point is validated by the orchestrator (see S.1 under State Machine). The orchestrator presents the **Re-Entry Guide** (R.10) to help the user select the correct re-entry stage.
   - **Closure**: the pipeline is concluded. The orchestrator performs the closure sequence:
     1. Merge `pipeline/<project-name>` to `main` (per R.6)
     2. Tag the merge result on `main` with the version from O9 (e.g., `git tag v1.0.0`)
-    3. **Branch cleanup**: in normal mode, the user confirms or declines deletion of `pipeline/<project-name>`. In automode, the branch is deleted automatically.
-- **Automode behavior**: O10 user gate (iteration vs closure) is ALWAYS manual (R.11 exemption). Once the user selects **Closure**, the closure sequence (merge, tag, branch deletion) executes automatically without further confirmation.
+    3. **Branch cleanup**: the user confirms or declines deletion of `pipeline/<project-name>`.
+- **Automode behavior**: O10 auto-proceeds to **Closure**. The orchestrator executes the full closure sequence automatically (merge → tag → branch deletion), then presents an executive summary including the **Re-Entry Guide** (R.10) so the user can see available options from `COMPLETED` state. The user can request re-entry at any time after closure.
 - **Resulting state**: `COMPLETED`
 
 ---
@@ -917,8 +917,8 @@ When an agent encounters a problem it cannot resolve autonomously:
 1. **Level 1 — In-context clarification**: the agent requests clarification from the user within the current stage context. The orchestrator relays the question and provides the answer back to the agent. The stage continues.
    - **In automode**: the orchestrator resolves the clarification autonomously based on project artifacts and context, without asking the user.
 2. **Level 2 — Upstream revision**: the agent signals that an upstream artifact is ambiguous, inconsistent, or incomplete. The orchestrator reports the issue to the user and proposes re-entry at the appropriate upstream stage (following R.5). The user confirms or overrides.
-   - **In automode**: the orchestrator determines the appropriate re-entry stage autonomously, executes R.5, and the pipeline re-traverses all intermediate stages automatically (automode auto-proceeds through applicable gates, except C2 and O10). If re-entry targets C2, automode is disabled before resumption per R.5/S.1.
-3. **Level 3 — Fatal blockage**: the agent cannot proceed and no upstream revision would resolve the issue. The orchestrator applies R.2 (stop), documenting the blockage in the log. **This is the only escalation level that halts the pipeline in automode.** Non-escalation hard stops still apply (e.g., R.0 preflight `BLOCKED`, O10 manual closure gate). The user must intervene to resume.
+   - **In automode**: the orchestrator determines the appropriate re-entry stage autonomously, executes R.5, and the pipeline re-traverses all intermediate stages automatically (automode auto-proceeds through applicable gates, except C2). If re-entry targets C2, automode is disabled before resumption per R.5/S.1.
+3. **Level 3 — Fatal blockage**: the agent cannot proceed and no upstream revision would resolve the issue. The orchestrator applies R.2 (stop), documenting the blockage in the log. **This is the only escalation level that halts the pipeline in automode.** Non-escalation hard stops still apply (e.g., R.0 preflight `BLOCKED`). The user must intervene to resume.
 
 ## R.9 — Progress Metrics
 
@@ -995,7 +995,6 @@ Automode allows the user to delegate all decisions to the pipeline, bypassing us
 
 **Exemptions**:
 - **C2 (Intent Clarification)**: always requires explicit user confirmation — automode does NOT auto-proceed at C2.
-- **O10 (Closure)**: always requires explicit user confirmation — automode does NOT auto-proceed past O10. The user must confirm closure or select iteration.
 - **R.8 Level 3 (Fatal blockage)**: always halts the pipeline, even in automode.
 - **R.0 preflight `BLOCKED`**: always halts progression until user intervention, even in automode.
 
@@ -1037,7 +1036,7 @@ Fast Track provides a shortened operational path for focused interventions on CO
 7. **O8**: CI/CD → Builder — SKIP if CI/CD configuration is unchanged. The orchestrator decides; user can override.
 8. **O8.V**: CI Verification → Orchestrator — mandatory if O8 was executed. Skip if O8 was skipped.
 9. **O9**: Release → Orchestrator — patch version bump (mandatory)
-10. **O10**: Closure → Orchestrator — standard user gate applies (user confirms closure or selects further iteration). Set `fast_track.active = false` upon closure.
+10. **O10**: Closure → Orchestrator — in normal mode, standard user gate applies (user confirms closure or selects further iteration). In automode, O10 auto-proceeds to closure. Set `fast_track.active = false` upon closure.
 
 **Skip tracking**: for every skipped stage, the orchestrator records in `manifest.json` under `fast_track.skipped_stages`: stage id, justification, and whether it was the orchestrator's decision or user override.
 
@@ -1310,7 +1309,7 @@ any *_IN_PROGRESS state  → same stage _IN_PROGRESS         [re-execute from sc
 - Auxiliary flow states (`B1_AUDITING`, `C_ADO1_AUDITING`) are transient — they resolve to a main pipeline state
 - Every transition between orchestrator and subagent produces a commit (dispatch and return)
 - An `_IN_PROGRESS` state always has a corresponding dispatch commit in the Git history
-- When automode is active, every user gate resolves to "proceed" or "full correction" — never to "skip" or "no correction", except C2 and O10 which always require explicit user confirmation
+- When automode is active, every user gate resolves to "proceed" or "full correction" — never to "skip" or "no correction", except C2 which always requires explicit user confirmation
 - R.0 preflight `BLOCKED` state is always a hard stop until user intervention (automode does not bypass)
 - When Fast Track is active, O4 is never skipped and any architectural finding cancels the Fast Track
 

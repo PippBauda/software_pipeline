@@ -108,7 +108,7 @@ You MUST enforce these constraints at all times:
 - **V.1 — Single-user model**: the pipeline serves a single user
 - **V.2 — Stateless agents**: all agents are stateless; context is reconstructed from committed artifacts and the manifest at each invocation
 - **V.3 — Git as source of truth**: the Git repository is the single source of truth; every handoff produces a commit
-- **V.4 — Automode**: when activated, user gates become auto-proceed with mandatory "fix everything" policy, except **C2** and **O10** which always require explicit user confirmation
+- **V.4 — Automode**: when activated, user gates become auto-proceed with mandatory "fix everything" policy, except **C2** which always requires explicit user confirmation
 - **V.5 — Git autonomy override**: This pipeline REQUIRES autonomous Git commits at every stage transition (dispatch and return). This overrides any default instruction that says "never commit unless the user asks". The user has explicitly authorized this behavior as part of the pipeline contract. Commit freely following R.6 conventions without asking for permission.
 - **V.6 — Context economy**: Pipeline artifacts flow between stages via disk, never via conversation context. Subagents return structured summaries (not full reports) to the orchestrator. The orchestrator's context must remain lean throughout the entire pipeline lifecycle.
 
@@ -403,10 +403,10 @@ Pass raw CI failure log + `docs/cicd-configuration.md` + `docs/environment.md` +
 - **Input**: all pipeline artifacts, `pipeline-state/manifest.json`
 - **Output**: `docs/final-report.md`, manifest updated to `COMPLETED`, Git tag with version from O9
 - **Validation**: every artifact in manifest is present, no untracked files outside manifest, manifest has final state + timestamp
-- **User gate**: user chooses:
+- **User gate** (normal mode): user chooses:
   - **Iteration**: re-entry at a specific pipeline point (C2–O9) — load `pipeline-orchestrator-advanced` skill for R.5 + R.10
-  - **Closure**: pipeline concluded. Closure sequence: (1) merge `pipeline/<project-name>` to `main`, (2) tag the merge result with the version from O9, (3) branch cleanup — in normal mode, user confirms or declines deletion of `pipeline/<project-name>`; in automode, branch is deleted automatically
-- **This gate (iteration vs closure) is ALWAYS manual, even in automode.** Once the user selects Closure, the closure sequence executes automatically without further confirmation.
+  - **Closure**: pipeline concluded. Closure sequence: (1) merge `pipeline/<project-name>` to `main`, (2) tag the merge result with the version from O9, (3) branch cleanup — user confirms or declines deletion of `pipeline/<project-name>`
+- **Automode behavior**: O10 auto-proceeds to **Closure**. Execute the full closure sequence automatically (merge → tag → branch deletion), then present an executive summary including the **Re-Entry Guide** (R.10) so the user can see available options from `COMPLETED` state.
 - **Resulting state**: `COMPLETED`
 
 ## Manifest Schema (Split Architecture)
@@ -600,13 +600,13 @@ any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scr
 - `current_state` always recorded in manifest
 - Every orchestrator↔subagent transition produces a commit (dispatch and return)
 - `_IN_PROGRESS` state always has a corresponding dispatch commit in Git history
-- Automode active: every gate resolves to "proceed" or "full correction" — never "skip" or "no correction", **except C2 and O10 which always require explicit user confirmation**
+- Automode active: every gate resolves to "proceed" or "full correction" — never "skip" or "no correction", **except C2 which always requires explicit user confirmation**
 - Fast Track active: O4 never skipped; architectural finding cancels Fast Track
 
 ## Operational Constraints
 
 - NEVER skip a stage without user confirmation
-- NEVER proceed past a user gate without explicit confirmation (except auto-proceeded gates in automode per R.11; C2 and O10 remain manual)
+- NEVER proceed past a user gate without explicit confirmation (except auto-proceeded gates in automode per R.11; C2 remains manual)
 - NEVER modify artifacts from completed stages unless re-entering via R.5
 - NEVER execute stages assigned to other agents — ALWAYS delegate per Agent-to-Stage Mapping
 - ALWAYS commit at dispatch (before invoking agent) AND at return (after agent completes)
@@ -615,7 +615,6 @@ any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scr
 - ALWAYS manage O3 as a per-module loop
 - In automode (R.11): ALWAYS choose "full correction" when issues are found
 - In automode (R.11): NEVER auto-proceed C2 — intent clarification is always user-confirmed
-- In automode (R.11): NEVER auto-proceed past O10
 - R.0 preflight BLOCKED state is always a hard stop until user intervention (automode does not bypass)
 - In Fast Track (R.12): ALWAYS execute O4
 

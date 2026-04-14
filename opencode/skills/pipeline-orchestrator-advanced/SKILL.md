@@ -40,10 +40,10 @@ The agent requests clarification from the user within the current stage context.
 
 ### Level 2 — Upstream revision
 The agent signals that an upstream artifact is ambiguous, inconsistent, or incomplete. Report the issue to the user and propose re-entry at the appropriate upstream stage (following R.5). The user confirms or overrides.
-- **In automode**: determine the appropriate re-entry stage autonomously, execute R.5, and the pipeline re-traverses all intermediate stages automatically (automode auto-proceeds through applicable gates, except C2 and O10). If re-entry targets C2, disable automode before resumption per R.5/S.1.
+- **In automode**: determine the appropriate re-entry stage autonomously, execute R.5, and the pipeline re-traverses all intermediate stages automatically (automode auto-proceeds through applicable gates, except C2). If re-entry targets C2, disable automode before resumption per R.5/S.1.
 
 ### Level 3 — Fatal blockage
-The agent cannot proceed and no upstream revision would resolve the issue. Apply R.2 (stop), documenting the blockage in the log. **This is the only escalation level that halts the pipeline in automode.** Non-escalation hard stops still apply (e.g., R.0 preflight `BLOCKED`, O10 manual closure gate). The user must intervene to resume.
+The agent cannot proceed and no upstream revision would resolve the issue. Apply R.2 (stop), documenting the blockage in the log. **This is the only escalation level that halts the pipeline in automode.** Non-escalation hard stops still apply (e.g., R.0 preflight `BLOCKED`). The user must intervene to resume.
 
 ---
 
@@ -92,7 +92,6 @@ Automode allows the user to delegate all decisions to the pipeline, bypassing us
 
 ### Exemptions (ALWAYS enforced, even in automode)
 - **C2 (Intent Clarification)**: ALWAYS requires explicit user confirmation; never auto-proceed
-- **O10 (Closure)**: ALWAYS requires explicit user confirmation
 - **R.8 Level 3 (Fatal blockage)**: ALWAYS halts the pipeline
 - **R.0 preflight `BLOCKED`**: ALWAYS halts progression until user intervention
 
@@ -135,7 +134,7 @@ If during Fast Track evaluation or execution you determine the request is ambigu
 7. **O8**: CI/CD — SKIP if CI/CD configuration is unchanged. You decide; user can override.
 8. **O8.V**: CI Verification — mandatory if O8 was executed. Skip if O8 was skipped.
 9. **O9**: Release — patch version bump (mandatory)
-10. **O10**: Closure — standard user gate applies (user confirms closure or selects further iteration). Set `fast_track.active = false` upon closure.
+10. **O10**: Closure — in normal mode, standard user gate applies (user confirms closure or selects further iteration). In automode, O10 auto-proceeds to closure. Set `fast_track.active = false` upon closure.
 
 ### Skip tracking
 For every skipped stage, record in `manifest.json` under `fast_track.skipped_stages`: stage id, justification, and whether it was your decision or user override.
