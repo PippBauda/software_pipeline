@@ -140,19 +140,18 @@ Execute a runtime/tooling preflight before any pipeline entry flow:
 
 ### R.1 — Standard Interaction Pattern
 
-Every stage follows this 9-step pattern (+ preflight when required by R.0):
+Every stage follows this 8-step pattern (+ preflight when required by R.0):
 
 0. **Preflight (conditional, per R.0)**: if current transition is an entry flow or O8.V start, run Entry Preflight and honor PASS/WARN/BLOCKED decision before continuing.
 1. **Context reconstruction**: re-read `manifest.json` from disk (per R.CONTEXT). Identify required input artifacts from the Stage Routing Table. Do NOT load full artifact content into your context.
 2. **Dispatch commit**: update `manifest.json` setting `current_state` to `<STAGE>_IN_PROGRESS`, commit: `[<stage-id>] [Orchestrator] Dispatching to <agent-name>`
 3. **Invocation**: invoke the specialized agent as declared in the Agent-to-Stage Mapping. Transmit: stage assignment, input artifact **paths** (not content), context brief (project name, current state, 1-2 sentences), any user feedback or correction notes. The subagent reads artifact content from disk.
 4. **Agent work**: the agent writes artifacts to disk and returns a **structured summary** only (not the full report). For C2, require status + `blocking_gaps` + `open_questions` + `assumptions` + `intent_version`.
-5. **Stage completion commit**: commit produced artifacts: `[<stage-id>] [<agent-name>] <description>`
-6. **Manifest update**: update HEAD (`manifest.json`): set `current_state`, `progress`, upsert `latest_stages[<stage-id>]`. Append to HISTORY (`manifest-history.json`): add entry to `stages_completed`. Both include: resulting state, timestamp, produced artifacts, commit hash, responsible agent, progress metrics (R.9). **C2 exception**: for intermediate clarification rounds (`NEEDS_CLARIFICATION` or user requests another clarification round), keep `current_state` = `C2_IN_PROGRESS`, update `latest_stages[C2]` as in-progress metadata only, and do NOT append C2 to `stages_completed` until explicit user confirmation.
-7. **Executive summary**: write a brief summary for the user based on the agent's returned summary. Reference the full report on disk (e.g., "Full report: `docs/validator-report.md`"). Do NOT read the full report into your context — the agent's returned summary is sufficient.
+5. **Stage completion commit (atomic)**: update `manifest.json` (HEAD): set `current_state`, `progress`, upsert `latest_stages[<stage-id>]`. Append to `manifest-history.json` (HISTORY): add entry to `stages_completed`. Both include: resulting state, timestamp, produced artifacts, commit hash, responsible agent, progress metrics (R.9). Then commit the produced artifacts **together with** the manifest updates in a single atomic commit: `[<stage-id>] [<agent-name>] <description>`. This ensures no gap between artifact production and state transition. **C2 exception**: for intermediate clarification rounds (`NEEDS_CLARIFICATION` or user requests another clarification round), keep `current_state` = `C2_IN_PROGRESS`, update `latest_stages[C2]` as in-progress metadata only, and do NOT append C2 to `stages_completed` until explicit user confirmation.
+6. **Executive summary**: write a brief summary for the user based on the agent's returned summary. Reference the full report on disk (e.g., "Full report: `docs/validator-report.md`"). Do NOT read the full report into your context — the agent's returned summary is sufficient.
    - **At compaction breakpoints** (post-C9, post-O3 with >5 modules, post-O10, and post-reentry after R.5): before the executive summary, write a **Pipeline Checkpoint** block per R.CONTEXT point 7. This block is designed to survive compaction and serve as the reconstruction seed for the next phase.
-8. **User gate** (if required by Routing Table): await confirmation or feedback. **C2 is a hard interactive gate** and MUST NEVER auto-proceed, including when automode is active.
-9. **Revision** (if needed): repeat from step 2 with the user's notes
+7. **User gate** (if required by Routing Table): await confirmation or feedback. **C2 is a hard interactive gate** and MUST NEVER auto-proceed, including when automode is active.
+8. **Revision** (if needed): repeat from step 2 with the user's notes
 
 ### C2 — Mandatory Interactive Clarification Loop
 
@@ -167,9 +166,8 @@ Treat C2 as a loop, not a single-pass stage:
 **For stages you execute directly** (C1, O9, O10):
 1. Set `current_state` to `<STAGE>_IN_PROGRESS`, commit: `[<stage-id>] [Orchestrator] Stage started`
 2. Execute the stage work
-3. Commit results: `[<stage-id>] [Orchestrator] <description>`
-4. Update manifest to resulting state
-5. Executive summary, user gate, revision as above
+3. Update manifest to resulting state and commit results together: `[<stage-id>] [Orchestrator] <description>`
+4. Executive summary, user gate, revision as above
 
 **For O3** (orchestrator-managed iteration): see O3 Module Loop below.
 
@@ -319,9 +317,8 @@ You manage the O3 iteration loop. The Builder is invoked once per module.
    b. Dispatch commit: `[O3] [Orchestrator] Dispatching Builder for module <module-name> (M/N)`
    c. Invoke Builder with: module assignment (name, index M/N), **paths** to input artifacts (`implementation-plan.md`, `module-map.md`, `task-graph.md`, `architecture.md`, `api.md`, `interface-contracts.md`, `test-strategy.md`, `environment.md`), list of previously committed module paths in `src/`. Builder reads content from disk.
    d. Builder implements code + tests, runs tests, writes per-module report to disk, returns structured summary
-   e. Return commit: `[O3] [Builder] Module <module-name> implemented (M/N)`
-   f. Update manifest: `progress.modules_completed` += 1
-   g. Executive summary to user (no user gate per module)
+   e. Update manifest (`progress.modules_completed` += 1) and commit artifacts + manifest together: `[O3] [Builder] Module <module-name> implemented (M/N)`
+   f. Executive summary to user (no user gate per module)
 5. Invoke Builder for cumulative report (`logs/builder-cumulative-report-1.md`)
 6. Final commit: `[O3] [Orchestrator] All N modules completed`
 7. Manifest → `O3_MODULES_GENERATED`
@@ -480,7 +477,7 @@ Append-only log. **Never read during normal pipeline flow.** Read only by B1 (Re
 
 ### Update protocol
 
-At every stage completion:
+At every stage completion, the manifest updates are committed **together with** the produced artifacts in a single atomic commit (R.1 step 5):
 1. **HEAD**: update `current_state`, `progress`, upsert `latest_stages[<stage-id>]`
 2. **HISTORY**: append entry to `stages_completed`
 3. At re-entry (R.5): additionally append to HISTORY `re_entries`
@@ -585,7 +582,7 @@ any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scr
 - NEVER modify artifacts from completed stages unless re-entering via R.5
 - NEVER execute stages assigned to other agents — ALWAYS delegate per Agent-to-Stage Mapping
 - ALWAYS commit at dispatch (before invoking agent) AND at return (after agent completes)
-- ALWAYS update the manifest after every commit
+- ALWAYS include manifest updates in the stage completion commit (single atomic operation per R.1 step 5)
 - ALWAYS provide an executive summary after every stage
 - ALWAYS manage O3 as a per-module loop
 - In automode (R.11): ALWAYS choose "full correction" when issues are found

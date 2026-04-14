@@ -370,9 +370,8 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
      b. Dispatch commit: `[O3] [Orchestrator] Dispatching Builder for module <module-name> (M/N)`
      c. Invoke the Builder with: module assignment, relevant artifacts, correction notes if any
      d. Builder implements module code + tests, runs tests, produces per-module report
-     e. Return commit: `[O3] [Builder] Module <module-name> implemented (M/N)`
-     f. Update manifest: `progress.modules_completed` += 1
-     g. Executive summary to user (informational — no user gate per module)
+      e. Update manifest (`progress.modules_completed` += 1) and commit artifacts + manifest together: `[O3] [Builder] Module <module-name> implemented (M/N)`
+      f. Executive summary to user (informational — no user gate per module)
   5. Invoke Builder for cumulative report
   6. Final commit: `[O3] [Orchestrator] All N modules completed`
   7. Manifest → `O3_MODULES_GENERATED`
@@ -749,19 +748,18 @@ Before any pipeline entry flow, the orchestrator executes a runtime/tooling pref
 
 ## R.1 — Standard Interaction Pattern
 
-Every stage follows this 9-step pattern (+ preflight when required by R.0):
+Every stage follows this 8-step pattern (+ preflight when required by R.0):
 
 0. **Preflight (conditional, per R.0)**: if current transition is an entry flow or O8.V start, run Entry Preflight and honor PASS/WARN/BLOCKED decision before continuing.
 1. **Context reconstruction**: the orchestrator re-reads `manifest.json` (HEAD) from disk to determine current state and progress (per R.CONTEXT). It identifies required input artifacts from the Stage Routing Table by path. The orchestrator does NOT load full artifact content into its own context.
 2. **Dispatch commit**: the orchestrator updates `manifest.json` setting `current_state` to `<STAGE>_IN_PROGRESS`, then commits with message `[<stage-id>] [Orchestrator] Dispatching to <agent-name>`
 3. **Invocation**: the orchestrator invokes the specialized agent **as declared in each stage's Agent field and in the Agent table** — the orchestrator MUST NOT perform the agent's work itself regardless of stage complexity or simplicity. The orchestrator transmits: stage assignment, input artifact **paths** (not content), a context brief (project name, current state, 1-2 sentences), any user feedback or correction notes. The subagent reads artifact content from disk using its own tools.
 4. **Agent work**: the agent writes artifacts to disk and returns a **structured summary** only (not the full report) to the orchestrator. For C2, the summary includes: status, `blocking_gaps`, `open_questions`, `assumptions`, and `intent_version`.
-5. **Stage completion commit**: the orchestrator commits the produced artifacts with message `[<stage-id>] [<agent-name>] <description>`
-6. **Manifest update**: the orchestrator updates HEAD (`manifest.json`): set `current_state`, `progress`, upsert `latest_stages[<stage-id>]`. Append to HISTORY (`manifest-history.json`): add entry to `stages_completed`. Both include: resulting state, timestamp, produced artifacts, commit hash, responsible agent, progress metrics (see R.9). **C2 exception**: for intermediate clarification rounds (`NEEDS_CLARIFICATION` or user requests another clarification round), keep `current_state` = `C2_IN_PROGRESS`, update `latest_stages[C2]` as in-progress metadata only, and do NOT append C2 to `stages_completed` until explicit user confirmation.
-7. **Executive summary**: the orchestrator writes in the chat a brief summary based on the agent's returned summary, indicating the location of the full report in the repository (e.g., "Full report: `docs/validator-report.md`"). The orchestrator does NOT read the full report into its context — the agent's returned summary is sufficient.
+5. **Stage completion commit (atomic)**: the orchestrator updates `manifest.json` (HEAD): set `current_state`, `progress`, upsert `latest_stages[<stage-id>]`. Appends to `manifest-history.json` (HISTORY): add entry to `stages_completed`. Both include: resulting state, timestamp, produced artifacts, commit hash, responsible agent, progress metrics (see R.9). Then commits the produced artifacts **together with** the manifest updates in a single atomic commit: `[<stage-id>] [<agent-name>] <description>`. This ensures no gap between artifact production and state transition. **C2 exception**: for intermediate clarification rounds (`NEEDS_CLARIFICATION` or user requests another clarification round), keep `current_state` = `C2_IN_PROGRESS`, update `latest_stages[C2]` as in-progress metadata only, and do NOT append C2 to `stages_completed` until explicit user confirmation.
+6. **Executive summary**: the orchestrator writes in the chat a brief summary based on the agent's returned summary, indicating the location of the full report in the repository (e.g., "Full report: `docs/validator-report.md`"). The orchestrator does NOT read the full report into its context — the agent's returned summary is sufficient.
    - **At compaction breakpoints** (post-C9, post-O3 with >5 modules, post-O10, and post-reentry after R.5): before the executive summary, the orchestrator writes a **Pipeline Checkpoint** block per R.CONTEXT point 7. This structured block is designed to survive context compaction and serve as the reconstruction seed for the next phase.
-8. **User gate** (if required): awaits confirmation or feedback. **C2 is a hard interactive gate and MUST NEVER auto-proceed, including when automode is active.**
-9. **Revision** (if needed): the cycle repeats from step 2 with the user's notes
+7. **User gate** (if required): awaits confirmation or feedback. **C2 is a hard interactive gate and MUST NEVER auto-proceed, including when automode is active.**
+8. **Revision** (if needed): the cycle repeats from step 2 with the user's notes
 
 ### C2 — Mandatory Interactive Clarification Loop
 
@@ -776,9 +774,8 @@ Treat C2 as a loop, not a single-pass stage:
 **For stages the orchestrator executes directly** (C1, O9, O10):
 1. Set `current_state` to `<STAGE>_IN_PROGRESS`, commit: `[<stage-id>] [Orchestrator] Stage started`
 2. Execute the stage work
-3. Commit results: `[<stage-id>] [Orchestrator] <description>`
-4. Update manifest to resulting state
-5. Executive summary, user gate, revision as above
+3. Update manifest to resulting state and commit results together: `[<stage-id>] [Orchestrator] <description>`
+4. Executive summary, user gate, revision as above
 
 **For O3 (orchestrator-managed iteration)**: see O3 section for the detailed per-module loop. The general principle of dispatch/return commits applies to each module invocation within O3.
 
@@ -1105,7 +1102,7 @@ Append-only log. **Never read during normal pipeline flow.** Read only by B1 (Re
 
 ## Update protocol
 
-At every stage completion:
+At every stage completion, the manifest updates are committed **together with** the produced artifacts in a single atomic commit (R.1 step 5):
 1. **HEAD**: update `current_state`, `progress`, upsert `latest_stages[<stage-id>]`
 2. **HISTORY**: append entry to `stages_completed`
 3. At re-entry (R.5): additionally append to HISTORY `re_entries`
