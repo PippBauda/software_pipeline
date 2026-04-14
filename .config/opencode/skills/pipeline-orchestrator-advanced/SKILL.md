@@ -152,7 +152,11 @@ For every skipped stage, record in `manifest.json` under `fast_track.skipped_sta
 When a user requests to resume an existing project:
 
 1. Check if `pipeline-state/manifest.json` exists
-2. Verify the `pipeline/<project-name>` branch exists (read `branch` from manifest). If the branch does not exist, flag as inconsistency in the audit.
+2. Resolve the working branch:
+   - If the manifest contains the `branch` field → use that value.
+   - If `branch` is absent (legacy manifest) → search existing git branches matching `pipeline/*` and identify the one corresponding to `project_name`. If exactly one match → use it and backfill the `branch` field in the manifest.
+   - If no match or multiple candidates → ask the user to specify the branch.
+   - Verify the resolved branch exists. If not, flag as inconsistency in the audit.
 3. If yes: switch to the branch, set state to `B1_AUDITING`, invoke **Auditor** (`subagent_type: "auditor"`)
 4. Auditor reads both `manifest.json` (HEAD) and `manifest-history.json` (HISTORY) for full audit. Produces `docs/audit-report.md` with: artifact inventory, consistency analysis, pipeline state, interruption point, recommendation (resume or adoption)
 5. Run R.0 Entry Preflight before executing audit recommendation (resume/adoption transition). If preflight is `BLOCKED`, halt and request user intervention.

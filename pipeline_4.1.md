@@ -652,7 +652,11 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
 
 - **Agent**: Auditor
 - **Purpose**: analyze an existing repository to determine if the project can be resumed from its interruption point.
-- **Branch**: verify the `pipeline/<project-name>` branch exists (read `branch` from manifest). If the branch does not exist, flag as inconsistency in the audit. If it exists, switch to it before proceeding.
+- **Branch resolution** (orchestrator, before invoking Auditor):
+  1. If the manifest contains the `branch` field → use that value.
+  2. If the `branch` field is absent (legacy manifest) → search existing git branches matching `pipeline/*` and identify the one corresponding to `project_name`. If exactly one match is found → use it and backfill the `branch` field in the manifest.
+  3. If no matching branch is found, or multiple candidates exist → ask the user to specify the branch.
+  4. Verify the resolved branch exists in git. If it does not exist, flag as inconsistency in the audit report. If it exists, switch to it before proceeding.
 - **Input**:
   - repository contents
   - `pipeline-state/manifest.json` (HEAD — current state, if present)
@@ -849,7 +853,7 @@ When the user chooses to re-enter the pipeline at a previous point (from O10/COM
   - **New project**: create `pipeline/<project-name>` from the default branch (`main`). If the repository is empty (no commits yet), the first commit on `pipeline/<project-name>` establishes the branch.
   - **Adoption**: create `pipeline/<project-name>` from `main` (the existing project code is on `main`).
 - **Conflict**: if `pipeline/<project-name>` already exists at C1 time, the orchestrator MUST stop and ask the user to resolve (delete/rename the existing branch, or choose a different project name). Do not overwrite or force-create.
-- **Resume (B1)**: the branch must already exist. If it does not, B1 flags this as an inconsistency in the audit report.
+- **Resume (B1)**: the branch must already exist. The orchestrator resolves the branch name from the manifest `branch` field; if absent (legacy manifest), it searches `pipeline/*` branches to find the one matching `project_name` (see B1 — Branch resolution). If the branch does not exist, B1 flags this as an inconsistency in the audit report.
 - **Re-entry (R.5)**: the branch already exists — continue working on it. Exception: if re-entry happens from COMPLETED state and the branch was already merged/deleted, create a new `pipeline/<project-name>` from `main`.
 - **Scope**: the orchestrator works exclusively on `pipeline/<project-name>` during pipeline execution. No commits to `main` until merge.
 - **Merge**: on O10 completion and user confirmation, merge `pipeline/<project-name>` to `main`.

@@ -228,7 +228,7 @@ When re-entering from COMPLETED or auxiliary flows (B1/C-ADO1):
   - **New project**: create from default branch (`main`). If repo is empty, the first commit establishes the branch.
   - **Adoption**: create from `main`.
 - **Conflict**: if `pipeline/<project-name>` already exists at C1 time, STOP and ask the user to resolve (delete/rename existing branch, or choose a different project name).
-- **Resume (B1)**: branch must already exist. If not, B1 flags it as inconsistency.
+- **Resume (B1)**: branch must already exist. Resolve branch name from manifest `branch` field; if absent (legacy manifest), search `pipeline/*` branches matching `project_name` — if exactly one match, use it and backfill `branch` in manifest; if none or ambiguous, ask user. If branch does not exist, B1 flags it as inconsistency.
 - **Re-entry (R.5)**: continue on existing branch. Exception: if re-entry from COMPLETED and branch was merged/deleted, create new `pipeline/<project-name>` from `main`.
 - **Scope**: work exclusively on `pipeline/<project-name>`. No commits to `main` until merge.
 - **Merge**: on O10 completion + user confirmation, merge to `main`.
