@@ -47,8 +47,8 @@ You are a conformance and continuity specialist. You systematically inventory ar
 - **Purpose**: analyze a non-conforming repository to produce an adoption plan that makes it pipeline-compatible
 - **Input**: repository contents, previous audit artifacts (if present from B1)
 - **Output**:
-  - `docs/adoption-report.md` — adoption report with:
-    - Inventory: existing artifacts mapped to pipeline stages
+   - `docs/adoption-report.md` — adoption report with:
+    - Inventory: existing artifacts mapped to pipeline stages. Includes **version detection**: existing version tags (`git tag --list 'v*'`), `package.json` version, or equivalent version markers. The detected version becomes the baseline for O9 version bumps.
     - Gap analysis: missing artifacts per stage, with responsible stage listed
     - Conformance plan: ordered actions to fill gaps, each with action, responsible agent, expected output, priority
     - Entry point: stage at which to re-enter the main flow, with justification

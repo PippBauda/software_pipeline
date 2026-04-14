@@ -62,8 +62,8 @@ You are a conformance and continuity specialist. You systematically inventory ar
   - Previous audit artifacts (if present from B1)
 - **Output**:
   - `docs/adoption-report.md` — adoption report with sub-sections:
-    - **Inventory**: existing artifacts mapped to pipeline stages
-    - **Gap analysis**: missing artifacts per stage, with responsible stage listed
+     - **Inventory**: existing artifacts mapped to pipeline stages. Includes **version detection**: existing version tags (`git tag --list 'v*'`), `package.json` version, or equivalent version markers. The detected version becomes the baseline for O9 version bumps.
+     - **Gap analysis**: missing artifacts per stage, with responsible stage listed
     - **Conformance plan**: ordered actions to fill gaps, each with:
       - Action description
       - Responsible agent

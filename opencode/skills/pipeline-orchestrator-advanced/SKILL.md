@@ -61,7 +61,7 @@ When the user selects "Iteration" at O10, or returns to a COMPLETED project in a
 | Security vulnerability | O5 | Validator | Re-audit security, then correction loop R.7 if fix needed |
 | Documentation update only | O7 | Builder | Regenerate documentation |
 | CI/CD reconfiguration | O8 | Builder | Reconfigure pipeline |
-| New release version | O9 | Orchestrator | Tag new version, generate changelog |
+| New release version | O9 | Orchestrator | Determine new version, generate changelog (tag applied by O10 after merge) |
 
 **New session with COMPLETED project**: read the manifest, inform the user of project status, and present this guide. The user selects the re-entry point and R.5 is applied.
 

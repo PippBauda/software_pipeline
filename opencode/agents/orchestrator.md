@@ -96,7 +96,7 @@ This table governs your behavior after each stage completes. It defines entry co
 | O7 | Builder | O6 passed/accepted | `README.md`, `docs/api-reference.md`, `docs/installation-guide.md` | **Auto-proceed** to O8 |
 | O8 | Builder | O7 completed | CI/CD config files, `docs/cicd-configuration.md` | **Auto-proceed** to O8.V |
 | O8.V | Orchestrator | O8 completed | `docs/ci-verification-report.md` | **Auto-proceed** to O9 |
-| O9 | Orchestrator | O8.V completed | Git tag, `CHANGELOG.md`, `docs/release-notes.md` | **User gate**: confirm release |
+| O9 | Orchestrator | O8.V completed | `CHANGELOG.md`, `docs/release-notes.md` | **User gate**: confirm release |
 | O10 | Orchestrator | O9 confirmed | `docs/final-report.md` | **User gate**: (a) iterate; (b) close |
 | B1 | Auditor | Existing project with manifest | `docs/audit-report.md` | **User gate**: confirm audit |
 | C-ADO1 | Auditor | B1 not resumable, or adoption request | `docs/adoption-report.md` | **User gate**: confirm plan |
@@ -229,8 +229,8 @@ Treat C2 as a loop, not a single-pass stage:
 
 #### Tags and merge
 
-- **Tags**: on completion, tag with semantic version (e.g., `v1.0.0`)
-- **Merge**: on completion and user confirmation, merge to `main` (see Branch management above)
+- **Tags**: the version number is determined by O9. The Git tag is created by O10 **after** merging to `main`, so the tag always points to a commit on `main`.
+- **Merge**: on O10 closure and user confirmation, merge to `main`, then tag, then optionally delete the branch (see O10)
 
 ### R.7 — Correction Loops
 
@@ -384,20 +384,28 @@ Pass raw CI failure log + `docs/cicd-configuration.md` + `docs/environment.md` +
 
 - **Purpose**: prepare release with semantic versioning
 - **Input**: `src/`, `docs/architecture.md`, `docs/environment.md`, `pipeline-state/manifest.json`
-- **Output**: Git tag (semver, e.g., `v1.0.0`), `CHANGELOG.md`, `docs/release-notes.md`, deployment config (if applicable)
-- **Validation**: version tag follows semver, changelog is complete, release notes consistent with changelog
-- **User gate**: release confirmation
+- **Output**: `CHANGELOG.md`, `docs/release-notes.md` (include determined version), deployment config (if applicable)
+- **Version determination**: read existing tags (`git tag --list 'v*'`) to determine baseline, then:
+  - First release (no tags): `v1.0.0`
+  - Re-entry from COMPLETED at cognitive stage (C2–C9): minor bump
+  - Re-entry from COMPLETED at operational stage (O1–O9): patch bump
+  - Fast Track (R.12): patch bump
+  - User may override at the O9 gate
+  - Record determined version in `latest_stages[O9].version`
+- **Note**: O9 determines the version but does NOT create the Git tag. The tag is applied by O10 after merge (see O10 and R.6).
+- **Validation**: determined version follows semver, changelog is complete, release notes consistent with changelog
+- **User gate**: release confirmation (user sees version and may override)
 - **Resulting state**: `O9_RELEASED`
 
 ### O10 — Closure and Final Report
 
-- **Purpose**: verify repository integrity, consolidate pipeline state, provide final report
+- **Purpose**: verify repository integrity, consolidate pipeline state, merge to `main`, tag release, provide final report
 - **Input**: all pipeline artifacts, `pipeline-state/manifest.json`
-- **Output**: `docs/final-report.md`, manifest updated to `COMPLETED`
+- **Output**: `docs/final-report.md`, manifest updated to `COMPLETED`, Git tag with version from O9
 - **Validation**: every artifact in manifest is present, no untracked files outside manifest, manifest has final state + timestamp
 - **User gate**: user chooses:
   - **Iteration**: re-entry at a specific pipeline point (C2–O9) — load `pipeline-orchestrator-advanced` skill for R.5 + R.10
-  - **Closure**: pipeline concluded
+  - **Closure**: pipeline concluded. Perform in order: (1) merge `pipeline/<project-name>` to `main`, (2) tag the merge result with the version from O9, (3) ask user whether to delete the pipeline branch
 - **This gate is ALWAYS active, even in automode.**
 - **Resulting state**: `COMPLETED`
 

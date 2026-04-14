@@ -608,16 +608,24 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - `docs/environment.md`
   - `pipeline-state/manifest.json`
 - **Output**:
-  - Git tag with semantic version (e.g., `v1.0.0`)
   - `CHANGELOG.md` — changelog of modifications
-  - `docs/release-notes.md` — release notes
+  - `docs/release-notes.md` — release notes (include the determined version number)
   - deployment configuration (if applicable: `Dockerfile`, deploy scripts, cloud configuration)
+- **Version determination**: the orchestrator reads existing tags (`git tag --list 'v*'`) to determine the current version baseline, then applies the appropriate bump:
+  - **First release** (no existing version tags): `v1.0.0`
+  - **Re-entry from COMPLETED via R.5 standard path**:
+    - Re-entry at a cognitive stage (C2–C9): minor bump (e.g., `v1.0.0` → `v1.1.0`)
+    - Re-entry at an operational stage (O1–O9): patch bump (e.g., `v1.0.0` → `v1.0.1`)
+  - **Fast Track (R.12)**: patch bump (e.g., `v1.0.0` → `v1.0.1`)
+  - **User override**: the user may specify a different version at the O9 user gate
+  - The determined version is recorded in `manifest.json` under `latest_stages[O9].version` and used by O10 for tagging.
 - **Transformation**: the completed project is prepared for distribution with version metadata and (optionally) deployment configuration.
 - **Validation criteria**:
-  - the version tag follows semantic versioning
+  - the determined version follows semantic versioning
   - the changelog is complete and tracks changes
   - release notes are consistent with the changelog
-- **User gate**: release confirmation
+- **Note**: O9 determines the version number but does **not** create the Git tag. The tag is applied by O10 after merge to `main` (see O10 and R.6).
+- **User gate**: release confirmation (the user sees the determined version and may override it)
 - **Resulting state**: `O9_RELEASED`
 
 ---
@@ -625,21 +633,25 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
 ## O10 — Closure and Final Report
 
 - **Agent**: Orchestrator (direct)
-- **Purpose**: verify repository integrity, consolidate the pipeline state, and provide a final report to the user.
+- **Purpose**: verify repository integrity, consolidate the pipeline state, merge to `main`, tag the release, and provide a final report to the user.
 - **Input**:
   - all artifacts produced by the pipeline (cognitive + operational)
   - `pipeline-state/manifest.json`
 - **Output**:
   - `docs/final-report.md` — cumulative final report
   - `pipeline-state/manifest.json` — manifest updated with state `COMPLETED`
-- **Transformation**: all artifacts are inventoried, verified for integrity, and synthesized into a final report.
+  - Git tag with the semantic version determined by O9 (from `latest_stages[O9].version`)
+- **Transformation**: all artifacts are inventoried, verified for integrity, and synthesized into a final report. The pipeline branch is merged to `main` and tagged.
 - **Validation criteria**:
   - every artifact declared in the manifest is present in the repository
   - no untracked files remain outside the manifest
   - the manifest is updated with final state and timestamp
 - **User gate**: the user chooses between:
   - **Iteration**: re-entry at a specific pipeline point (C2–O9) providing instructions. On re-entry the **Re-Entry Protocol** (R.5) is applied. The re-entry point is validated by the orchestrator (see S.1 under State Machine). The orchestrator presents the **Re-Entry Guide** (R.10) to help the user select the correct re-entry stage.
-  - **Closure**: the pipeline is concluded
+  - **Closure**: the pipeline is concluded. The orchestrator performs the following in order:
+    1. Merge `pipeline/<project-name>` to `main` (per R.6)
+    2. Tag the merge result on `main` with the version from O9 (e.g., `git tag v1.0.0`)
+    3. Ask the user whether to delete the `pipeline/<project-name>` branch
 - **Resulting state**: `COMPLETED`
 
 ---
@@ -711,7 +723,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - previous audit artifacts (if present)
 - **Output**:
   - `docs/adoption-report.md` — adoption report with sub-sections:
-    - **Inventory**: existing artifacts mapped to pipeline stages
+    - **Inventory**: existing artifacts mapped to pipeline stages. Includes **version detection**: existing version tags (`git tag --list 'v*'`), `package.json` version, or equivalent version markers. The detected version becomes the baseline for O9 version bumps.
     - **Gap analysis**: missing artifacts per stage, with responsible stage
     - **Conformance plan**: ordered actions to fill gaps, with responsible agent per action
     - **Entry point**: stage at which to re-enter, with justification
@@ -861,8 +873,8 @@ When the user chooses to re-enter the pipeline at a previous point (from O10/COM
 - **Resume (B1)**: the branch must already exist. The orchestrator resolves the branch name from the manifest `branch` field; if absent (legacy manifest), it searches `pipeline/*` branches to find the one matching `project_name` (see B1 — Branch resolution). If the branch does not exist, B1 flags this as an inconsistency in the audit report.
 - **Re-entry (R.5)**: the branch already exists — continue working on it. Exception: if re-entry happens from COMPLETED state and the branch was already merged/deleted, create a new `pipeline/<project-name>` from `main`.
 - **Scope**: the orchestrator works exclusively on `pipeline/<project-name>` during pipeline execution. No commits to `main` until merge.
-- **Merge**: on O10 completion and user confirmation, merge `pipeline/<project-name>` to `main`.
-- **Post-merge cleanup**: after successful merge, the orchestrator asks the user whether to delete the `pipeline/<project-name>` branch. No automatic deletion.
+- **Merge**: on O10 closure and user confirmation, merge `pipeline/<project-name>` to `main`, then tag the version (see O10 for the full closure sequence).
+- **Post-merge cleanup**: after successful merge and tagging, the orchestrator asks the user whether to delete the `pipeline/<project-name>` branch. No automatic deletion.
 - **No force push**: the pipeline never uses `--force` on any branch.
 
 ### Commit messages
@@ -877,8 +889,8 @@ Format `[<stage-id>] [<agent-name>] <description>` where `<agent-name>` is the a
 
 ### Tags and merge
 
-- **Tags**: on pipeline completion, tag with semantic version (e.g., `v1.0.0`)
-- **Merge**: on completion and user confirmation, merge to `main` (see Branch management above)
+- **Tags**: the version number is determined by O9 (see O9 — Version determination). The Git tag is created by O10 **after** merging `pipeline/<project-name>` to `main`, so the tag always points to a commit on `main`. This ensures the tag remains valid after the pipeline branch is deleted.
+- **Merge**: on O10 closure and user confirmation, merge `pipeline/<project-name>` to `main`, then tag, then optionally delete the branch (see O10 and Branch management above)
 
 ## R.7 — Correction Loops
 
@@ -1125,7 +1137,7 @@ Append-only log. **Never read during normal pipeline flow.** Read only by R.5 (R
 - `branch`: the Git branch where pipeline execution occurs (R.6). Set at C1, used by B1 to locate the working branch on resume.
 - `current_state`: the current state from the state machine. Can be a completed state (e.g., `C2_INTENT_CLARIFIED`) or an in-progress state (e.g., `C2_IN_PROGRESS`) indicating an active or interrupted invocation.
 - `progress`: real-time progress tracking (see R.9). `current_module` is populated only during O3.
-- `latest_stages` (HEAD only): map keyed by canonical stage_id (C1, C2, ..., O10). Contains only the most recent execution metadata per stage. Updated (upserted) at every stage completion — replaces previous entry for that stage_id. For C2 intermediate clarification rounds, it may hold in-progress metadata before final confirmation. Provides O(1) lookup for current pipeline state.
+- `latest_stages` (HEAD only): map keyed by canonical stage_id (C1, C2, ..., O10). Contains only the most recent execution metadata per stage. Updated (upserted) at every stage completion — replaces previous entry for that stage_id. For C2 intermediate clarification rounds, it may hold in-progress metadata before final confirmation. Provides O(1) lookup for current pipeline state. **O9-specific field**: `latest_stages[O9]` additionally contains a `version` field (e.g., `"v1.0.0"`) with the determined semantic version, used by O10 for tagging after merge.
 - `stages_completed` (HISTORY only): ordered append-only array of all completed stage records. `execution_index` is incremented when a stage is re-executed (revision cycle or correction loop).
 - `re_entries` (HISTORY only): history of all re-entry events (R.5)
 - `corrections` (HISTORY only): history of all correction loops (R.7)

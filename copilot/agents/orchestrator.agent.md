@@ -63,7 +63,7 @@ This table governs your behavior after each stage completes. It defines entry co
 | O7 | Builder | O6 passed/accepted | `README.md`, `docs/api-reference.md`, `docs/installation-guide.md` | **Auto-proceed** to O8 |
 | O8 | Builder | O7 completed | CI/CD config files, `docs/cicd-configuration.md` | **Auto-proceed** to O8.V |
 | O8.V | Orchestrator (managed) | O8 completed | `docs/ci-verification-report.md` | **Auto-proceed** to O9 (iterative: on CI failure → Builder fixes → re-verify) |
-| O9 | Orchestrator (direct) | O8.V completed | Git tag, `CHANGELOG.md`, `docs/release-notes.md` | **User gate**: confirm release → proceed |
+| O9 | Orchestrator (direct) | O8.V completed | `CHANGELOG.md`, `docs/release-notes.md` | **User gate**: confirm release → proceed |
 | O10 | Orchestrator (direct) | O9 confirmed | `docs/final-report.md` | **User gate**: (a) iterate → R.5 + R.10 guide; (b) close → COMPLETED |
 | B1 | Auditor | Existing project with manifest | `docs/audit-report.md` | **User gate**: confirm audit → resume or → C-ADO1 |
 | C-ADO1 | Auditor | B1 not resumable, or adoption request | `docs/adoption-report.md` | **User gate**: confirm plan → orchestrator executes plan |
@@ -102,18 +102,27 @@ C1 is NOT a pipeline stage — it is an automatic infrastructure setup that you 
 
 - **Purpose**: prepare release with semantic versioning
 - **Input**: `src/`, `docs/architecture.md`, `docs/environment.md`, `manifest.json`
-- **Output**: Git tag (semver), `CHANGELOG.md`, `docs/release-notes.md`, deployment config (if applicable)
-- **Validation**: version tag is semver, changelog complete, release notes consistent
-- **User gate**: release confirmation
+- **Output**: `CHANGELOG.md`, `docs/release-notes.md` (include determined version), deployment config (if applicable)
+- **Version determination**: read existing tags (`git tag --list 'v*'`) to determine baseline, then:
+  - First release (no tags): `v1.0.0`
+  - Re-entry from COMPLETED at cognitive stage (C2–C9): minor bump
+  - Re-entry from COMPLETED at operational stage (O1–O9): patch bump
+  - Fast Track (R.12): patch bump
+  - User may override at the O9 gate
+  - Record determined version in `latest_stages[O9].version`
+- **Note**: O9 determines the version but does NOT create the Git tag. The tag is applied by O10 after merge (see O10 and R.6).
+- **Validation**: determined version follows semver, changelog complete, release notes consistent
+- **User gate**: release confirmation (user sees version and may override)
 - **Resulting state**: `O9_RELEASED`
 
 ### O10 — Closure and Final Report
 
-- **Purpose**: verify repository integrity and provide final report
+- **Purpose**: verify repository integrity, merge to `main`, tag release, and provide final report
 - **Input**: all artifacts, `manifest.json`
-- **Output**: `docs/final-report.md`, manifest updated to `COMPLETED`
+- **Output**: `docs/final-report.md`, manifest updated to `COMPLETED`, Git tag with version from O9
 - **Validation**: every manifest artifact exists, no untracked files, manifest final state set
 - **User gate**: user chooses **Iteration** (re-entry via R.5) or **Closure**. This gate is ALWAYS active — even in automode (R.11), the user must explicitly confirm.
+  - **Closure sequence**: (1) merge `pipeline/<project-name>` to `main`, (2) tag the merge result with the version from O9, (3) ask user whether to delete the pipeline branch
 - **Resulting state**: `COMPLETED`
 
 ## R.0 — Entry Preflight (Mandatory)
@@ -248,8 +257,8 @@ Format `[<stage-id>] [<agent-name>] <description>` where `<agent-name>` is the a
 
 ### Tags and merge
 
-- **Tags**: semver on completion (e.g., `v1.0.0`)
-- **Merge**: to `main` on user confirmation (see Branch management above)
+- **Tags**: the version number is determined by O9. The Git tag is created by O10 **after** merging to `main`, so the tag always points to a commit on `main`.
+- **Merge**: on O10 closure and user confirmation, merge to `main`, then tag, then optionally delete the branch (see O10)
 
 ## R.7 — Correction Loops
 
