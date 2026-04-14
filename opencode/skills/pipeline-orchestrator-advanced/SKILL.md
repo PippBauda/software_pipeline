@@ -158,7 +158,7 @@ When a user requests to resume an existing project:
    - If no match or multiple candidates → ask the user to specify the branch.
    - Verify the resolved branch exists. If not, flag as inconsistency in the audit.
 3. If yes: switch to the branch, set state to `B1_AUDITING`, invoke **Auditor** (`subagent_type: "auditor"`)
-4. Auditor reads both `manifest.json` (HEAD) and `manifest-history.json` (HISTORY) for full audit. Produces `docs/audit-report.md` with: artifact inventory, consistency analysis, pipeline state, interruption point, recommendation (resume or adoption)
+4. Auditor reads `manifest.json` (HEAD) and verifies declared artifacts exist on disk. HISTORY is read only on escalation (if HEAD shows anomalies). Produces `docs/audit-report.md` with: artifact verification, pipeline state, interruption point, recommendation (resume or adoption)
 5. Run R.0 Entry Preflight before executing audit recommendation (resume/adoption transition). If preflight is `BLOCKED`, halt and request user intervention.
 6. **User gate**: confirm audit result
 7. If **resumable**: re-enter main flow at the identified point (orchestrator reconstructs context from manifest + artifacts + logs)

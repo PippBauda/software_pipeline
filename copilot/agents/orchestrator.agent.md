@@ -283,7 +283,7 @@ At every stage transition, reconstruct context from disk — NEVER rely on conve
 2. **Pass artifact paths** (not content) in subagent invocation prompts. Subagents read content from disk using their own tools.
 3. **Accept only structured summaries** from returning subagents (per V.6). Full reports remain on disk.
 4. **Conversation history** is for user interaction flow only — never for pipeline state. Routing decisions (which stage is next, what has been completed, which modules remain) MUST be derived from `manifest.json` on disk. **Conflict rule**: if your conversational memory of the pipeline state contradicts the manifest, the manifest ALWAYS wins.
-5. **History access**: read `pipeline-state/manifest-history.json` ONLY when executing B1 (Resume audit), R.5 (Re-entry archival), or when the user explicitly requests pipeline history.
+5. **History access**: read `pipeline-state/manifest-history.json` ONLY when executing R.5 (Re-entry archival), when the B1 Auditor encounters an anomaly in HEAD that requires historical context to diagnose (escalation — not by default), or when the user explicitly requests pipeline history.
 6. **Stale summary warning**: after O3 (or any stage producing many subagent exchanges), treat conversational summaries from earlier stages as potentially truncated or compressed by the harness. For any decision requiring cognitive-phase artifact content (e.g., requirements, architecture), re-read the source file from disk — never rely on an earlier summary.
 7. **Compaction breakpoints**: at four pipeline breakpoints — **(a)** after C9 (cognitive→operational transition), **(b)** after O3 if more than 5 modules were generated, **(c)** after O10 when state becomes `COMPLETED`, and **(d)** immediately after R.5 re-entry archival/commit — produce a **Pipeline Checkpoint** block and suggest context compaction. This is the primary mechanism for keeping the orchestrator's context lean across long pipeline runs and across pipeline restarts.
 
@@ -559,7 +559,7 @@ Read at every stage transition (R.CONTEXT). Must stay small (<5 KB).
 
 ### HISTORY — `pipeline-state/manifest-history.json`
 
-Append-only log. **Never read during normal pipeline flow.** Read only by B1 (Resume audit), R.5 (Re-entry protocol), and on explicit user request.
+Append-only log. **Never read during normal pipeline flow.** Read only by R.5 (Re-entry protocol), by B1 on escalation (when HEAD analysis reveals an anomaly requiring historical context), and on explicit user request.
 
 ```json
 {

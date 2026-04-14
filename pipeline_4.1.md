@@ -658,28 +658,33 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   3. If no matching branch is found, or multiple candidates exist → ask the user to specify the branch.
   4. Verify the resolved branch exists in git. If it does not exist, flag as inconsistency in the audit report. If it exists, switch to it before proceeding.
 - **Input**:
-  - repository contents
   - `pipeline-state/manifest.json` (HEAD — current state, if present)
-  - `pipeline-state/manifest-history.json` (HISTORY — full stage log, if present)
+- **Audit methodology** (manifest-guided, not exhaustive):
+  1. **Read HEAD**: parse `manifest.json`. If absent or invalid JSON → ADOPTION (skip remaining steps).
+  2. **Schema check**: verify `schema_version` is `"4.1"`. If not → ADOPTION.
+  3. **Artifact verification**: for each entry in `latest_stages`, verify that the declared `artifacts[]` paths exist on disk. For each artifact, confirm it is not empty and its first lines are consistent with the expected type (e.g., a `.md` has a heading matching the artifact kind). Do NOT read full artifact content — a lightweight header check is sufficient.
+  4. **State determination**: from `current_state` and `latest_stages`, identify the last completed stage and any `_IN_PROGRESS` interruption.
+  5. **Assess**: apply RESUME/ADOPTION threshold (see below).
+  6. **Escalation to HISTORY** (conditional): read `pipeline-state/manifest-history.json` ONLY if the HEAD-based analysis reveals an anomaly that requires historical context to diagnose (e.g., `latest_stages` references artifacts that don't exist but may have been archived in a prior re-entry, or `execution_index` values suggest re-executions that need verification). If no anomaly is found, the HISTORY is never read.
 - **Output**:
   - `docs/audit-report.md` — audit report with sub-sections:
-    - **Artifact inventory**: found artifacts, classified by originating stage
-    - **Consistency analysis**: cross-referencing between artifacts and expected pipeline structure
-    - **Pipeline state**: last valid state identified
-    - **Interruption point**: stage at which the project stopped
+    - **Artifact verification**: for each stage in `latest_stages`, whether its declared artifacts are present and structurally valid
+    - **Pipeline state**: `current_state` and last completed stage from HEAD
+    - **Interruption point**: stage at which the project stopped (if `_IN_PROGRESS`)
     - **IN_PROGRESS detection**: if the manifest `current_state` ends with `_IN_PROGRESS`, the stage was started but never completed — this indicates an interrupted invocation. The audit MUST note this and recommend re-executing that stage from scratch.
+    - **HISTORY consulted**: whether the HISTORY file was read during the audit, and if so, why
     - **Recommendation**: resume (with re-entry point) or adoption (with justification)
   - `logs/auditor-analysis-1.md` — analysis log
-- **Transformation**: artifacts present in the repository are compared against the expected pipeline structure to determine project state and consistency.
+- **Transformation**: artifacts declared in `latest_stages` are verified for existence and structural validity to confirm manifest consistency.
 - **Validation criteria**:
-  - every found artifact has been classified against its originating stage
+  - every artifact declared in `latest_stages` has been verified for existence
   - the interruption point has been uniquely identified
   - the report contains an explicit recommendation (resume or adoption)
-  - if `manifest.json` exists, its `schema_version` is verified for compatibility
+  - `schema_version` is verified for compatibility
   - if `current_state` is `_IN_PROGRESS`, this is documented as an interrupted invocation
 - **RESUME/ADOPTION threshold criteria**:
-  - **RESUMABLE** if: `manifest.json` exists AND is valid AND its `schema_version` is compatible AND all artifacts referenced in the manifest are present AND the last completed stage is uniquely identifiable
-  - **ADOPTION** if: `manifest.json` is absent OR corrupted OR schema version incompatible OR artifacts do not match the manifest OR the last completed stage cannot be uniquely determined
+  - **RESUMABLE** if: `manifest.json` exists AND is valid AND its `schema_version` is compatible AND all artifacts declared in `latest_stages` are present on disk AND the last completed stage is uniquely identifiable
+  - **ADOPTION** if: `manifest.json` is absent OR corrupted OR schema version incompatible OR declared artifacts are missing from disk OR the last completed stage cannot be uniquely determined
 - **User gate**: the user confirms the audit result
 - **Preflight**: before executing the audit recommendation (resume/adoption transition), run R.0 Entry Preflight. If `BLOCKED`, halt and request user intervention.
 - **Outcome**:
@@ -915,7 +920,7 @@ At every stage transition, the orchestrator reconstructs context from disk — N
 2. **Pass artifact paths** (not content) in subagent invocation prompts. Subagents read content from disk using their own tools.
 3. **Accept only structured summaries** from returning subagents (per V.6). Full reports remain on disk.
 4. **Conversation history** is for user interaction flow only — never for pipeline state. Routing decisions (which stage is next, what has been completed, which modules remain) MUST be derived from `manifest.json` on disk. **Conflict rule**: if the orchestrator's conversational memory of the pipeline state contradicts the manifest, the manifest ALWAYS wins.
-5. **History access**: read `pipeline-state/manifest-history.json` ONLY when executing B1 (Resume audit), R.5 (Re-entry archival), or when the user explicitly requests pipeline history.
+5. **History access**: read `pipeline-state/manifest-history.json` ONLY when executing R.5 (Re-entry archival), when the B1 Auditor encounters an anomaly in HEAD that requires historical context to diagnose (escalation — not by default), or when the user explicitly requests pipeline history.
 6. **Stale summary warning**: after O3 (or any stage producing many subagent exchanges), treat conversational summaries from earlier stages as potentially truncated or compressed by the harness. For any decision requiring cognitive-phase artifact content (e.g., requirements, architecture), re-read the source file from disk — never rely on an earlier summary.
 7. **Compaction breakpoints**: at four pipeline breakpoints — **(a)** after C9 (cognitive→operational transition), **(b)** after O3 if more than 5 modules were generated, **(c)** after O10 when state becomes `COMPLETED`, and **(d)** immediately after R.5 re-entry archival/commit — the orchestrator produces a **Pipeline Checkpoint** block and triggers autonomous context compaction when supported by the platform. This is the primary mechanism for keeping the orchestrator's context lean across long pipeline runs and across pipeline restarts.
 
@@ -1074,7 +1079,7 @@ Read at every stage transition (R.CONTEXT). Must stay small (<5 KB).
 
 ## HISTORY — `pipeline-state/manifest-history.json`
 
-Append-only log. **Never read during normal pipeline flow.** Read only by B1 (Resume audit), R.5 (Re-entry protocol), and on explicit user request.
+Append-only log. **Never read during normal pipeline flow.** Read only by R.5 (Re-entry protocol), by B1 on escalation (when HEAD analysis reveals an anomaly requiring historical context), and on explicit user request.
 
 ```json
 {
