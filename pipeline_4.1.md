@@ -53,12 +53,13 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
 - **Transformation**: an informal request is converted into a traceable repository structure with a state manifest.
 - **Validation criteria**:
   - the Git repository is initialized and accessible
+  - the `pipeline/<project-name>` branch has been created and is the active branch (R.6)
   - directories `docs/`, `logs/`, `pipeline-state/`, `archive/` exist
-  - `manifest.json` contains state `C1_INITIALIZED` with timestamp
+  - `manifest.json` contains state `C1_INITIALIZED` with timestamp and `branch` field matching the active branch
   - the initial commit has been executed
 - **Dual mode**:
-  - **New project**: standard initialization → `C1_INITIALIZED` → run R.0 Entry Preflight → proceed to C2
-  - **Project adoption**: when the user requests adoption of an existing project (not developed with this pipeline), the orchestrator creates the pipeline infrastructure (directories, manifest) and transitions directly to C-ADO1. The manifest is set to `C_ADO1_AUDITING` and the Auditor is invoked for the conformance audit.
+  - **New project**: create branch per R.6 → standard initialization → `C1_INITIALIZED` → run R.0 Entry Preflight → proceed to C2
+  - **Project adoption**: create branch per R.6 → create infrastructure, set manifest to `C_ADO1_AUDITING` → invoke Auditor for C-ADO1
 - **Resulting state**: `C1_INITIALIZED` (new project) or `C_ADO1_AUDITING` (adoption)
 
 ---
@@ -651,6 +652,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
 
 - **Agent**: Auditor
 - **Purpose**: analyze an existing repository to determine if the project can be resumed from its interruption point.
+- **Branch**: verify the `pipeline/<project-name>` branch exists (read `branch` from manifest). If the branch does not exist, flag as inconsistency in the audit. If it exists, switch to it before proceeding.
 - **Input**:
   - repository contents
   - `pipeline-state/manifest.json` (HEAD — current state, if present)
@@ -823,15 +825,16 @@ Treat C2 as a loop, not a single-pass stage:
 
 When the user chooses to re-enter the pipeline at a previous point (from O10/COMPLETED, or from B1/C-ADO1):
 
-1. **Archival**: artifacts produced by stages after the re-entry point are moved to `archive/<timestamp>/`, preserving the original structure
-2. **Manifest update**: `manifest.json` is updated to reflect the new state (the re-entry stage state), with reference to the archive for traceability
-3. **Automode safety**: if re-entry target is `C2`, the orchestrator sets `automode: false` in `manifest.json` before resuming so C2 remains fully interactive.
-4. **Commit**: the re-entry is committed with message `[RE-ENTRY] [Orchestrator] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
-5. **Post-reentry checkpoint**: the orchestrator writes a `Pipeline Checkpoint [post-reentry]` containing: resulting state, `from_state -> target_stage`, archive path, scope impact, next stage/agent, required input artifacts, pending gate
-6. **Context compaction**: after writing the post-reentry checkpoint, the orchestrator triggers autonomous context compaction (on OpenCode via plugin). Manual compaction remains a fallback.
-7. **Resumption**: execution resumes from the indicated stage with artifacts from preceding stages intact
-8. **Preflight**: run R.0 Entry Preflight before first post-reentry dispatch. If preflight is `BLOCKED`, halt and request user intervention.
-9. **Delegation**: the orchestrator identifies the agent responsible for the target stage from the Agent-to-Stage mapping and delegates to that agent following R.1 (starting from step 2, dispatch commit). The orchestrator MUST NOT execute stages assigned to other agents.
+1. **Branch check**: verify the `pipeline/<project-name>` branch exists and is the active branch. If re-entry from COMPLETED and the branch was merged/deleted, create a new `pipeline/<project-name>` from `main` per R.6.
+2. **Archival**: artifacts produced by stages after the re-entry point are moved to `archive/<timestamp>/`, preserving the original structure
+3. **Manifest update**: `manifest.json` is updated to reflect the new state (the re-entry stage state), with reference to the archive for traceability
+4. **Automode safety**: if re-entry target is `C2`, the orchestrator sets `automode: false` in `manifest.json` before resuming so C2 remains fully interactive.
+5. **Commit**: the re-entry is committed with message `[RE-ENTRY] [Orchestrator] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
+6. **Post-reentry checkpoint**: the orchestrator writes a `Pipeline Checkpoint [post-reentry]` containing: resulting state, `from_state -> target_stage`, archive path, scope impact, next stage/agent, required input artifacts, pending gate
+7. **Context compaction**: after writing the post-reentry checkpoint, the orchestrator triggers autonomous context compaction (on OpenCode via plugin). Manual compaction remains a fallback.
+8. **Resumption**: execution resumes from the indicated stage with artifacts from preceding stages intact
+9. **Preflight**: run R.0 Entry Preflight before first post-reentry dispatch. If preflight is `BLOCKED`, halt and request user intervention.
+10. **Delegation**: the orchestrator identifies the agent responsible for the target stage from the Agent-to-Stage mapping and delegates to that agent following R.1 (starting from step 2, dispatch commit). The orchestrator MUST NOT execute stages assigned to other agents.
 
 **Scope**: R.5 applies ONLY to user-initiated re-entry (from COMPLETED or from auxiliary flows B1/C-ADO1). Correction loops (O4→O3, O5→O3, O6→O3) are governed by R.7 and do NOT trigger archival.
 
@@ -839,16 +842,34 @@ When the user chooses to re-enter the pipeline at a previous point (from O10/COM
 
 ## R.6 — Git Conventions
 
-- **Branch**: pipeline execution occurs on branch `pipeline/<project-name>`
-- **Commit messages**: format `[<stage-id>] [<agent-name>] <description>` where `<agent-name>` is the agent that performed the work. Examples:
+### Branch management
+
+- **Branch name**: `pipeline/<project-name>`
+- **Creation**: the branch is created explicitly during C1 initialization (see C1 actions). This is the only moment the pipeline creates a branch.
+  - **New project**: create `pipeline/<project-name>` from the default branch (`main`). If the repository is empty (no commits yet), the first commit on `pipeline/<project-name>` establishes the branch.
+  - **Adoption**: create `pipeline/<project-name>` from `main` (the existing project code is on `main`).
+- **Conflict**: if `pipeline/<project-name>` already exists at C1 time, the orchestrator MUST stop and ask the user to resolve (delete/rename the existing branch, or choose a different project name). Do not overwrite or force-create.
+- **Resume (B1)**: the branch must already exist. If it does not, B1 flags this as an inconsistency in the audit report.
+- **Re-entry (R.5)**: the branch already exists — continue working on it. Exception: if re-entry happens from COMPLETED state and the branch was already merged/deleted, create a new `pipeline/<project-name>` from `main`.
+- **Scope**: the orchestrator works exclusively on `pipeline/<project-name>` during pipeline execution. No commits to `main` until merge.
+- **Merge**: on O10 completion and user confirmation, merge `pipeline/<project-name>` to `main`.
+- **Post-merge cleanup**: after successful merge, the orchestrator asks the user whether to delete the `pipeline/<project-name>` branch. No automatic deletion.
+- **No force push**: the pipeline never uses `--force` on any branch.
+
+### Commit messages
+
+Format `[<stage-id>] [<agent-name>] <description>` where `<agent-name>` is the agent that performed the work. Examples:
   - `[C1] [Orchestrator] Pipeline initialized`
   - `[C2] [Orchestrator] Dispatching to Prompt Refiner`
   - `[C2] [Prompt Refiner] Intent clarification completed`
   - `[O3] [Orchestrator] Dispatching Builder for module auth (1/5)`
   - `[O3] [Builder] Module auth implemented (1/5)`
   - `[RE-ENTRY] [Orchestrator] Return to O3 — artifacts archived in archive/20260316T120000/`
+
+### Tags and merge
+
 - **Tags**: on pipeline completion, tag with semantic version (e.g., `v1.0.0`)
-- **Merge**: on completion and user confirmation, merge to `main`
+- **Merge**: on completion and user confirmation, merge to `main` (see Branch management above)
 
 ## R.7 — Correction Loops
 
@@ -1015,6 +1036,7 @@ Read at every stage transition (R.CONTEXT). Must stay small (<5 KB).
   "schema_version": "4.1",
   "pipeline_id": "<unique-pipeline-identifier>",
   "project_name": "<project-name>",
+  "branch": "pipeline/<project-name>",
   "created_at": "<ISO-8601-timestamp>",
   "current_state": "<state-id>",
   "progress": {
@@ -1091,6 +1113,7 @@ Append-only log. **Never read during normal pipeline flow.** Read only by B1 (Re
 - `schema_version`: manifest schema version (`4.1`), verified by B1 for compatibility. Both HEAD and HISTORY share the same version.
 - `pipeline_id`: unique identifier for this pipeline execution. Same value in both files.
 - `project_name`: human-readable project name, used in branch naming (R.6)
+- `branch`: the Git branch where pipeline execution occurs (R.6). Set at C1, used by B1 to locate the working branch on resume.
 - `current_state`: the current state from the state machine. Can be a completed state (e.g., `C2_INTENT_CLARIFIED`) or an in-progress state (e.g., `C2_IN_PROGRESS`) indicating an active or interrupted invocation.
 - `progress`: real-time progress tracking (see R.9). `current_module` is populated only during O3.
 - `latest_stages` (HEAD only): map keyed by canonical stage_id (C1, C2, ..., O10). Contains only the most recent execution metadata per stage. Updated (upserted) at every stage completion — replaces previous entry for that stage_id. For C2 intermediate clarification rounds, it may hold in-progress metadata before final confirmation. Provides O(1) lookup for current pipeline state.

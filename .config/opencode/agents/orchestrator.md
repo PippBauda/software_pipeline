@@ -203,16 +203,34 @@ Treat C2 as a loop, not a single-pass stage:
 
 ### R.6 — Git Conventions
 
-- **Branch**: `pipeline/<project-name>`
-- **Commit format**: `[<stage-id>] [<agent-name>] <description>`
+#### Branch management
+
+- **Branch name**: `pipeline/<project-name>`
+- **Creation**: the branch is created explicitly during C1 initialization. This is the only moment the pipeline creates a branch.
+  - **New project**: create from default branch (`main`). If repo is empty, the first commit establishes the branch.
+  - **Adoption**: create from `main`.
+- **Conflict**: if `pipeline/<project-name>` already exists at C1 time, STOP and ask the user to resolve (delete/rename existing branch, or choose a different project name).
+- **Resume (B1)**: branch must already exist. If not, B1 flags it as inconsistency.
+- **Re-entry (R.5)**: continue on existing branch. Exception: if re-entry from COMPLETED and branch was merged/deleted, create new `pipeline/<project-name>` from `main`.
+- **Scope**: work exclusively on `pipeline/<project-name>`. No commits to `main` until merge.
+- **Merge**: on O10 completion + user confirmation, merge to `main`.
+- **Post-merge cleanup**: ask user whether to delete the branch. No automatic deletion.
+- **No force push**: never use `--force`.
+
+#### Commit format
+
+`[<stage-id>] [<agent-name>] <description>`
   - `[C1] [Orchestrator] Pipeline initialized`
   - `[C2] [Orchestrator] Dispatching to Prompt Refiner`
   - `[C2] [Prompt Refiner] Intent clarification completed`
   - `[O3] [Orchestrator] Dispatching Builder for module auth (1/5)`
   - `[O3] [Builder] Module auth implemented (1/5)`
   - `[RE-ENTRY] [Orchestrator] Return to O3 — artifacts archived in archive/20260316T120000/`
+
+#### Tags and merge
+
 - **Tags**: on completion, tag with semantic version (e.g., `v1.0.0`)
-- **Merge**: on completion and user confirmation, merge to `main`
+- **Merge**: on completion and user confirmation, merge to `main` (see Branch management above)
 
 ### R.7 — Correction Loops
 
@@ -296,11 +314,12 @@ C1 is NOT a pipeline stage — it is automatic infrastructure setup.
 - **Trigger**: new project request (no `manifest.json` exists), OR adoption request
 - **Actions**:
   1. Initialize Git repository (if needed)
-  2. Create directories: `docs/`, `logs/`, `pipeline-state/`, `archive/`
-  3. Create `pipeline-state/manifest.json` (HEAD) with state `C1_INITIALIZED`
-  4. Create `pipeline-state/manifest-history.json` (HISTORY) with empty arrays
-  5. Create `logs/session-init-1.md`
-  6. Commit: `[C1] [Orchestrator] Pipeline initialized`
+  2. Create and switch to branch `pipeline/<project-name>` per R.6 (if branch already exists, STOP and ask user)
+  3. Create directories: `docs/`, `logs/`, `pipeline-state/`, `archive/`
+  4. Create `pipeline-state/manifest.json` (HEAD) with state `C1_INITIALIZED` and `branch` field
+  5. Create `pipeline-state/manifest-history.json` (HISTORY) with empty arrays
+  6. Create `logs/session-init-1.md`
+  7. Commit: `[C1] [Orchestrator] Pipeline initialized`
 - **Dual mode**:
   - **New project**: after initialization, run R.0 Entry Preflight, then dispatch C2
   - **Project adoption**: create infrastructure, set manifest to `C_ADO1_AUDITING`, invoke Auditor for C-ADO1
@@ -395,6 +414,7 @@ Read at every stage transition (R.CONTEXT). Must stay small (<5 KB).
   "schema_version": "4.1",
   "pipeline_id": "<unique-pipeline-identifier>",
   "project_name": "<project-name>",
+  "branch": "pipeline/<project-name>",
   "created_at": "<ISO-8601-timestamp>",
   "current_state": "<state-id>",
   "progress": {

@@ -87,11 +87,12 @@ C1 is NOT a pipeline stage — it is an automatic infrastructure setup that you 
 - **Trigger**: new project request from user (no `manifest.json` exists), OR adoption request
 - **Actions**:
   1. Initialize Git repository (if needed)
-  2. Create directories: `docs/`, `logs/`, `pipeline-state/`, `archive/`
-  3. Create `pipeline-state/manifest.json` (HEAD) with state `C1_INITIALIZED`
-  4. Create `pipeline-state/manifest-history.json` (HISTORY) with empty arrays
-  5. Create `logs/session-init-1.md`
-   6. Commit: `[C1] [Orchestrator] Pipeline initialized`
+  2. Create and switch to branch `pipeline/<project-name>` per R.6 (if branch already exists, STOP and ask user)
+  3. Create directories: `docs/`, `logs/`, `pipeline-state/`, `archive/`
+  4. Create `pipeline-state/manifest.json` (HEAD) with state `C1_INITIALIZED` and `branch` field
+  5. Create `pipeline-state/manifest-history.json` (HISTORY) with empty arrays
+  6. Create `logs/session-init-1.md`
+  7. Commit: `[C1] [Orchestrator] Pipeline initialized`
 - **Dual mode**:
   - **New project**: after initialization → run R.0 Entry Preflight, then dispatch C2 (no user interaction needed)
   - **Project adoption**: create infrastructure, set manifest to `C_ADO1_AUDITING`, invoke Auditor for C-ADO1
@@ -204,23 +205,39 @@ Treat C2 as a loop, not a single-pass stage:
 
 When re-entering from COMPLETED or auxiliary flows (B1/C-ADO1):
 
-1. **Archive**: move post-re-entry artifacts to `archive/<timestamp>/`
-2. **Update manifest**: set new state, reference archive
-3. **Automode safety**: if re-entry target is `C2`, set `automode: false` in `manifest.json` before resuming. Commit this change as part of re-entry so C2 remains fully interactive.
-4. **Commit**: `[RE-ENTRY] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
-5. **Post-reentry checkpoint**: write `## Pipeline Checkpoint [post-reentry]` with: resulting state, `from_state -> target_stage`, archive path, scope impact, next stage/agent, required input artifacts, pending gate
-6. **Context compaction**: suggest immediate compaction after the checkpoint. If autonomous compaction support exists, allow automatic compaction at this point.
-7. **Resume**: from indicated stage with preceding artifacts intact
-8. **Preflight**: run R.0 Entry Preflight before first post-reentry dispatch. If preflight is `BLOCKED`, halt and request user intervention.
-9. **Delegation**: identify the agent responsible for the target stage from the Agent-to-Stage mapping and delegate using R.1 (starting from step 2, dispatch commit). You MUST NOT execute stages assigned to other agents.
+1. **Branch check**: verify `pipeline/<project-name>` branch exists and is the active branch. If re-entry from COMPLETED and branch was merged/deleted, create new `pipeline/<project-name>` from `main` per R.6.
+2. **Archive**: move post-re-entry artifacts to `archive/<timestamp>/`
+3. **Update manifest**: set new state, reference archive
+4. **Automode safety**: if re-entry target is `C2`, set `automode: false` in `manifest.json` before resuming. Commit this change as part of re-entry so C2 remains fully interactive.
+5. **Commit**: `[RE-ENTRY] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
+6. **Post-reentry checkpoint**: write `## Pipeline Checkpoint [post-reentry]` with: resulting state, `from_state -> target_stage`, archive path, scope impact, next stage/agent, required input artifacts, pending gate
+7. **Context compaction**: suggest immediate compaction after the checkpoint. If autonomous compaction support exists, allow automatic compaction at this point.
+8. **Resume**: from indicated stage with preceding artifacts intact
+9. **Preflight**: run R.0 Entry Preflight before first post-reentry dispatch. If preflight is `BLOCKED`, halt and request user intervention.
+10. **Delegation**: identify the agent responsible for the target stage from the Agent-to-Stage mapping and delegate using R.1 (starting from step 2, dispatch commit). You MUST NOT execute stages assigned to other agents.
 
 **Scope**: R.5 applies ONLY to user-initiated re-entry. Correction loops (O4/O5/O6→O3) use R.7 instead.
 **Archive policy**: never auto-deleted. Full traceability preserved.
 
 ## R.6 — Git Conventions
 
-- **Branch**: `pipeline/<project-name>`
-- **Commits**: format `[<stage-id>] [<agent-name>] <description>` where `<agent-name>` is the agent that performed the work. All commits are executed by the orchestrator. Examples:
+### Branch management
+
+- **Branch name**: `pipeline/<project-name>`
+- **Creation**: the branch is created explicitly during C1 initialization. This is the only moment the pipeline creates a branch.
+  - **New project**: create from default branch (`main`). If repo is empty, the first commit establishes the branch.
+  - **Adoption**: create from `main`.
+- **Conflict**: if `pipeline/<project-name>` already exists at C1 time, STOP and ask the user to resolve (delete/rename existing branch, or choose a different project name).
+- **Resume (B1)**: branch must already exist. If not, B1 flags it as inconsistency.
+- **Re-entry (R.5)**: continue on existing branch. Exception: if re-entry from COMPLETED and branch was merged/deleted, create new `pipeline/<project-name>` from `main`.
+- **Scope**: work exclusively on `pipeline/<project-name>`. No commits to `main` until merge.
+- **Merge**: on O10 completion + user confirmation, merge to `main`.
+- **Post-merge cleanup**: ask user whether to delete the branch. No automatic deletion.
+- **No force push**: never use `--force`.
+
+### Commit messages
+
+Format `[<stage-id>] [<agent-name>] <description>` where `<agent-name>` is the agent that performed the work. All commits are executed by the orchestrator. Examples:
   - `[C1] [Orchestrator] Pipeline initialized`
   - `[C2] [Orchestrator] Dispatching to Prompt Refiner`
   - `[C2] [Prompt Refiner] Intent clarification completed`
@@ -228,8 +245,11 @@ When re-entering from COMPLETED or auxiliary flows (B1/C-ADO1):
   - `[O3] [Builder] Module auth implemented (1/5)`
   - `[O3] [Orchestrator] All 5 modules completed`
   - `[RE-ENTRY] [Orchestrator] Return to O3 — artifacts archived`
+
+### Tags and merge
+
 - **Tags**: semver on completion (e.g., `v1.0.0`)
-- **Merge**: to `main` on user confirmation
+- **Merge**: to `main` on user confirmation (see Branch management above)
 
 ## R.7 — Correction Loops
 
@@ -505,6 +525,7 @@ Read at every stage transition (R.CONTEXT). Must stay small (<5 KB).
   "schema_version": "4.1",
   "pipeline_id": "<unique-id>",
   "project_name": "<name>",
+  "branch": "pipeline/<project-name>",
   "created_at": "<ISO-8601>",
   "current_state": "<state-id>",
   "progress": {

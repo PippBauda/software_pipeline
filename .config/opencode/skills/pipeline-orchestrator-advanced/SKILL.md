@@ -13,15 +13,16 @@ These features are loaded on-demand by the orchestrator when a specific trigger 
 
 When the user chooses to re-enter the pipeline at a previous point (from O10/COMPLETED, or from B1/C-ADO1):
 
-1. **Archival**: artifacts produced by stages after the re-entry point are moved to `archive/<timestamp>/`, preserving the original directory structure
-2. **Manifest update**: `manifest.json` is updated to reflect the new state (the re-entry stage state), with reference to the archive for traceability
-3. **Automode safety**: if re-entry target is `C2`, set `automode: false` in `manifest.json` before resuming. Commit this change as part of re-entry so C2 remains fully interactive.
-4. **Commit**: `[RE-ENTRY] [Orchestrator] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
-5. **Post-reentry checkpoint**: write `## Pipeline Checkpoint [post-reentry]` in the conversation with: resulting state, `from_state -> target_stage`, archive path, scope impact, next stage/agent, required input artifacts, pending gate
-6. **Context compaction**: trigger autonomous compaction immediately after the checkpoint (OpenCode plugin `pipeline-compaction-controller.js` is required).
-7. **Resumption**: execution resumes from the indicated stage with artifacts from preceding stages intact
-8. **Preflight**: run R.0 Entry Preflight before first post-reentry dispatch. If preflight is `BLOCKED`, halt and request user intervention.
-9. **Delegation**: identify the agent responsible for the target stage from the Agent-to-Stage Mapping and delegate following R.1 (starting from step 2, dispatch commit). You MUST NOT execute stages assigned to other agents.
+1. **Branch check**: verify `pipeline/<project-name>` branch exists and is the active branch. If re-entry from COMPLETED and the branch was merged/deleted, create a new `pipeline/<project-name>` from `main` per R.6.
+2. **Archival**: artifacts produced by stages after the re-entry point are moved to `archive/<timestamp>/`, preserving the original directory structure
+3. **Manifest update**: `manifest.json` is updated to reflect the new state (the re-entry stage state), with reference to the archive for traceability
+4. **Automode safety**: if re-entry target is `C2`, set `automode: false` in `manifest.json` before resuming. Commit this change as part of re-entry so C2 remains fully interactive.
+5. **Commit**: `[RE-ENTRY] [Orchestrator] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
+6. **Post-reentry checkpoint**: write `## Pipeline Checkpoint [post-reentry]` in the conversation with: resulting state, `from_state -> target_stage`, archive path, scope impact, next stage/agent, required input artifacts, pending gate
+7. **Context compaction**: trigger autonomous compaction immediately after the checkpoint (OpenCode plugin `pipeline-compaction-controller.js` is required).
+8. **Resumption**: execution resumes from the indicated stage with artifacts from preceding stages intact
+9. **Preflight**: run R.0 Entry Preflight before first post-reentry dispatch. If preflight is `BLOCKED`, halt and request user intervention.
+10. **Delegation**: identify the agent responsible for the target stage from the Agent-to-Stage Mapping and delegate following R.1 (starting from step 2, dispatch commit). You MUST NOT execute stages assigned to other agents.
 
 **Scope**: R.5 applies ONLY to user-initiated re-entry (from COMPLETED or from auxiliary flows B1/C-ADO1). Correction loops (O4→O3, O5→O3, O6→O3) are governed by R.7 and do NOT trigger archival.
 
@@ -151,12 +152,13 @@ For every skipped stage, record in `manifest.json` under `fast_track.skipped_sta
 When a user requests to resume an existing project:
 
 1. Check if `pipeline-state/manifest.json` exists
-2. If yes: set state to `B1_AUDITING`, invoke **Auditor** (`subagent_type: "auditor"`)
-3. Auditor reads both `manifest.json` (HEAD) and `manifest-history.json` (HISTORY) for full audit. Produces `docs/audit-report.md` with: artifact inventory, consistency analysis, pipeline state, interruption point, recommendation (resume or adoption)
-4. Run R.0 Entry Preflight before executing audit recommendation (resume/adoption transition). If preflight is `BLOCKED`, halt and request user intervention.
-5. **User gate**: confirm audit result
-6. If **resumable**: re-enter main flow at the identified point (orchestrator reconstructs context from manifest + artifacts + logs)
-7. If **not resumable**: recommend adoption → transition to C-ADO1
+2. Verify the `pipeline/<project-name>` branch exists (read `branch` from manifest). If the branch does not exist, flag as inconsistency in the audit.
+3. If yes: switch to the branch, set state to `B1_AUDITING`, invoke **Auditor** (`subagent_type: "auditor"`)
+4. Auditor reads both `manifest.json` (HEAD) and `manifest-history.json` (HISTORY) for full audit. Produces `docs/audit-report.md` with: artifact inventory, consistency analysis, pipeline state, interruption point, recommendation (resume or adoption)
+5. Run R.0 Entry Preflight before executing audit recommendation (resume/adoption transition). If preflight is `BLOCKED`, halt and request user intervention.
+6. **User gate**: confirm audit result
+7. If **resumable**: re-enter main flow at the identified point (orchestrator reconstructs context from manifest + artifacts + logs)
+8. If **not resumable**: recommend adoption → transition to C-ADO1
 
 **Key**: if manifest `current_state` ends with `_IN_PROGRESS`, the stage was interrupted — re-execute from scratch.
 

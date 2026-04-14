@@ -103,7 +103,7 @@ Each agent is a specialist. It receives specific artifacts, does its work, produ
 ## Cognitive Pipeline — From Idea to Plan
 
 ### C1 — Initialization *(startup procedure)*
-The orchestrator automatically creates the project repository structure: directories for docs, logs, pipeline state, and archive. It initializes both manifest files (HEAD and HISTORY) and makes the first commit. This is not a numbered pipeline stage — it happens automatically before C2.
+The orchestrator creates the working branch (`pipeline/<project-name>`) and the project repository structure: directories for docs, logs, pipeline state, and archive. It initializes both manifest files (HEAD and HISTORY) and makes the first commit. This is not a numbered pipeline stage — it happens automatically before C2.
 
 ### C2 — Intent Clarification
 The Prompt Refiner talks with the user to understand what they actually want. It interprets the idea, identifies assumptions, defines terminology, and produces an intent document. The user must confirm the interpretation before moving on.
