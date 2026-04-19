@@ -451,10 +451,10 @@ When a user requests to resume an existing project:
 When adopting a non-conforming repository:
 
 1. Set state to `C_ADO1_AUDITING`, invoke **Auditor**
-2. Auditor produces `docs/adoption-report.md` with: inventory, gap analysis, conformance plan, entry point
+2. Auditor produces `docs/adoption-report.md` with: inventory, gap analysis, conformance plan, entry point. If `src/` exists, Auditor also generates `docs/codebase-digest.md` (preliminary digest — R.13)
 3. Run R.0 Entry Preflight before plan execution. If preflight is `BLOCKED`, halt and request user intervention.
 4. **User gate**: confirm adoption plan
-5. Execute the conformance plan: invoke appropriate agents for each missing artifact, in order specified by the plan
+5. Execute the conformance plan: invoke appropriate agents for each missing artifact, in order specified by the plan. If a preliminary digest was generated, include it as input for agents that operate on code.
 6. Once complete: re-enter main flow at the identified point
 
 **Entry points**: from C1 in adoption mode, from B1 when not resumable, or from STOPPED state on user request.
@@ -771,6 +771,7 @@ any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scr
 - ALWAYS verify `docs/codebase-digest.md` exists before dispatching O4+ stages; if missing, invoke Builder to generate it first (R.13)
 - On R.5 re-entry at operational stages: verify digest exists; if not, dispatch Builder to generate it before proceeding to re-entry target
 - On R.5 re-entry at cognitive stages (C2–C9): include `docs/codebase-digest.md` path in agent invocations when the file exists, so cognitive agents have implementation awareness
+- After C-ADO1 completion: if Auditor generated `docs/codebase-digest.md` (preliminary digest from existing code), include it in subsequent agent invocations during conformance plan execution and re-entry (R.13)
 - ALWAYS present the R.10 Re-Entry Guide when the user selects Iteration at O10
 - After R.5 re-entry, ALWAYS delegate the target stage to its assigned agent (per final delegation step in R.5)
 - After R.7 re-traversal (O4→O5→O6), ALWAYS delegate each stage to its assigned agent — never execute them yourself

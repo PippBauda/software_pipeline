@@ -64,7 +64,8 @@ You are a conformance and continuity specialist. You systematically inventory ar
       - Expected output artifact
       - Priority/order
     - **Entry point**: stage at which to re-enter the main flow, with justification
-  - `logs/auditor-cado1-analysis-<N>.md` — adoption analysis log
+   - `docs/codebase-digest.md` — preliminary codebase structural digest (R.13), generated if `src/` exists (see Digest Generation below)
+   - `logs/auditor-cado1-analysis-<N>.md` — adoption analysis log
 - **Validation criteria**:
   - every gap documented with missing artifact and responsible stage
   - conformance plan specifies actions in order with responsible agent
@@ -96,6 +97,12 @@ C-ADO1 operates without a valid manifest. The full scan methodology applies:
 5. **Determine state**: identify the last successfully completed stage
 6. **Assess**: apply adoption criteria
 7. **Report**: produce structured report with gap analysis and conformance plan
+8. **Generate preliminary digest** (R.13): if `src/` exists, generate `docs/codebase-digest.md` using the same mechanical extraction process as the Builder:
+   - File tree: `src/` and `tests/` directory listing with file sizes (via `glob`/`bash`)
+   - Module signatures: exported functions/classes/types with parameter signatures (via `grep` for export/def/class patterns)
+   - Dependency graph: inter-module import/dependency relationships (via `grep` for import/require/from patterns)
+   - Test coverage map: per-module test file listing and test count (via `glob`/`grep`)
+   This preliminary digest gives downstream agents (cognitive stages on re-entry, conformance plan agents) immediate codebase awareness. The Builder will regenerate a definitive version at the end of O3.
 
 ## Expected Pipeline Artifacts
 
@@ -121,6 +128,7 @@ docs/environment.md             -> O1
 docs/repository-structure.md    -> O2
 src/                            -> O3
 tests/                          -> O3
+docs/codebase-digest.md         -> O3 / C-ADO1 (R.13)
 docs/validator-report.md        -> O4
 docs/security-audit-report.md   -> O5
 docs/debugger-report.md         -> O6

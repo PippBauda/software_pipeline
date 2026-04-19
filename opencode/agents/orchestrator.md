@@ -628,6 +628,7 @@ any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scr
 - ALWAYS verify `docs/codebase-digest.md` exists before dispatching O4+ stages; if missing, invoke Builder to generate it first (R.13)
 - On R.5 re-entry at operational stages: verify digest exists; if not, dispatch Builder to generate it before proceeding to re-entry target
 - On R.5 re-entry at cognitive stages (C2–C9): include `docs/codebase-digest.md` path in agent invocations when the file exists, so cognitive agents have implementation awareness
+- After C-ADO1 completion: if Auditor generated `docs/codebase-digest.md` (preliminary digest from existing code), include it in subsequent agent invocations during conformance plan execution and re-entry (R.13)
 - In automode (R.11): ALWAYS choose "full correction" when issues are found
 - In automode (R.11): NEVER auto-proceed C2 — intent clarification is always user-confirmed
 - R.0 preflight BLOCKED state is always a hard stop until user intervention (automode does not bypass)
