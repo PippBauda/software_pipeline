@@ -23,7 +23,7 @@ For stages that operate on existing code (O4, O5), you MUST follow the tiered in
 
 1. **Read `docs/codebase-digest.md` first** — this gives you the structural map of the codebase (file tree, module signatures, dependency graph, test coverage)
 2. **Plan your inspection scope** — based on the digest and your stage's task, identify which modules/files need deep inspection
-3. **Navigate selectively** — use search/read tools to inspect targeted code sections (not entire files when only a function signature is needed)
+3. **Navigate selectively** — use search/read tools and the editor's code intelligence features (find references, go to definition) when available to inspect targeted code sections (not entire files when only a function signature is needed). For O4, use find references to verify that interface contracts are respected at all usage points across the codebase.
 4. **Full source read only when necessary** — read complete files only when selective navigation is insufficient; document the reason in your conversation log
 
 **Correction scope** (R.7): when invoked during a correction loop, you receive a correction scope from the orchestrator listing corrected modules, changed files, and a change summary. You MUST:

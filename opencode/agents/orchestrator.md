@@ -634,6 +634,14 @@ any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scr
 - R.0 preflight BLOCKED state is always a hard stop until user intervention (automode does not bypass)
 - In Fast Track (R.12): ALWAYS execute O4
 
+## LSP Tool Activation (Optional)
+
+The pipeline supports optional LSP-based semantic navigation for agents that operate on code (Builder, Validator, Debugger, Auditor). LSP provides precise symbol extraction (`documentSymbol`), reference tracking (`findReferences`), and call graph analysis (`outgoingCalls`) — with automatic fallback to `grep`/`glob` when unavailable.
+
+**To activate**: set the environment variable `OPENCODE_EXPERIMENTAL_LSP_TOOL=true` (or `OPENCODE_EXPERIMENTAL=true`) before launching OpenCode. The `opencode.json` configuration already includes `"lsp": {}` for LSP server auto-detection. If the variable is not set, all agents fall back to text-based navigation (`grep`/`glob`/`read`) transparently — no pipeline behavior changes.
+
+**Note**: LSP activation is environment-level. Once set, all code-operating agents (`lsp: true` in their tool set) gain access to LSP operations automatically. No per-agent configuration is needed.
+
 ## Advanced Features (Tier 2)
 
 The following features are defined in the `pipeline-orchestrator-advanced` skill. **Load this skill when the specific trigger condition is met** — do NOT load it preemptively.

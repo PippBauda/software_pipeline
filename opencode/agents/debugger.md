@@ -9,6 +9,7 @@ tools:
   write: true
   glob: true
   grep: true
+  lsp: true
   webfetch: true
   task: true
   todowrite: true
@@ -30,7 +31,7 @@ For O6 (which operates on existing code), you MUST follow the tiered inspection 
 
 1. **Read `docs/codebase-digest.md` first** — this gives you the structural map of the codebase (file tree, module signatures, dependency graph, test coverage)
 2. **Plan your smoke test scope** — based on the digest, architecture, and validator/security reports, identify which modules need runtime testing and which entry points to exercise
-3. **Navigate selectively** — use `glob`/`grep`/`read` to inspect specific code sections relevant to your test scenarios (not entire source files)
+3. **Navigate selectively** — use `lsp`/`glob`/`grep`/`read` to inspect specific code sections relevant to your test scenarios (not entire source files). When designing smoke tests, if the `lsp` tool is available, use `outgoingCalls` to trace the call graph of entry points and identify the execution paths to exercise.
 4. **Full source read only when necessary** — read complete files only when understanding complex control flow for test scenario design; document the reason in your conversation log
 
 **Correction scope** (R.7): when invoked during a correction loop, you receive a correction scope from the orchestrator listing corrected modules and changes. Focus smoke tests primarily on corrected modules and their integration points, while running lighter regression checks on unchanged modules.

@@ -9,6 +9,7 @@ tools:
   write: true
   glob: true
   grep: true
+  lsp: true
   webfetch: true
   task: true
   todowrite: true
@@ -99,7 +100,7 @@ C-ADO1 operates without a valid manifest. The full scan methodology applies:
 7. **Report**: produce structured report with gap analysis and conformance plan
 8. **Generate preliminary digest** (R.13): if `src/` exists, generate `docs/codebase-digest.md` using the same mechanical extraction process as the Builder:
    - File tree: `src/` and `tests/` directory listing with file sizes (via `glob`/`bash`)
-   - Module signatures: exported functions/classes/types with parameter signatures (via `grep` for export/def/class patterns)
+   - Module signatures: if the `lsp` tool is available, use `documentSymbol`/`workspaceSymbol` to extract precise exported signatures. Otherwise, grep for exported functions/classes/types with parameter signatures (via `grep` for export/def/class patterns)
    - Dependency graph: inter-module import/dependency relationships (via `grep` for import/require/from patterns)
    - Test coverage map: per-module test file listing and test count (via `glob`/`grep`)
    This preliminary digest gives downstream agents (cognitive stages on re-entry, conformance plan agents) immediate codebase awareness. The Builder will regenerate a definitive version at the end of O3.
