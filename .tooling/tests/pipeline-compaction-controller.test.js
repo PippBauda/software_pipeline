@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, mock } from "node:test"
 import assert from "node:assert/strict"
-import { PipelineCompactionController } from "../opencode/plugins/pipeline-compaction-controller.js"
+import { PipelineCompactionController } from "../../opencode/plugins/pipeline-compaction-controller.js"
 
 /**
  * Helper: create a mock client with spied methods.

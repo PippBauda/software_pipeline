@@ -1,0 +1,7 @@
+# Ignore everything by default
+*
+
+# Only format the JS code within .tooling
+!tests/**/*.js
+!scripts/**/*.js
+!eslint.config.js
