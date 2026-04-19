@@ -28,9 +28,13 @@ jobs:
         run: npm ci
         working-directory: .tooling
 
-      # fix #15 — NODE_PATH replaces the fragile root symlink
+      # Symlink node_modules to root so eslint.config.js ESM imports resolve correctly.
+      # Required because NODE_PATH is not used for ES module resolution in Node.js.
+      - name: Link node_modules for eslint config
+        run: ln -s .tooling/node_modules node_modules
+
       - name: Lint
-        run: NODE_PATH=.tooling/node_modules npx --prefix .tooling eslint --config eslint.config.js .
+        run: npx --prefix .tooling eslint .
 
       - name: Check formatting
         run: npm run format:check
