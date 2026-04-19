@@ -33,12 +33,24 @@ jobs:
       - name: Link node_modules for eslint config
         run: ln -s .tooling/node_modules node_modules
 
-      - name: Lint
+      - name: Lint (ESLint)
         run: npx --prefix .tooling eslint .
 
+      - name: Lint (Markdown)
+        run: npx --prefix .tooling markdownlint '**/*.md' --ignore node_modules --ignore .tooling/node_modules
+        
       - name: Check formatting
         run: npm run format:check
         working-directory: .tooling
+
+      - name: Check version consistency
+        run: node scripts/check-version.js
+        working-directory: .tooling
+
+      - name: Check agent sync (OpenCode ↔ Copilot)
+        run: node scripts/sync-check-agents.js --verbose
+        working-directory: .tooling
+        continue-on-error: true
 
       - name: Run tests
         run: npm test
