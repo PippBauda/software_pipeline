@@ -90,10 +90,10 @@ This table governs your behavior after each stage completes. It defines entry co
 | O1 | Builder | C9 confirmed, handoff passed | `docs/environment.md`, config files | **Auto-proceed** to O2 |
 | O2 | Builder | O1 completed | `docs/repository-structure.md`, directory structure | **Auto-proceed** to O3 |
 | O3 | Builder (xN) | O2 completed | `src/<module>/`, `tests/<module>/`, reports | **Auto-proceed** to O4 (see O3 Module Loop) |
-| O4 | Validator | O3 completed | `docs/validator-report.md` | **User gate**: (a) full correction; (b) selective; (c) proceed |
-| O5 | Validator | O4 passed/accepted | `docs/security-audit-report.md` | **User gate**: (a) full correction; (b) selective; (c) proceed |
-| O6 | Debugger | O5 passed/accepted | `docs/debugger-report.md`, `logs/runtime-logs/` | **User gate**: (a) full correction; (b) selective; (c) proceed |
-| O7 | Builder | O6 passed/accepted | `README.md`, `docs/api-reference.md`, `docs/installation-guide.md` | **Auto-proceed** to O8 |
+| O4 | Validator | O3 completed | `docs/codebase-digest.md`, `docs/validator-report.md` | **User gate**: (a) full correction; (b) selective; (c) proceed |
+| O5 | Validator | O4 passed/accepted | `docs/codebase-digest.md`, `docs/security-audit-report.md` | **User gate**: (a) full correction; (b) selective; (c) proceed |
+| O6 | Debugger | O5 passed/accepted | `docs/codebase-digest.md`, `docs/debugger-report.md`, `logs/runtime-logs/` | **User gate**: (a) full correction; (b) selective; (c) proceed |
+| O7 | Builder | O6 passed/accepted | `docs/codebase-digest.md`, `README.md`, `docs/api-reference.md`, `docs/installation-guide.md` | **Auto-proceed** to O8 |
 | O8 | Builder | O7 completed | CI/CD config files, `docs/cicd-configuration.md` | **Auto-proceed** to O8.V |
 | O8.V | Orchestrator | O8 completed | `docs/ci-verification-report.md` | **Auto-proceed** to O9 |
 | O9 | Orchestrator | O8.V completed | `CHANGELOG.md`, `docs/release-notes.md` | **User gate**: confirm release |
@@ -237,9 +237,18 @@ Treat C2 as a loop, not a single-pass stage:
 When O4, O5, or O6 identifies issues and the user chooses correction (option a or b):
 
 1. **Return to O3**: correction notes from originating stage → orchestrator manages O3 loop for only affected modules
-2. **Re-execute from O4**: after O3 corrections, flow resumes from O4 and proceeds sequentially through all subsequent validation stages until reaching the originating stage. Each re-traversed stage is delegated to its assigned agent per R.1.
-3. **No archival**: correction loops do NOT trigger R.5. Validation reports are overwritten.
-4. **Commit format**: `[O3] [Builder] Module <name> corrected (correction from O4)`
+2. **Digest regeneration**: after O3 corrections, invoke Builder to regenerate `docs/codebase-digest.md` (R.13)
+3. **Correction scope construction**: construct a correction scope from O3 results and pass it to each subsequent validation agent:
+   ```
+   correction_scope:
+     corrected_modules: [<module-names>]
+     changed_files: [<file-paths>]
+     change_summary: "<brief description>"
+     originating_stage: "<O4|O5|O6>"
+   ```
+4. **Re-execute from O4**: after O3 corrections, flow resumes from O4 and proceeds sequentially through all subsequent validation stages until reaching the originating stage. Each re-traversed stage is delegated to its assigned agent per R.1. Validation agents receiving the correction scope focus deep inspection on corrected modules (R.13).
+5. **No archival**: correction loops do NOT trigger R.5. Validation reports are overwritten.
+6. **Commit format**: `[O3] [Builder] Module <name> corrected (correction from O4)`
 
 **Re-validation chains**:
 - O4→O3 correction: O3 → O4
@@ -339,12 +348,13 @@ You manage the O3 iteration loop. The Builder is invoked once per module.
    e. Update manifest (`progress.modules_completed` += 1) and commit artifacts + manifest together: `[O3] [Builder] Module <module-name> implemented (M/N)`
    f. Executive summary to user (no user gate per module)
 5. Invoke Builder for cumulative report (`logs/builder-cumulative-report-1.md`)
-6. Final commit: `[O3] [Orchestrator] All N modules completed`
-7. Manifest → `O3_MODULES_GENERATED`
+6. Invoke Builder for codebase digest generation (`docs/codebase-digest.md`, per R.13 — mechanical file system extraction)
+7. Final commit: `[O3] [Orchestrator] All N modules completed`
+8. Manifest → `O3_MODULES_GENERATED`
 
 **Error handling**: if a module fails, notify user and await instructions (retry, skip, stop). On skip: check dependency graph (`task-graph.md`) and report all downstream modules that depend on the skipped module.
 
-**Correction loops** (from R.7): invoke Builder only for affected modules. Unaffected modules retain their existing code and commits.
+**Correction loops** (from R.7): invoke Builder only for affected modules. Unaffected modules retain their existing code and commits. After corrections, invoke Builder to regenerate `docs/codebase-digest.md` (R.13), then construct correction scope for downstream validation agents.
 
 ### O8.V — CI Verification
 
@@ -613,6 +623,11 @@ any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scr
 - ALWAYS include manifest updates in the stage completion commit (single atomic operation per R.1 step 5)
 - ALWAYS provide an executive summary after every stage
 - ALWAYS manage O3 as a per-module loop
+- ALWAYS include `docs/codebase-digest.md` path when invoking agents for O4, O5, O6, O7 (R.13)
+- ALWAYS pass correction scope to validation agents during R.7 correction loops (R.13)
+- ALWAYS verify `docs/codebase-digest.md` exists before dispatching O4+ stages; if missing, invoke Builder to generate it first (R.13)
+- On R.5 re-entry at operational stages: verify digest exists; if not, dispatch Builder to generate it before proceeding to re-entry target
+- On R.5 re-entry at cognitive stages (C2–C9): include `docs/codebase-digest.md` path in agent invocations when the file exists, so cognitive agents have implementation awareness
 - In automode (R.11): ALWAYS choose "full correction" when issues are found
 - In automode (R.11): NEVER auto-proceed C2 — intent clarification is always user-confirmed
 - R.0 preflight BLOCKED state is always a hard stop until user intervention (automode does not bypass)

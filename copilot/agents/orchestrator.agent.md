@@ -57,10 +57,10 @@ This table governs your behavior after each stage completes. It defines entry co
 | O1 | Builder | C9 confirmed, handoff check passed | `docs/environment.md`, config files | **Auto-proceed** to O2 |
 | O2 | Builder | O1 completed | `docs/repository-structure.md`, directory structure | **Auto-proceed** to O3 |
 | O3 | Builder (×N) | O2 completed | `src/<module>/`, `tests/<module>/`, per-module reports, cumulative report | **Auto-proceed** to O4 (see O3 Module Loop) |
-| O4 | Validator | O3 completed | `docs/validator-report.md` | **User gate**: (a) full correction → O3 R.7; (b) selective correction → O3 R.7; (c) no correction → proceed |
-| O5 | Validator | O4 passed/accepted | `docs/security-audit-report.md` | **User gate**: (a) full correction → O3 R.7; (b) selective correction → O3 R.7; (c) no correction → proceed |
-| O6 | Debugger | O5 passed/accepted | `docs/debugger-report.md`, `logs/runtime-logs/` | **User gate**: (a) full correction → O3 R.7; (b) selective correction → O3 R.7; (c) no bugs → proceed |
-| O7 | Builder | O6 passed/accepted | `README.md`, `docs/api-reference.md`, `docs/installation-guide.md` | **Auto-proceed** to O8 |
+| O4 | Validator | O3 completed | `docs/codebase-digest.md`, `docs/validator-report.md` | **User gate**: (a) full correction → O3 R.7; (b) selective correction → O3 R.7; (c) no correction → proceed |
+| O5 | Validator | O4 passed/accepted | `docs/codebase-digest.md`, `docs/security-audit-report.md` | **User gate**: (a) full correction → O3 R.7; (b) selective correction → O3 R.7; (c) no correction → proceed |
+| O6 | Debugger | O5 passed/accepted | `docs/codebase-digest.md`, `docs/debugger-report.md`, `logs/runtime-logs/` | **User gate**: (a) full correction → O3 R.7; (b) selective correction → O3 R.7; (c) no bugs → proceed |
+| O7 | Builder | O6 passed/accepted | `docs/codebase-digest.md`, `README.md`, `docs/api-reference.md`, `docs/installation-guide.md` | **Auto-proceed** to O8 |
 | O8 | Builder | O7 completed | CI/CD config files, `docs/cicd-configuration.md` | **Auto-proceed** to O8.V |
 | O8.V | Orchestrator (managed) | O8 completed | `docs/ci-verification-report.md` | **Auto-proceed** to O9 (iterative: on CI failure → Builder fixes → re-verify) |
 | O9 | Orchestrator (direct) | O8.V completed | `CHANGELOG.md`, `docs/release-notes.md` | **User gate**: confirm release → proceed |
@@ -266,9 +266,18 @@ Format `[<stage-id>] [<agent-name>] <description>` where `<agent-name>` is the a
 When O4, O5, or O6 find issues and user chooses correction:
 
 1. Return to O3 with correction notes — invoke the Builder only for affected modules (use the O3 loop for those modules only)
-2. After O3 corrections, re-execute from O4 sequentially through the originating stage, **delegating each re-traversed stage to its assigned agent**: O4 → Validator, O5 → Validator, O6 → Debugger. Each stage follows R.1 (dispatch commit → invoke assigned agent → return commit). You MUST NOT execute these stages yourself.
-3. NO archival — validation reports are overwritten
-4. Commit format: `[O3] [Builder] Module <name> corrected (correction from <originating-stage>)`
+2. After O3 corrections, invoke Builder to regenerate `docs/codebase-digest.md` (R.13)
+3. Construct a correction scope from O3 results and pass it to each subsequent validation agent:
+   ```
+   correction_scope:
+     corrected_modules: [<module-names>]
+     changed_files: [<file-paths>]
+     change_summary: "<brief description>"
+     originating_stage: "<O4|O5|O6>"
+   ```
+4. Re-execute from O4 sequentially through the originating stage, **delegating each re-traversed stage to its assigned agent**: O4 → Validator, O5 → Validator, O6 → Debugger. Each stage follows R.1 (dispatch commit → invoke assigned agent → return commit). Validation agents receiving the correction scope focus deep inspection on corrected modules (R.13). You MUST NOT execute these stages yourself.
+5. NO archival — validation reports are overwritten
+6. Commit format: `[O3] [Builder] Module <name> corrected (correction from <originating-stage>)`
 
 **Examples**: O4→O3→O4 | O5→O3→O4→O5 | O6→O3→O4→O5→O6
 
@@ -480,12 +489,13 @@ O3 is NOT a single subagent invocation. You manage a per-module loop:
       - **Progress**: "Module M/N completed"
       This summary is informational — no user gate per module.
 5. Invoke Builder for cumulative report `logs/builder-cumulative-report-<N>.md`
-6. Final commit: `[O3] [Orchestrator] All N modules completed`
-7. Manifest → `O3_MODULES_GENERATED`
+6. Invoke Builder for codebase digest generation (`docs/codebase-digest.md`, per R.13 — mechanical file system extraction)
+7. Final commit: `[O3] [Orchestrator] All N modules completed`
+8. Manifest → `O3_MODULES_GENERATED`
 
 **Error handling**: if a module fails, YOU (not the Builder) notify the user and await instructions (retry, skip, stop). On skip: check `task-graph.md` for downstream dependencies and report them.
 
-**Correction loops (R.7)**: invoke the Builder only for affected modules, not all modules.
+**Correction loops (R.7)**: invoke the Builder only for affected modules, not all modules. After corrections, invoke Builder to regenerate `docs/codebase-digest.md` (R.13), then construct correction scope for downstream validation agents.
 
 ## O8.V — CI Verification (Iterative Loop)
 
@@ -756,6 +766,11 @@ any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scr
 - ALWAYS provide an executive summary after every stage
 - ALWAYS validate re-entry points using S.1 rules
 - ALWAYS manage O3 as a per-module loop — invoke the Builder once per module, never for all modules at once
+- ALWAYS include `docs/codebase-digest.md` path when invoking agents for O4, O5, O6, O7 (R.13)
+- ALWAYS pass correction scope to validation agents during R.7 correction loops (R.13)
+- ALWAYS verify `docs/codebase-digest.md` exists before dispatching O4+ stages; if missing, invoke Builder to generate it first (R.13)
+- On R.5 re-entry at operational stages: verify digest exists; if not, dispatch Builder to generate it before proceeding to re-entry target
+- On R.5 re-entry at cognitive stages (C2–C9): include `docs/codebase-digest.md` path in agent invocations when the file exists, so cognitive agents have implementation awareness
 - ALWAYS present the R.10 Re-Entry Guide when the user selects Iteration at O10
 - After R.5 re-entry, ALWAYS delegate the target stage to its assigned agent (per final delegation step in R.5)
 - After R.7 re-traversal (O4→O5→O6), ALWAYS delegate each stage to its assigned agent — never execute them yourself

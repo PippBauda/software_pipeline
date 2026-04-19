@@ -51,10 +51,10 @@ The orchestrator consults this table at every stage transition (R.1 step 1, R.CO
 | O1 | Builder | `C9_IMPLEMENTATION_PLANNED` | `docs/architecture.md`, `docs/configuration.md`, `docs/constraints.md` | `O1_ENVIRONMENT_READY` |
 | O2 | Builder | `O1_ENVIRONMENT_READY` | `docs/implementation-plan.md`, `docs/module-map.md`, `docs/architecture.md`, `docs/configuration.md` | `O2_SCAFFOLD_CREATED` |
 | O3 | Builder (iterative) | `O2_SCAFFOLD_CREATED` | See O3 section (orchestrator-level + per-module inputs) | `O3_MODULES_GENERATED` |
-| O4 | Validator | `O3_MODULES_GENERATED` | `src/`, `tests/`, `docs/architecture.md`, `docs/interface-contracts.md`, `docs/test-strategy.md`, `docs/project-spec.md`, `docs/constraints.md` | `O4_SYSTEM_VALIDATED` |
-| O5 | Validator | `O4_SYSTEM_VALIDATED` | `src/`, `docs/constraints.md`, `docs/architecture.md`, `docs/environment.md`, lockfile | `O5_SECURITY_AUDITED` |
-| O6 | Debugger | `O5_SECURITY_AUDITED` | `src/`, `docs/architecture.md`, `docs/validator-report.md`, `docs/test-strategy.md`, `docs/security-audit-report.md` ² | `O6_DEBUG_COMPLETED` |
-| O7 | Builder | `O6_DEBUG_COMPLETED` | `src/`, `docs/project-spec.md`, `docs/architecture.md`, `docs/api.md`, `docs/configuration.md`, `docs/environment.md` | `O7_DOCUMENTATION_GENERATED` |
+| O4 | Validator | `O3_MODULES_GENERATED` | `docs/codebase-digest.md`, `src/`, `tests/`, `docs/architecture.md`, `docs/interface-contracts.md`, `docs/test-strategy.md`, `docs/project-spec.md`, `docs/constraints.md` | `O4_SYSTEM_VALIDATED` |
+| O5 | Validator | `O4_SYSTEM_VALIDATED` | `docs/codebase-digest.md`, `src/`, `docs/constraints.md`, `docs/architecture.md`, `docs/environment.md`, lockfile | `O5_SECURITY_AUDITED` |
+| O6 | Debugger | `O5_SECURITY_AUDITED` | `docs/codebase-digest.md`, `src/`, `docs/architecture.md`, `docs/validator-report.md`, `docs/test-strategy.md`, `docs/security-audit-report.md` ² | `O6_DEBUG_COMPLETED` |
+| O7 | Builder | `O6_DEBUG_COMPLETED` | `docs/codebase-digest.md`, `src/`, `docs/project-spec.md`, `docs/architecture.md`, `docs/api.md`, `docs/configuration.md`, `docs/environment.md` | `O7_DOCUMENTATION_GENERATED` |
 | O8 | Builder | `O7_DOCUMENTATION_GENERATED` | `docs/architecture.md`, `docs/test-strategy.md`, `docs/environment.md`, `docs/repository-structure.md` | `O8_CICD_CONFIGURED` |
 | O8.V | Orchestrator + Builder | `O8_CICD_CONFIGURED` | CI/CD config files, `docs/cicd-configuration.md`, `docs/environment.md`, `src/`, `tests/` | `O8V_CI_VERIFIED` |
 | O9 | Orchestrator (direct) | `O8V_CI_VERIFIED` | `src/`, `docs/architecture.md`, `docs/environment.md`, `pipeline-state/manifest.json` | `O9_RELEASED` |
@@ -408,6 +408,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
     - issues encountered
 - **Output** (on completion):
   - `logs/builder-cumulative-report-1.md` — cumulative report (produced by a final Builder invocation)
+  - `docs/codebase-digest.md` — codebase structural digest (produced by a final Builder invocation, see R.13)
 - **Orchestrator-managed loop**:
   1. Read `task-graph.md` to determine module order and total count (N)
   2. Set manifest: `current_state` → `O3_IN_PROGRESS`, `progress.modules_total` = N, `progress.modules_completed` = 0
@@ -420,8 +421,9 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
       e. Update manifest (`progress.modules_completed` += 1) and commit artifacts + manifest together: `[O3] [Builder] Module <module-name> implemented (M/N)`
       f. Executive summary to user (informational — no user gate per module)
   5. Invoke Builder for cumulative report
-  6. Final commit: `[O3] [Orchestrator] All N modules completed`
-  7. Manifest → `O3_MODULES_GENERATED`
+  6. Invoke Builder for codebase digest generation (`docs/codebase-digest.md`, per R.13 — mechanical extraction from file system, not from reading source into context)
+  7. Final commit: `[O3] [Orchestrator] All N modules completed`
+  8. Manifest → `O3_MODULES_GENERATED`
 - **Validation criteria**:
   - every module declared in the plan is implemented
   - every module has tests conforming to the strategy defined in `test-strategy.md`
@@ -429,7 +431,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - a commit has been executed for each completed module
   - a per-module report exists for each module
 - **Error handling**: if a module fails, the **orchestrator** (not the Builder) notifies the user and awaits instructions (retry, skip, stop). If the user chooses **skip**, the orchestrator checks the dependency graph (`docs/task-graph.md`) and reports all downstream modules that depend on the skipped module, asking the user whether to skip those as well or stop.
-- **Correction loops**: when O3 is invoked via R.7 with correction notes from O4/O5/O6, the orchestrator identifies which modules need correction from the notes and invokes the Builder only for those modules (not all modules). Unaffected modules retain their existing code and commits.
+- **Correction loops**: when O3 is invoked via R.7 with correction notes from O4/O5/O6, the orchestrator identifies which modules need correction from the notes and invokes the Builder only for those modules (not all modules). Unaffected modules retain their existing code and commits. After corrections are complete, the Builder regenerates `docs/codebase-digest.md` (R.13) and the orchestrator constructs a correction scope for downstream validation agents (see R.13 — Correction Scope).
 - **Resulting state**: `O3_MODULES_GENERATED`
 
 ---
@@ -439,13 +441,15 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
 - **Agent**: Validator
 - **Purpose**: verify overall system conformance against the architecture, requirements, and interface contracts, with explicit quality gates.
 - **Input**:
-  - `src/` — complete source code
+  - `docs/codebase-digest.md` — codebase structural digest (R.13 — read first, use for inspection planning)
+  - `src/` — complete source code (navigate selectively per R.13 protocol, not full read)
   - `tests/` — complete test suite
   - `docs/architecture.md`
   - `docs/interface-contracts.md`
   - `docs/test-strategy.md`
   - `docs/project-spec.md`
   - `docs/constraints.md`
+  - correction scope (if invoked via R.7 — see R.13 Correction Scope)
 - **Output**:
   - `docs/validator-report.md` — validation report with independent sub-sections:
     - **Architectural conformance**: result (PASS/FAIL), non-conformance details
@@ -473,11 +477,13 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
 - **Agent**: Validator
 - **Purpose**: verify application security through vulnerability analysis, dependency auditing, and security pattern verification.
 - **Input**:
-  - `src/` — complete source code
+  - `docs/codebase-digest.md` — codebase structural digest (R.13 — read first, use for inspection planning)
+  - `src/` — complete source code (navigate selectively per R.13 protocol, not full read)
   - `docs/constraints.md` — security constraints
   - `docs/architecture.md`
   - `docs/environment.md` — recommended external tools (SAST scanners, dependency auditors)
   - dependency configuration files (lockfile)
+  - correction scope (if invoked via R.7 — see R.13 Correction Scope)
 - **Output**:
   - `docs/security-audit-report.md` — security report with sub-sections:
     - **OWASP analysis**: verification of applicable Top 10 risks (LLM-based code review)
@@ -506,11 +512,13 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
 - **Agent**: Debugger
 - **Purpose**: exercise the application in a controlled environment, capture logs, and identify runtime bugs not found during validation.
 - **Input**:
-  - `src/` — complete source code
+  - `docs/codebase-digest.md` — codebase structural digest (R.13 — read first, use for inspection planning)
+  - `src/` — complete source code (navigate selectively per R.13 protocol, not full read)
   - `docs/architecture.md`
   - `docs/validator-report.md`
   - `docs/test-strategy.md`
   - `docs/security-audit-report.md` (optional — if O5 was executed)
+  - correction scope (if invoked via R.7 — see R.13 Correction Scope)
 - **Output**:
   - `docs/debugger-report.md` — report with sub-sections:
     - **Smoke tests**: scenarios executed, results (PASS/FAIL per scenario)
@@ -536,6 +544,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
 - **Agent**: Builder
 - **Purpose**: produce user and developer documentation for the project.
 - **Input**:
+  - `docs/codebase-digest.md` — codebase structural digest (R.13 — use as starting map; full source reads justified for documentation prose)
   - `src/` — complete source code
   - `docs/project-spec.md`
   - `docs/architecture.md`
@@ -951,9 +960,11 @@ Format `[<stage-id>] [<agent-name>] <description>` where `<agent-name>` is the a
 When a validation stage (O4, O5, or O6) identifies issues and the user chooses correction (option a or b):
 
 1. **Return to O3**: the correction notes from the originating stage are passed to the orchestrator, which manages the O3 module loop for only the affected modules
-2. **Re-execution from O4**: after O3 completes the corrections, the flow resumes from O4 (System Validation) and proceeds sequentially through all subsequent validation stages until reaching the stage that originated the correction. **Each re-traversed stage is delegated to its assigned agent**: O4 → Validator, O5 → Validator, O6 → Debugger. Each stage follows R.1 (dispatch commit → invoke assigned agent → return commit). The orchestrator MUST NOT execute these stages itself.
-3. **No archival**: correction loops do not trigger R.5. Validation reports (`validator-report.md`, `security-audit-report.md`, `debugger-report.md`) are overwritten at the next execution of their respective stages
-4. **Commit format**: correction loop commits follow the standard R.6 format, e.g., `[O3] [Builder] Module <name> corrected (correction from O4)`
+2. **Digest regeneration**: after O3 completes corrections, the Builder regenerates `docs/codebase-digest.md` (R.13)
+3. **Correction scope construction**: the orchestrator constructs a correction scope (R.13) from the O3 results — listing corrected modules, changed files, and a change summary — and passes it to each subsequent validation agent
+4. **Re-execution from O4**: after O3 completes the corrections, the flow resumes from O4 (System Validation) and proceeds sequentially through all subsequent validation stages until reaching the stage that originated the correction. **Each re-traversed stage is delegated to its assigned agent**: O4 → Validator, O5 → Validator, O6 → Debugger. Each stage follows R.1 (dispatch commit → invoke assigned agent → return commit). The orchestrator MUST NOT execute these stages itself. Validation agents receiving a correction scope follow the tiered inspection protocol (R.13 — Correction Scope): full inspection on corrected modules, lighter inspection on unchanged modules.
+5. **No archival**: correction loops do not trigger R.5. Validation reports (`validator-report.md`, `security-audit-report.md`, `debugger-report.md`) are overwritten at the next execution of their respective stages
+6. **Commit format**: correction loop commits follow the standard R.6 format, e.g., `[O3] [Builder] Module <name> corrected (correction from O4)`
 
 **Examples**:
 - O4→O3 correction: O3 → O4 (re-validates)
@@ -1001,6 +1012,75 @@ At every stage transition, the orchestrator reconstructs context from disk — N
    After writing the checkpoint, autonomous compaction should run (platform support permitting). The checkpoint block must be preserved verbatim through summarization. Manual compaction remains a fallback safety mechanism.
 
 This prevents context window saturation during long pipeline runs. The orchestrator operates as a thin coordination layer: manifest state + routing decisions + brief summaries.
+
+## R.13 — Codebase Knowledge Protocol
+
+Stages that operate on existing code (O4, O5, O6, O7, and re-entry stages) face a fundamental cost problem: reading the entire `src/` tree into an agent's context window is expensive and scales poorly. R.13 defines a tiered protocol that gives agents codebase knowledge without requiring full source reads.
+
+### Levels
+
+**Level 0 — Codebase Digest (static, pre-computed)**
+
+A lightweight artifact (`docs/codebase-digest.md`) that provides a structural map of the codebase. Every agent that needs codebase awareness reads this artifact first. It is small enough (~3-5 KB) to always fit in the agent's context alongside other inputs.
+
+- **Generated by**: Builder, at the end of O3 (after all modules are committed) and after every O3 correction loop (R.7)
+- **Content** (mechanical — generated from file system inspection, not from reading source into context):
+  - **File tree**: complete `src/` and `tests/` directory listing with file sizes
+  - **Module signatures**: public API surface of each module (exported functions/classes/types with parameter signatures and return types), extracted via grep/glob/AST inspection
+  - **Dependency graph**: inter-module import/dependency relationships
+  - **Test coverage map**: per-module test file listing, test count, and latest pass/fail status from O3 reports
+- **Format**: Markdown with standardized sections. The digest is a factual snapshot — no commentary, no recommendations.
+- **Regeneration triggers**: (1) O3 completion (initial or correction loop), (2) R.5 re-entry at any operational stage (orchestrator requests Builder to regenerate before dispatching the re-entry target stage)
+- **Artifact path**: `docs/codebase-digest.md`
+
+**Level 1 — Structural Navigation (on-demand, tool-based)**
+
+Agents use their existing tools (`glob`, `grep`, `read`, `bash`) for targeted code inspection. Level 1 is appropriate when the agent knows *what* to look for — a specific function, class, import path, or error location.
+
+- **Available to**: all agents (tools already provisioned)
+- **Use cases**: tracing a specific function referenced in a bug report, checking how a module implements an interface contract, finding all callers of a function flagged in a security audit
+- **Protocol**: after reading the digest (Level 0), the agent identifies specific files or patterns to inspect and uses navigation tools to read only the relevant code sections — not entire files when only a function signature is needed.
+
+**Level 2 — Full Source Read (last resort)**
+
+Direct reading of complete source files into the agent's context. This is the most expensive operation and should only be used when Level 0 + Level 1 are insufficient.
+
+- **When justified**: understanding complex control flow across multiple functions, analyzing deeply interleaved logic that cannot be understood from signatures alone, producing documentation that requires prose descriptions of implementation details (O7)
+- **Protocol**: the agent documents in its conversation log which files it read fully and why Level 0 + Level 1 were insufficient.
+
+### Agent Protocol
+
+Every agent operating on existing code MUST follow this sequence:
+
+1. **Read `docs/codebase-digest.md`** — obtain the structural map (Level 0)
+2. **Plan inspection scope** — based on the digest and the stage's specific task, identify which modules/files require deeper inspection
+3. **Navigate selectively** — use `glob`/`grep`/`read` on targeted files (Level 1)
+4. **Escalate to full read only if needed** — read complete files only when selective navigation is insufficient (Level 2), documenting the reason
+
+### Correction Scope (R.7 enhancement)
+
+When the orchestrator initiates a correction loop (R.7), it constructs a **correction scope** from the O3 correction results and passes it to the subsequent validation agents (O4, O5, O6) alongside the standard inputs:
+
+```
+correction_scope:
+  corrected_modules: [<module-names>]
+  changed_files: [<file-paths>]
+  change_summary: "<brief description of what changed>"
+  originating_stage: "<O4|O5|O6>"
+```
+
+Validation agents receiving a correction scope:
+- **MUST** perform full validation on corrected modules (Level 1 deep inspection)
+- **MAY** perform lighter validation on unchanged modules (Level 0 digest check only), unless the correction could have cross-module impact (e.g., interface changes) — in which case dependent modules also receive Level 1 inspection
+- **MUST** document in their report which modules received full vs. light validation
+
+This reduces the cost of correction loop re-traversals (R.7) from O(full codebase) × stages to O(corrected modules + dependents) × stages.
+
+### Re-Entry Awareness
+
+When the pipeline re-enters via R.5 at an operational stage (O1–O9) on a project with existing code:
+1. The orchestrator verifies `docs/codebase-digest.md` exists. If it does not (e.g., re-entry predates R.13, or digest was archived), the orchestrator dispatches the Builder to generate it before proceeding to the re-entry target stage.
+2. All cognitive-phase agents (Prompt Refiner, Architect) invoked during re-entry at cognitive stages (C2–C9) receive `docs/codebase-digest.md` as an additional input when it exists, giving them awareness of the current implementation state.
 
 ## R.10 — Post-Completion Re-Entry Guide
 
