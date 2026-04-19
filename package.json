@@ -1,0 +1,28 @@
+{
+  "name": "software-development-pipeline",
+  "version": "4.1.0",
+  "description": "Multi-agent AI pipeline specification for transforming project ideas into working, tested, secure, documented, and releasable software.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/**/*.test.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "validate:schema": "node scripts/validate-manifest-schema.js"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "prettier": "^3.4.0",
+    "@eslint/js": "^9.0.0",
+    "globals": "^15.0.0"
+  },
+  "keywords": [
+    "ai-pipeline",
+    "multi-agent",
+    "software-development",
+    "orchestration"
+  ],
+  "license": "UNLICENSED"
+}

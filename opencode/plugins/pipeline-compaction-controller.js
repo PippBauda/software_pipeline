@@ -1,4 +1,72 @@
+/**
+ * @typedef {Object} AppLogBody
+ * @property {string} service - Service identifier
+ * @property {"debug"|"info"|"warn"|"error"} level - Log level
+ * @property {string} message - Log message
+ * @property {Record<string, unknown>} [extra] - Additional metadata
+ */
+
+/**
+ * @typedef {Object} AppLogRequest
+ * @property {AppLogBody} body - Log payload
+ */
+
+/**
+ * @typedef {Object} SessionSummarizeRequest
+ * @property {{ id: string }} path - Session path parameters
+ * @property {Record<string, unknown>} body - Request body
+ */
+
+/**
+ * @typedef {Object} Client
+ * @property {{ log: (req: AppLogRequest) => Promise<void> }} [app] - Application logging API
+ * @property {{ summarize: (req: SessionSummarizeRequest) => Promise<void> }} [session] - Session management API
+ */
+
+/**
+ * @typedef {Object} PluginParams
+ * @property {Client} client - OpenCode client API
+ */
+
+/**
+ * @typedef {Object} Checkpoint
+ * @property {string} id - Checkpoint identifier (lowercase, e.g. "post-cognitive")
+ * @property {string} block - Full checkpoint markdown block
+ */
+
+/**
+ * @typedef {Object} PipelineEvent
+ * @property {string} type - Event type identifier
+ * @property {Record<string, unknown>} [properties] - Event properties
+ */
+
+/**
+ * @typedef {Object} CompactionOutput
+ * @property {string[]} [context] - Context hints for compaction
+ */
+
+/**
+ * Pipeline Compaction Controller — OpenCode plugin.
+ *
+ * Monitors assistant messages for Pipeline Checkpoint blocks and triggers
+ * autonomous context compaction via `client.session.summarize` when a
+ * recognized checkpoint is detected.
+ *
+ * Guards: cooldown, deduplication, in-flight tracking, fail-open error handling.
+ *
+ * Environment variables:
+ * - `OPENCODE_PIPELINE_COMPACTION_DRY_RUN` — "1"|"true"|"yes"|"on" to skip actual compaction
+ * - `OPENCODE_PIPELINE_COMPACTION_DEBUG` — "1"|"true"|"yes"|"on" to enable debug logging
+ * - `OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS` — Minimum ms between compactions per session (default 120000)
+ *
+ * @param {PluginParams} params - Plugin initialization parameters
+ * @returns {Promise<{
+ *   event: (params: { event: PipelineEvent }) => Promise<void>,
+ *   "experimental.session.compacting": (input: unknown, output: CompactionOutput) => Promise<void>
+ * }>}
+ */
 export const PipelineCompactionController = async ({ client }) => {
+  /** @type {Set<string>} */
   const TARGET_CHECKPOINTS = new Set([
     "post-cognitive",
     "post-o3",
@@ -13,11 +81,20 @@ export const PipelineCompactionController = async ({ client }) => {
   const rawCooldown = process.env.OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS
   const parsedCooldown = Number(rawCooldown || 120000)
   const COOLDOWN_MS = Number.isFinite(parsedCooldown) && parsedCooldown >= 0 ? parsedCooldown : 120000
+  /** @type {Set<string>} */
   const inFlight = new Set()
+  /** @type {Map<string, number>} */
   const lastCompactionAt = new Map()
+  /** @type {Map<string, string>} */
   const lastSignature = new Map()
+  /** @type {Set<string>} */
   const startupLogged = new Set()
 
+  /**
+   * Extract a session ID from an object by probing multiple candidate paths.
+   * @param {Record<string, unknown>} obj - Object to extract session ID from
+   * @returns {string|undefined}
+   */
   const extractSessionId = (obj) => {
     const candidates = [
       obj?.sessionID,
@@ -35,6 +112,11 @@ export const PipelineCompactionController = async ({ client }) => {
     return undefined
   }
 
+  /**
+   * Convert a value to its string representation.
+   * @param {unknown} value
+   * @returns {string}
+   */
   const asText = (value) => {
     if (typeof value === "string") return value
     try {
@@ -44,6 +126,11 @@ export const PipelineCompactionController = async ({ client }) => {
     }
   }
 
+  /**
+   * Extract a Pipeline Checkpoint block from text.
+   * @param {string} text - Text to search for checkpoint
+   * @returns {Checkpoint|undefined}
+   */
   const extractCheckpoint = (text) => {
     const header = text.match(/##\s*Pipeline Checkpoint\s*\[([^\]]+)\]/i)
     if (!header) return undefined
@@ -56,12 +143,23 @@ export const PipelineCompactionController = async ({ client }) => {
     return { id, block }
   }
 
+  /**
+   * Check if event properties indicate an assistant message.
+   * @param {Record<string, unknown>} properties
+   * @returns {boolean}
+   */
   const isAssistantMessage = (properties) => {
     const role = properties?.role || properties?.info?.role || properties?.message?.role
     if (!role) return false
     return String(role).toLowerCase() === "assistant"
   }
 
+  /**
+   * Validate that a text block looks like a genuine orchestrator checkpoint
+   * (contains State, Next stage, and Required input artifacts fields).
+   * @param {string} text
+   * @returns {boolean}
+   */
   const looksLikeOrchestratorCheckpoint = (text) => {
     return (
       /##\s*Pipeline Checkpoint\s*\[[^\]]+\]/i.test(text) &&
@@ -71,6 +169,12 @@ export const PipelineCompactionController = async ({ client }) => {
     )
   }
 
+  /**
+   * Emit a debug log message (only if DEBUG mode is enabled).
+   * @param {string} message
+   * @param {Record<string, unknown>} [extra]
+   * @returns {Promise<void>}
+   */
   const debugLog = async (message, extra) => {
     if (!DEBUG || !client?.app?.log) return
     try {
@@ -87,6 +191,12 @@ export const PipelineCompactionController = async ({ client }) => {
     }
   }
 
+  /**
+   * Trigger context compaction for a session, respecting cooldown, dedup, and in-flight guards.
+   * @param {string} sessionID - Target session ID
+   * @param {string} signature - Checkpoint signature for deduplication
+   * @returns {Promise<void>}
+   */
   const triggerCompaction = async (sessionID, signature) => {
     const now = Date.now()
     const lastAt = lastCompactionAt.get(sessionID) || 0
@@ -140,6 +250,11 @@ export const PipelineCompactionController = async ({ client }) => {
     }
   }
 
+  /**
+   * Emit a one-time startup diagnostic log for a session.
+   * @param {string} [sessionID]
+   * @returns {Promise<void>}
+   */
   const emitStartupCheck = async (sessionID) => {
     const key = sessionID || "global"
     if (startupLogged.has(key)) return
@@ -189,6 +304,11 @@ export const PipelineCompactionController = async ({ client }) => {
   }
 
   return {
+    /**
+     * Handle incoming pipeline events.
+     * @param {{ event: PipelineEvent }} params
+     * @returns {Promise<void>}
+     */
     event: async ({ event }) => {
       if (!event || event.type === "session.compacted") return
 
@@ -232,6 +352,12 @@ export const PipelineCompactionController = async ({ client }) => {
       await triggerCompaction(sessionID, signature)
     },
 
+    /**
+     * Hook into session compaction to preserve checkpoint blocks.
+     * @param {unknown} _input
+     * @param {CompactionOutput} output
+     * @returns {Promise<void>}
+     */
     "experimental.session.compacting": async (_input, output) => {
       if (!Array.isArray(output.context)) output.context = []
       output.context.push(

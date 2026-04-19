@@ -1,0 +1,212 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/software-pipeline/manifest-head.schema.json",
+  "title": "Pipeline Manifest HEAD",
+  "description": "Schema for pipeline-state/manifest.json — the HEAD manifest read at every stage transition. Must stay under 5KB.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "pipeline_id",
+    "project_name",
+    "branch",
+    "created_at",
+    "current_state",
+    "progress",
+    "latest_stages"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "4.1",
+      "description": "Manifest schema version, verified by B1 for compatibility."
+    },
+    "pipeline_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique identifier for this pipeline execution."
+    },
+    "project_name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable project name, used in branch naming (R.6)."
+    },
+    "branch": {
+      "type": "string",
+      "pattern": "^pipeline/.+$",
+      "description": "Git branch where pipeline execution occurs (R.6). Format: pipeline/<project-name>."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp of pipeline initialization."
+    },
+    "current_state": {
+      "type": "string",
+      "enum": [
+        "C1_INITIALIZED",
+        "C_ADO1_AUDITING",
+        "C2_IN_PROGRESS",
+        "C2_INTENT_CLARIFIED",
+        "C3_IN_PROGRESS",
+        "C3_PROBLEM_FORMALIZED",
+        "C4_IN_PROGRESS",
+        "C4_REQUIREMENTS_EXTRACTED",
+        "C5_IN_PROGRESS",
+        "C5_EXTERNAL_ANALYZED",
+        "C5_SKIPPED",
+        "C6_IN_PROGRESS",
+        "C6_DOMAIN_MODELED",
+        "C7_IN_PROGRESS",
+        "C7_ARCHITECTURE_SYNTHESIZED",
+        "C8_IN_PROGRESS",
+        "C8_ARCHITECTURE_VALIDATED",
+        "C9_IN_PROGRESS",
+        "C9_IMPLEMENTATION_PLANNED",
+        "O1_IN_PROGRESS",
+        "O1_ENVIRONMENT_READY",
+        "O2_IN_PROGRESS",
+        "O2_SCAFFOLD_CREATED",
+        "O3_IN_PROGRESS",
+        "O3_MODULES_GENERATED",
+        "O4_IN_PROGRESS",
+        "O4_SYSTEM_VALIDATED",
+        "O5_IN_PROGRESS",
+        "O5_SECURITY_AUDITED",
+        "O6_IN_PROGRESS",
+        "O6_DEBUG_COMPLETED",
+        "O7_IN_PROGRESS",
+        "O7_DOCUMENTATION_GENERATED",
+        "O8_IN_PROGRESS",
+        "O8_CICD_CONFIGURED",
+        "O8V_IN_PROGRESS",
+        "O8V_CI_VERIFIED",
+        "O9_IN_PROGRESS",
+        "O9_RELEASED",
+        "O10_IN_PROGRESS",
+        "COMPLETED",
+        "STOPPED"
+      ],
+      "description": "Current pipeline state from the state machine."
+    },
+    "progress": {
+      "type": "object",
+      "required": ["current_stage", "current_stage_index", "total_stages"],
+      "additionalProperties": false,
+      "properties": {
+        "current_stage": {
+          "type": "string",
+          "description": "Current stage identifier (e.g., C1, O3)."
+        },
+        "current_stage_index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "1-based index of the current stage in the active flow."
+        },
+        "total_stages": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of stages in the active flow."
+        },
+        "modules_completed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of modules completed (O3 only)."
+        },
+        "modules_total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of modules to generate (O3 only)."
+        },
+        "current_module": {
+          "type": ["string", "null"],
+          "description": "Name of the module currently being generated (O3 only)."
+        }
+      }
+    },
+    "automode": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether automode is currently active (R.11)."
+    },
+    "fast_track": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether fast track is currently active (R.12)."
+        },
+        "activated_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "ISO-8601 timestamp of fast track activation."
+        },
+        "reason": {
+          "type": ["string", "null"],
+          "description": "Reason for fast track activation."
+        },
+        "affected_modules": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Modules affected by fast track."
+        },
+        "skipped_stages": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Stages skipped under fast track with justification."
+        }
+      }
+    },
+    "latest_stages": {
+      "type": "object",
+      "description": "Map keyed by canonical stage_id. Contains only the most recent execution metadata per stage.",
+      "additionalProperties": {
+        "$ref": "#/$defs/stageEntry"
+      }
+    }
+  },
+  "$defs": {
+    "stageEntry": {
+      "type": "object",
+      "required": ["state", "agent", "timestamp", "commit_hash", "artifacts", "execution_index"],
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "type": "string",
+          "description": "Resulting state after stage completion."
+        },
+        "agent": {
+          "type": "string",
+          "description": "Agent that performed the work."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 timestamp of stage completion."
+        },
+        "commit_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,40}$",
+          "description": "Git commit hash for the stage completion commit."
+        },
+        "artifacts": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Paths to artifacts produced by this stage."
+        },
+        "execution_index": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Incremented when a stage is re-executed."
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^v\\d+\\.\\d+\\.\\d+",
+          "description": "Semantic version determined by O9 (O9-specific field)."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,128 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/software-pipeline/manifest-history.schema.json",
+  "title": "Pipeline Manifest HISTORY",
+  "description": "Schema for pipeline-state/manifest-history.json — append-only log. Never read during normal pipeline flow.",
+  "type": "object",
+  "required": ["schema_version", "pipeline_id", "stages_completed", "re_entries", "corrections"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "4.1",
+      "description": "Manifest schema version, must match HEAD."
+    },
+    "pipeline_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique identifier, must match HEAD pipeline_id."
+    },
+    "stages_completed": {
+      "type": "array",
+      "description": "Ordered append-only array of all completed stage records.",
+      "items": {
+        "type": "object",
+        "required": ["stage_id", "state", "agent", "timestamp", "commit_hash", "artifacts", "execution_index"],
+        "additionalProperties": false,
+        "properties": {
+          "stage_id": {
+            "type": "string",
+            "description": "Canonical stage identifier (e.g., C1, O3)."
+          },
+          "state": {
+            "type": "string",
+            "description": "Resulting state after stage completion."
+          },
+          "agent": {
+            "type": "string",
+            "description": "Agent that performed the work."
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO-8601 timestamp of stage completion."
+          },
+          "commit_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{7,40}$",
+            "description": "Git commit hash."
+          },
+          "artifacts": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Paths to produced artifacts."
+          },
+          "execution_index": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Incremented on re-execution."
+          }
+        }
+      }
+    },
+    "re_entries": {
+      "type": "array",
+      "description": "History of all re-entry events (R.5).",
+      "items": {
+        "type": "object",
+        "required": ["timestamp", "from_state", "to_stage", "archive_path", "commit_hash"],
+        "additionalProperties": false,
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "from_state": {
+            "type": "string",
+            "description": "State before re-entry."
+          },
+          "to_stage": {
+            "type": "string",
+            "description": "Target stage for re-entry."
+          },
+          "archive_path": {
+            "type": "string",
+            "pattern": "^archive/.+/$",
+            "description": "Path to archived artifacts."
+          },
+          "commit_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{7,40}$"
+          },
+          "reason": {
+            "type": "string",
+            "description": "User-provided reason for re-entry."
+          }
+        }
+      }
+    },
+    "corrections": {
+      "type": "array",
+      "description": "History of all correction loops (R.7).",
+      "items": {
+        "type": "object",
+        "required": ["timestamp", "originating_stage", "correction_type", "notes_summary"],
+        "additionalProperties": false,
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "originating_stage": {
+            "type": "string",
+            "enum": ["O4", "O5", "O6"],
+            "description": "Validation stage that originated the correction."
+          },
+          "correction_type": {
+            "type": "string",
+            "enum": ["full", "selective"]
+          },
+          "notes_summary": {
+            "type": "string",
+            "description": "Brief description of the correction."
+          }
+        }
+      }
+    }
+  }
+}
