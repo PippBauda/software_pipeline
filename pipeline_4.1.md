@@ -8,7 +8,7 @@
 - **V.2 — Stateless agents**: all agents (including the orchestrator) are stateless. Context is reconstructed at each invocation from committed artifacts and the pipeline manifest. No implicit memory exists between invocations. When the same agent is invoked across consecutive stages (e.g., Prompt Refiner in C2→C3→C4), all relevant information from prior invocations MUST be fully encoded in the output artifacts — the agent cannot rely on conversational memory from previous stages. For stages with internal iteration (O3), the orchestrator applies V.2 by invoking the subagent once per iteration unit (module), ensuring each invocation has full context independent of previous iterations.
 - **V.3 — Git as source of truth**: the Git repository is the single source of truth. The pipeline state is always determinable from the manifest and committed artifacts. Every handoff between orchestrator and subagent produces a commit, ensuring that interruptions at any point are traceable.
 - **V.4 — Automode**: when activated by the user, user gates become auto-proceed except **C2**, which always requires explicit user confirmation. The orchestrator makes decisions autonomously with the mandatory constraint of resolving ALL issues found at every stage (always "full correction"). Automode can be activated at any point after C4 and deactivated at any time. In automode, hard stops are: R.8 Level 3 fatal blockage and R.0 preflight `BLOCKED`. See R.11.
-- **V.6 — Context economy**: Pipeline artifacts flow between stages via disk, never via conversation context. Subagents return structured summaries (not full reports) to the orchestrator. The orchestrator's context must remain lean throughout the entire pipeline lifecycle. Full reports and large artifacts are always written to disk; only paths and brief summaries travel through the orchestrator.
+- **V.5 — Context economy**: Pipeline artifacts flow between stages via disk, never via conversation context. Subagents return structured summaries (not full reports) to the orchestrator. The orchestrator's context must remain lean throughout the entire pipeline lifecycle. Full reports and large artifacts are always written to disk; only paths and brief summaries travel through the orchestrator.
 
 ---
 
@@ -23,13 +23,47 @@ The pipeline uses the following specialized agents:
 | Analyst | C5 | External source analysis |
 | Architect | C6, C7, C9 | Constraints, domain modeling, architecture synthesis, implementation planning |
 | Validator | C8, O4, O5 | Architecture validation, system validation, security audit |
-| Builder | O1, O2, O3, O7, O8 | Environment setup, scaffold, code generation, documentation, CI/CD |
+| Builder | O1, O2, O3, O7, O8, O8.V | Environment setup, scaffold, code generation, documentation, CI/CD, CI fix analysis |
 | Debugger | O6 | Runtime debugging and smoke testing |
 | Auditor | B1, C-ADO1 | Continuity audit, conformance audit |
 
 Stages marked "Orchestrator (direct)" are executed by the orchestrator itself without invoking an external agent. The orchestrator still follows R.1 for commit, manifest update, and traceability.
 
 **Agent-to-Stage constraint**: the orchestrator MUST delegate each stage to the agent declared in the table above. The orchestrator MUST NOT execute stages assigned to other agents, regardless of the circumstances (including after R.5 re-entry or R.7 correction loops).
+
+---
+
+## Stage Routing Table
+
+The orchestrator consults this table at every stage transition (R.1 step 1, R.CONTEXT step 1) to determine the target stage, its assigned agent, entry conditions, and required input artifact paths. For complete stage details (output artifacts, transformation, validation criteria, error handling, user gates), see each stage's dedicated section.
+
+| Stage | Agent | Entry State(s) | Required Input Artifact Paths | Resulting State |
+|-------|-------|----------------|-------------------------------|----------------|
+| C1 | Orchestrator (direct) | Pipeline start | `user_request` | `C1_INITIALIZED` / `C_ADO1_AUDITING` |
+| C2 | Prompt Refiner | `C1_INITIALIZED` | `user_request`, `pipeline-state/manifest.json` | `C2_INTENT_CLARIFIED` |
+| C3 | Prompt Refiner | `C2_INTENT_CLARIFIED` | `docs/intent.md`, `logs/prompt-refiner-c2-conversation-<N>.md` | `C3_PROBLEM_FORMALIZED` |
+| C4 | Prompt Refiner | `C3_PROBLEM_FORMALIZED` | `docs/intent.md`, `docs/problem-statement.md`, `logs/prompt-refiner-c3-conversation-<N>.md` | `C4_REQUIREMENTS_EXTRACTED` |
+| C5 | Analyst | `C4_REQUIREMENTS_EXTRACTED` ¹ | `docs/project-spec.md` | `C5_EXTERNAL_ANALYZED` / `C5_SKIPPED` |
+| C6 | Architect | `C5_EXTERNAL_ANALYZED` / `C5_SKIPPED` | `docs/project-spec.md`, `docs/upstream-analysis.md` ² | `C6_DOMAIN_MODELED` |
+| C7 | Architect | `C6_DOMAIN_MODELED` | `docs/project-spec.md`, `docs/upstream-analysis.md` ², `docs/constraints.md`, `docs/domain-model.md` | `C7_ARCHITECTURE_SYNTHESIZED` |
+| C8 | Validator | `C7_ARCHITECTURE_SYNTHESIZED` | `docs/architecture.md`, `docs/api.md`, `docs/interface-contracts.md`, `docs/project-spec.md`, `docs/constraints.md`, `docs/domain-model.md` | `C8_ARCHITECTURE_VALIDATED` |
+| C9 | Architect | `C8_ARCHITECTURE_VALIDATED` | `docs/architecture.md`, `docs/api.md`, `docs/interface-contracts.md`, `docs/constraints.md`, `docs/domain-model.md` | `C9_IMPLEMENTATION_PLANNED` |
+| O1 | Builder | `C9_IMPLEMENTATION_PLANNED` | `docs/architecture.md`, `docs/configuration.md`, `docs/constraints.md` | `O1_ENVIRONMENT_READY` |
+| O2 | Builder | `O1_ENVIRONMENT_READY` | `docs/implementation-plan.md`, `docs/module-map.md`, `docs/architecture.md`, `docs/configuration.md` | `O2_SCAFFOLD_CREATED` |
+| O3 | Builder (iterative) | `O2_SCAFFOLD_CREATED` | See O3 section (orchestrator-level + per-module inputs) | `O3_MODULES_GENERATED` |
+| O4 | Validator | `O3_MODULES_GENERATED` | `src/`, `tests/`, `docs/architecture.md`, `docs/interface-contracts.md`, `docs/test-strategy.md`, `docs/project-spec.md`, `docs/constraints.md` | `O4_SYSTEM_VALIDATED` |
+| O5 | Validator | `O4_SYSTEM_VALIDATED` | `src/`, `docs/constraints.md`, `docs/architecture.md`, `docs/environment.md`, lockfile | `O5_SECURITY_AUDITED` |
+| O6 | Debugger | `O5_SECURITY_AUDITED` | `src/`, `docs/architecture.md`, `docs/validator-report.md`, `docs/test-strategy.md`, `docs/security-audit-report.md` ² | `O6_DEBUG_COMPLETED` |
+| O7 | Builder | `O6_DEBUG_COMPLETED` | `src/`, `docs/project-spec.md`, `docs/architecture.md`, `docs/api.md`, `docs/configuration.md`, `docs/environment.md` | `O7_DOCUMENTATION_GENERATED` |
+| O8 | Builder | `O7_DOCUMENTATION_GENERATED` | `docs/architecture.md`, `docs/test-strategy.md`, `docs/environment.md`, `docs/repository-structure.md` | `O8_CICD_CONFIGURED` |
+| O8.V | Orchestrator + Builder | `O8_CICD_CONFIGURED` | CI/CD config files, `docs/cicd-configuration.md`, `docs/environment.md`, `src/`, `tests/` | `O8V_CI_VERIFIED` |
+| O9 | Orchestrator (direct) | `O8V_CI_VERIFIED` | `src/`, `docs/architecture.md`, `docs/environment.md`, `pipeline-state/manifest.json` | `O9_RELEASED` |
+| O10 | Orchestrator (direct) | `O9_RELEASED` | All pipeline artifacts, `pipeline-state/manifest.json` | `COMPLETED` |
+| B1 | Auditor | Resume trigger | `pipeline-state/manifest.json` | State of last completed stage |
+| C-ADO1 | Auditor | C1 adoption / B1 not-resumable / `STOPPED` | Repository contents, previous audit artifacts ² | Per conformance plan |
+
+¹ Conditional — skipped if no external sources referenced in `docs/project-spec.md`.
+² Optional — may not be present depending on pipeline path.
 
 ---
 
@@ -168,12 +202,13 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
 - **Output**:
   - `docs/constraints.md` — performance, security, environment, scalability constraints
   - `docs/domain-model.md` — domain entities, relationships, operations
+  - `logs/architect-c6-domain-modeling-<N>.md` — conversation log
 - **Transformation**: requirements and external analysis are analyzed to extract explicit and implicit constraints and to build the application domain conceptual model.
 - **Validation criteria**:
   - every constraint is classified by category (performance, security, environment, scalability)
   - the domain model covers all entities mentioned in requirements
   - no constraints are mutually conflicting
-- **Note**: no user gate is required at this stage. Errors in constraints or the domain model are caught by C8 (Architecture Validation), which performs systematic cross-referencing and can trigger a return to C7 with revision notes.
+- **Note**: no user gate is required at this stage. Errors in constraints or the domain model are caught by C8 (Architecture Validation), which performs systematic cross-referencing and can trigger a return to C7 with revision notes. When C8 revision notes indicate issues originating in C6 artifacts (`constraints.md` or `domain-model.md`), the Architect at C7 has the mandate to revise those artifacts as part of the architecture synthesis cycle.
 - **Resulting state**: `C6_DOMAIN_MODELED`
 
 ---
@@ -192,6 +227,7 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
   - `docs/api.md` — API definition
   - `docs/configuration.md` — configuration model (parameters, config file format, defaults, environment variables)
   - `docs/interface-contracts.md` — interface contracts between components
+  - `logs/architect-c7-synthesis-<N>.md` — conversation log
 - **Transformation**: requirements, constraints, and domain model are synthesized into a coherent architectural structure with component responsibilities, contracts, and implementation sequence.
 - **Validation criteria**:
   - every functional requirement is mapped to at least one architectural component
@@ -199,6 +235,7 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
   - interface contracts are unambiguous
   - the user has confirmed the architecture (user gate passed)
 - **User gate**: architecture confirmation
+- **Revision scope**: when C7 is re-entered from C8 with revision notes, the Architect may revise C6 artifacts (`docs/constraints.md`, `docs/domain-model.md`) in addition to the C7 architecture artifacts, if the revision notes indicate issues originating in the constraint analysis or domain model.
 - **Resulting state**: `C7_ARCHITECTURE_SYNTHESIZED`
 
 ---
@@ -216,6 +253,7 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
   - `docs/domain-model.md`
 - **Output**:
   - `docs/architecture-review.md` — architecture validation report (requirement coverage, constraint conformance, identified risks, mitigation proposals)
+  - `logs/validator-c8-review-<N>.md` — conversation log
 - **Transformation**: systematic cross-referencing between architecture, requirements, and constraints to produce a structured conformance assessment.
 - **Validation criteria**:
   - every requirement is traced to at least one component
@@ -244,6 +282,7 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
   - `docs/implementation-plan.md` — implementation plan with execution order and per-module specifications
   - `docs/module-map.md` — module map with responsibilities and interfaces
   - `docs/test-strategy.md` — test strategy: test types (unit, integration, e2e), coverage criteria, minimum thresholds, acceptance criteria per module
+  - `logs/architect-c9-planning-<N>.md` — conversation log
 - **Transformation**: the architecture is decomposed into implementable work units with their dependencies, priorities, and verification criteria.
 - **Validation criteria**:
   - every architectural component is mapped to at least one task
@@ -301,12 +340,14 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
 - **Output**:
   - `docs/environment.md` — environment specification: required runtimes (language, version), dependencies (with lockfile), environment variables, build tools, GitHub CLI (`gh`) — mandatory pipeline requirement (must be installed and authenticated for CI verification in O8.V), recommended external tools (linters, SAST scanners, dependency auditors) for use in later stages (O5, O8)
   - environment configuration files (`package.json`, `requirements.txt`, `Dockerfile`, or equivalent for the chosen language)
+  - `logs/builder-o1-environment-<N>.md` — conversation log
 - **Transformation**: architectural specifications and the configuration model are translated into the concrete development environment configuration, including tooling recommendations for quality and security stages.
 - **Validation criteria**:
   - every dependency is specified with version
   - a lockfile is present for reproducibility
   - required environment variables are documented in `environment.md`
   - the environment can be recreated from scratch using the artifacts (portability)
+- **Error handling**: if a dependency cannot be installed, a runtime version is unavailable, or the environment fails to initialize, the Builder documents the failure in the conversation log with: component, error type, and impact. The orchestrator notifies the user and awaits instructions (retry with alternative, skip, stop).
 - **Resulting state**: `O1_ENVIRONMENT_READY`
 
 ---
@@ -324,12 +365,14 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - `docs/repository-structure.md` — documented repository structure
   - physical directory and placeholder file structure
   - project configuration files based on `configuration.md`
+  - `logs/builder-o2-scaffold-<N>.md` — conversation log
 - **Transformation**: the implementation plan, module map, and configuration model are converted into the physical project structure.
 - **Validation criteria**:
   - every module in `module-map.md` has a corresponding directory
   - the structure reflects dependencies declared in the architecture
   - configuration files are consistent with `configuration.md`
   - the commit has been executed
+- **Error handling**: if directory creation fails or configuration files cannot be generated (e.g., conflicting module paths, invalid configuration model), the Builder documents the failure in the conversation log with: affected component, error type, and impact. The orchestrator notifies the user and awaits instructions (retry, revise configuration, stop).
 - **Resulting state**: `O2_SCAFFOLD_CREATED`
 
 ---
@@ -409,6 +452,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
     - **Test results**: result (PASS/FAIL), tests passed/failed, coverage percentage
     - **Static analysis**: result (PASS/FAIL), linting violations, cyclomatic complexity
     - **Quality gate**: overall result (PASS/FAIL) with threshold verification from `test-strategy.md`
+  - `logs/validator-o4-validation-<N>.md` — conversation log
 - **Transformation**: produced code is systematically compared against architectural specifications, requirements, and quality thresholds, producing a structured assessment per category.
 - **Validation criteria**:
   - all tests pass
@@ -442,6 +486,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
     - **External tool results**: output from SAST/dependency audit tools if available, or explicit note that no external tools were used
     - **Limitations**: explicit declaration of analysis limitations (e.g., no dynamic testing, no runtime analysis, CVE database currency)
     - **Recommendations**: corrective actions ordered by severity
+  - `logs/validator-o5-security-<N>.md` — conversation log
 - **Transformation**: code and dependencies are systematically analyzed against known security patterns and declared constraints, using LLM analysis as primary method and external tools (if configured in `docs/environment.md`) as supplementary validation.
 - **Validation criteria**:
   - every dependency has been checked for known vulnerabilities (via tool or LLM analysis)
@@ -472,6 +517,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
     - **Bugs found**: for each bug: reproduction scenario, associated logs, severity, involved component
     - **Log analysis**: anomalies detected during execution
   - `logs/runtime-logs/` — logs captured during execution
+  - `logs/debugger-o6-smoke-test-<N>.md` — conversation log
 - **Transformation**: the application is executed in realistic scenarios and results are analyzed to identify anomalous behavior not revealed during validation.
 - **Validation criteria**:
   - all defined smoke tests have been executed
@@ -500,11 +546,13 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - `README.md` — project documentation: description, requirements, installation, usage, configuration
   - `docs/api-reference.md` — developer API documentation (generated from code and `api.md`)
   - `docs/installation-guide.md` — installation and configuration guide
+  - `logs/builder-o7-documentation-<N>.md` — conversation log
 - **Transformation**: architectural artifacts, project specification, and source code are synthesized into documentation oriented to end users and developers.
 - **Validation criteria**:
   - `README.md` contains: description, prerequisites, installation instructions, usage instructions
   - `api-reference.md` covers all public APIs
   - `installation-guide.md` is sufficient to reproduce the environment from scratch
+- **User gate** (optional): documentation review. Auto-proceeds in automode (V.4). In normal mode, the user may request revisions before proceeding.
 - **Resulting state**: `O7_DOCUMENTATION_GENERATED`
 
 ---
@@ -521,12 +569,14 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
 - **Output**:
   - CI/CD configuration files (`.github/workflows/`, `.gitlab-ci.yml`, `Jenkinsfile`, or equivalent)
   - `docs/cicd-configuration.md` — CI/CD configuration documentation: steps, triggers, environments
+  - `logs/builder-o8-cicd-<N>.md` — conversation log
 - **Transformation**: the test strategy, repository structure, and environment specifications are translated into a configured CI/CD pipeline.
 - **Validation criteria**:
   - the CI/CD pipeline is configured and documented
   - triggers are defined (push, PR, tag)
   - steps include at least: install, lint, test, build
   - configuration is consistent with `test-strategy.md`
+- **User gate** (optional): CI/CD configuration review. Auto-proceeds in automode (V.4). In normal mode, the user may request revisions before proceeding to O8.V verification.
 - **Resulting state**: `O8_CICD_CONFIGURED`
 
 ---
@@ -591,7 +641,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
 
   **Escalation for significant changes**: if the Builder reports `escalation_needed: true` (e.g., a module needs substantial rewriting, an architectural contradiction emerges, or a dependency requires fundamental redesign), the orchestrator escalates via R.8:
   - **Normal mode**: R.8 Level 2 — the orchestrator proposes re-entry to the user at the appropriate stage (typically O3, O1, or earlier) via R.5. The user confirms.
-  - **Automode**: R.8 Level 2 is resolved automatically — the orchestrator determines the appropriate re-entry stage, executes R.5 re-entry, and the pipeline re-traverses all intermediate stages (automode auto-proceeds through applicable gates; C2 remains manual). If re-entry targets C2, automode is disabled before resumption per R.5/S.1. The pipeline will eventually return to O8.V for re-verification. **Anti-loop guard**: if after an automatic re-entry the CI fails again for the same root cause, the orchestrator does NOT perform a second automatic re-entry — instead it triggers R.8 Level 3 (fatal blockage), which halts the pipeline in automode.
+  - **Automode**: R.8 Level 2 is resolved automatically — the orchestrator determines the appropriate re-entry stage, executes R.5 re-entry, and the pipeline re-traverses all intermediate stages (automode auto-proceeds through applicable gates; C2 remains manual). If re-entry targets C2, automode is disabled before resumption per R.5/S.1. The pipeline will eventually return to O8.V for re-verification. **Anti-loop guard**: if after an automatic re-entry the CI fails again for the same root cause, the orchestrator does NOT perform a second automatic re-entry — instead it triggers R.8 Level 3 (fatal blockage), which halts the pipeline in automode. **Same root cause matching**: two CI failures are considered to share the same root cause when the Builder's `classification` and normalized `root_cause` fields match across the pre-reentry and post-reentry failure reports. Normalization strips variable content (timestamps, run IDs, line numbers) and compares the semantic error description. When in doubt, the orchestrator treats the failure as the same root cause (erring on the side of halting rather than looping).
 - **Iteration limit**: after 5 consecutive in-place fix failures (without escalation), the orchestrator halts and escalates to the user (R.8 Level 2 in normal mode, automatic re-entry in automode as described above).
 - **Validation criteria**:
   - the CI workflow has passed on the live GitHub environment
@@ -934,7 +984,7 @@ At every stage transition, the orchestrator reconstructs context from disk — N
 
 1. **Re-read `pipeline-state/manifest.json`** (HEAD) from disk. From `current_state`, consult the State Machine for valid transitions. Then consult the Stage Routing Table to identify the next stage's entry conditions and required input artifact paths. Do NOT skip these lookups — perform them explicitly, even if you "remember" the next stage.
 2. **Pass artifact paths** (not content) in subagent invocation prompts. Subagents read content from disk using their own tools.
-3. **Accept only structured summaries** from returning subagents (per V.6). Full reports remain on disk.
+3. **Accept only structured summaries** from returning subagents (per V.5). Full reports remain on disk.
 4. **Conversation history** is for user interaction flow only — never for pipeline state. Routing decisions (which stage is next, what has been completed, which modules remain) MUST be derived from `manifest.json` on disk. **Conflict rule**: if the orchestrator's conversational memory of the pipeline state contradicts the manifest, the manifest ALWAYS wins.
 5. **History access**: read `pipeline-state/manifest-history.json` ONLY when executing R.5 (Re-entry archival), when the B1 Auditor encounters an anomaly in HEAD that requires historical context to diagnose (escalation — not by default), or when the user explicitly requests pipeline history.
 6. **Stale summary warning**: after O3 (or any stage producing many subagent exchanges), treat conversational summaries from earlier stages as potentially truncated or compressed by the harness. For any decision requiring cognitive-phase artifact content (e.g., requirements, architecture), re-read the source file from disk — never rely on an earlier summary.

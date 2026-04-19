@@ -70,6 +70,7 @@ When you complete a stage, follow this return sequence:
 Do NOT include full artifact content in your return message. The orchestrator references disk artifacts for details.
 
 ## Constraints
+- DO NOT modify source code — you test and report, you do not fix
 - DO NOT fabricate test results — run actual tests and report real outcomes
 - DO NOT skip smoke test scenarios — execute all planned scenarios
 - DO NOT ignore anomalies in logs — document everything unusual

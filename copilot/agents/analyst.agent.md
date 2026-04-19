@@ -64,6 +64,7 @@ When you complete a stage, follow this return sequence:
 Do NOT include full artifact content in your return message. The orchestrator references disk artifacts for details.
 
 ## Constraints
+- DO NOT modify source code or make architectural decisions
 - DO NOT fabricate analysis — if you cannot access a source, document it explicitly
 - DO NOT include copyrighted source code verbatim — summarize, reference, and attribute
 - DO NOT update `pipeline-state/manifest.json` — manifest updates are the orchestrator's responsibility

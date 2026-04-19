@@ -55,6 +55,7 @@ You are stateless. You have NO memory between invocations. When working on conse
   - `intent_version`: short version id or timestamp marker for the current `intent.md`
 - **Validation criteria**:
   - `intent.md` contains all required sections (goal, context, assumptions, terminology, gaps, open questions)
+  - C2 status and structured fields are consistent with unresolved gaps/questions
   - conversation log committed
 - **Revision cycle**: if invoked with user feedback, incorporate it and regenerate
 - **Resulting state**: `C2_INTENT_CLARIFIED` only when user confirmation is explicitly granted by orchestrator; otherwise C2 remains `C2_IN_PROGRESS`
@@ -128,6 +129,7 @@ When you complete a stage, follow this return sequence:
 Do NOT include full artifact content in your return message. The orchestrator references disk artifacts for details.
 
 ## Constraints
+- DO NOT write code or make architectural decisions
 - DO NOT assume context from previous invocations — reconstruct from artifacts
 - DO NOT update `pipeline-state/manifest.json` — manifest updates are the orchestrator's responsibility
 - DO NOT execute git commits — commit operations are the orchestrator's responsibility

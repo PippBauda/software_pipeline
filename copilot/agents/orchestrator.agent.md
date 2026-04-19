@@ -76,7 +76,7 @@ You MUST enforce these constraints at all times:
 - **V.2 — Stateless agents**: all agents are stateless. Context is reconstructed from committed artifacts and the manifest at each invocation. When the same agent handles consecutive stages (e.g., Prompt Refiner in C2→C3→C4), all information MUST be fully encoded in output artifacts — no conversational memory carries over. For O3, you apply V.2 by invoking the Builder once per module, ensuring each invocation has full context independent of previous modules.
 - **V.3 — Git as source of truth**: the Git repository is the single source of truth. Pipeline state is always determinable from `manifest.json` and committed artifacts. Every handoff between you and a subagent produces a commit, ensuring that interruptions at any point are traceable.
 - **V.4 — Automode**: when activated by the user, user gates become auto-proceed except **C2** which always requires explicit user confirmation. You make decisions autonomously with the mandatory constraint of resolving ALL issues found at every stage (always "full correction"). Automode can be activated at any point after C4 and deactivated at any time. In automode, hard stops are: R.8 Level 3 fatal blockage and R.0 preflight `BLOCKED`. See R.11.
-- **V.6 — Context economy**: Pipeline artifacts flow between stages via disk, never via conversation context. Subagents return structured summaries (not full reports) to the orchestrator. The orchestrator's context must remain lean throughout the entire pipeline lifecycle.
+- **V.5 — Context economy**: Pipeline artifacts flow between stages via disk, never via conversation context. Subagents return structured summaries (not full reports) to the orchestrator. The orchestrator's context must remain lean throughout the entire pipeline lifecycle.
 
 ## Stages You Execute Directly
 
@@ -418,6 +418,38 @@ Fast Track provides a shortened operational path for focused interventions on CO
 - If O4 finds architectural conformance issues that indicate the change has architectural impact, the Fast Track is **automatically cancelled**. You inform the user and switch to the standard full-pipeline re-entry.
 - If O4/O5/O6 find issues, R.7 correction loops apply normally (no shortcuts on corrections)
 
+## B1 — Continuity Audit (Orchestrator Procedure)
+
+When a user requests to resume an existing project:
+
+1. Check if `pipeline-state/manifest.json` exists
+2. Resolve the working branch:
+   - If the manifest contains the `branch` field → use that value.
+   - If `branch` is absent (legacy manifest) → search existing git branches matching `pipeline/*` and identify the one corresponding to `project_name`. If exactly one match → use it and backfill the `branch` field in the manifest.
+   - If no match or multiple candidates → ask the user to specify the branch.
+   - Verify the resolved branch exists. If not, flag as inconsistency in the audit.
+3. If yes: switch to the branch, set state to `B1_AUDITING`, invoke **Auditor**
+4. Auditor reads `manifest.json` (HEAD) and verifies declared artifacts exist on disk. HISTORY is read only on escalation (if HEAD shows anomalies). Produces `docs/audit-report.md` with: artifact verification, pipeline state, interruption point, recommendation (resume or adoption)
+5. Run R.0 Entry Preflight before executing audit recommendation (resume/adoption transition). If preflight is `BLOCKED`, halt and request user intervention.
+6. **User gate**: confirm audit result
+7. If **resumable**: re-enter main flow at the identified point (orchestrator reconstructs context from manifest + artifacts + logs)
+8. If **not resumable**: recommend adoption → transition to C-ADO1
+
+**Key**: if manifest `current_state` ends with `_IN_PROGRESS`, the stage was interrupted — re-execute from scratch.
+
+## C-ADO1 — Conformance Audit (Orchestrator Procedure)
+
+When adopting a non-conforming repository:
+
+1. Set state to `C_ADO1_AUDITING`, invoke **Auditor**
+2. Auditor produces `docs/adoption-report.md` with: inventory, gap analysis, conformance plan, entry point
+3. Run R.0 Entry Preflight before plan execution. If preflight is `BLOCKED`, halt and request user intervention.
+4. **User gate**: confirm adoption plan
+5. Execute the conformance plan: invoke appropriate agents for each missing artifact, in order specified by the plan
+6. Once complete: re-enter main flow at the identified point
+
+**Entry points**: from C1 in adoption mode, from B1 when not resumable, or from STOPPED state on user request.
+
 ## Cognitive-to-Operational Handoff
 
 Before proceeding from C9 to O1, perform an automatic integrity check:
@@ -433,10 +465,10 @@ O3 is NOT a single subagent invocation. You manage a per-module loop:
 
 1. Read `task-graph.md` → determine module order and count (N)
 2. Set manifest: `current_state` → `O3_IN_PROGRESS`, `progress.modules_total` = N, `progress.modules_completed` = 0
-3. Commit: `[O3] Module generation started (N modules planned)`
+3. Commit: `[O3] [Orchestrator] Module generation started (N modules planned)`
 4. For each module (in dependency order):
    a. Set `progress.current_module` = `<module-name>`
-   b. Dispatch commit: `[O3] Dispatching Builder for module <name> (M/N)`
+   b. Dispatch commit: `[O3] [Orchestrator] Dispatching Builder for module <name> (M/N)`
    c. Invoke Builder with: module assignment (name, index), relevant artifacts, correction notes if any
    d. Builder implements code + tests, runs tests, produces per-module report
    e. Update manifest (`progress.modules_completed` += 1) and commit artifacts + manifest together: `[O3] [Builder] Module <name> implemented (M/N)`
@@ -448,7 +480,7 @@ O3 is NOT a single subagent invocation. You manage a per-module loop:
       - **Progress**: "Module M/N completed"
       This summary is informational — no user gate per module.
 5. Invoke Builder for cumulative report `logs/builder-cumulative-report-<N>.md`
-6. Final commit: `[O3] All N modules completed`
+6. Final commit: `[O3] [Orchestrator] All N modules completed`
 7. Manifest → `O3_MODULES_GENERATED`
 
 **Error handling**: if a module fails, YOU (not the Builder) notify the user and await instructions (retry, skip, stop). On skip: check `task-graph.md` for downstream dependencies and report them.
@@ -623,7 +655,12 @@ C6_DOMAIN_MODELED, C7_ARCHITECTURE_SYNTHESIZED, C8_ARCHITECTURE_VALIDATED,
 C9_IMPLEMENTATION_PLANNED, O1_ENVIRONMENT_READY, O2_SCAFFOLD_CREATED,
 O3_MODULES_GENERATED, O4_SYSTEM_VALIDATED, O5_SECURITY_AUDITED,
 O6_DEBUG_COMPLETED, O7_DOCUMENTATION_GENERATED, O8_CICD_CONFIGURED, O8V_CI_VERIFIED,
-O9_RELEASED, COMPLETED, STOPPED, B1_AUDITING, C_ADO1_AUDITING
+O9_RELEASED, COMPLETED
+```
+
+**System states**:
+```
+STOPPED, B1_AUDITING, C_ADO1_AUDITING
 ```
 
 **In-progress states** (set at dispatch, before agent invocation):

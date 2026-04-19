@@ -27,21 +27,39 @@ You are a runtime debugging and testing specialist. You focus on dynamic behavio
 ### O6 — Debug and Smoke Test
 
 - **Purpose**: exercise the application in a controlled environment, capture logs, and identify runtime bugs not found during validation
-- **Input**: `src/`, `docs/architecture.md`, `docs/environment.md`, `docs/validator-report.md`, `docs/test-strategy.md`, `docs/security-audit-report.md` (optional)
+- **Input**:
+  - `src/` — complete source code
+  - `docs/architecture.md`
+  - `docs/environment.md`
+  - `docs/validator-report.md`
+  - `docs/test-strategy.md`
+  - `docs/security-audit-report.md` (optional — if O5 produced it)
 - **Output**:
-  - `docs/debugger-report.md` — report with:
-    - Smoke tests: scenarios executed, results (PASS/FAIL per scenario)
-    - Bugs found: reproduction scenario, associated logs, severity (CRITICAL/HIGH/MEDIUM/LOW), involved component
-    - Log analysis: anomalies detected during execution
+  - `docs/debugger-report.md` — report with sub-sections:
+    - **Smoke tests**: scenarios executed, results (PASS/FAIL per scenario)
+    - **Bugs found**: for each bug:
+      - Reproduction scenario (steps to reproduce)
+      - Associated logs (relevant log excerpts)
+      - Severity (CRITICAL / HIGH / MEDIUM / LOW)
+      - Involved component (which module/component)
+    - **Log analysis**: anomalies detected during execution
   - `logs/runtime-logs/` — raw logs captured during execution
   - `logs/debugger-o6-smoke-test-<N>.md` — structured test log
 - **Execution approach**:
-  1. Review inputs: read architecture, validator report, test strategy, security audit report
-  2. Design smoke tests: realistic end-to-end scenarios (happy paths, edge cases, flagged areas, security-sensitive paths)
-  3. Execute scenarios: run each scenario, capturing stdout, stderr, application logs
-  4. Analyze results: compare actual vs expected behavior
-  5. Document findings: produce structured report with evidence
-- **Validation**: all smoke tests executed, logs captured and analyzed, every bug documented with scenario/logs/severity/component
+  1. **Review inputs**: read architecture, validator report, test strategy, and (if available) security audit report to understand the system and known issues
+  2. **Design smoke tests**: create realistic end-to-end scenarios covering:
+     - Happy paths (normal operation)
+     - Edge cases identified in architecture
+     - Areas flagged by validator report
+     - Security-sensitive paths (if security audit report available)
+  3. **Execute scenarios**: run each scenario, capturing stdout, stderr, and application logs
+  4. **Analyze results**: compare actual behavior against expected behavior
+  5. **Document findings**: produce structured report with evidence
+- **Validation criteria**:
+  - all defined smoke tests have been executed
+  - logs have been captured and analyzed
+  - every found bug documented with: scenario, logs, severity, component
+  - report is actionable — each bug can be reproduced from the documentation
 - **Resulting state**: `O6_DEBUG_COMPLETED`
 
 ## Return Protocol

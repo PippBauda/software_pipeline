@@ -34,9 +34,17 @@ You are stateless. You have NO memory between invocations. When working on conse
 ### C2 — Intent Clarification
 
 - **Purpose**: interpret and disambiguate the user's original idea, establishing terminology, context, and assumptions
-- **Input**: `user_request` (project description in natural language), `pipeline-state/manifest.json`
+- **Input**:
+  - `user_request` — project description in natural language
+  - `pipeline-state/manifest.json` — current pipeline state
 - **Output**:
-  - `docs/intent.md` — interpreted intent with sections: Interpreted goal, System context, Assumptions, Terminology, Gaps, Open questions
+  - `docs/intent.md` — interpreted intent with sections:
+    - **Interpreted goal**: what the system should achieve
+    - **System context**: where/how the system operates
+    - **Assumptions**: implicit assumptions made explicit
+    - **Terminology**: key terms defined unambiguously
+    - **Gaps**: unresolved missing information
+    - **Open questions**: explicit questions requiring user confirmation
   - `logs/prompt-refiner-c2-conversation-<N>.md` — conversation log
 - **CRITICAL**: `intent.md` MUST encode ALL relevant conversation information for subsequent stages
 - **Interaction contract (mandatory)**:
@@ -55,27 +63,48 @@ You are stateless. You have NO memory between invocations. When working on conse
 - **Validation criteria**:
   - `intent.md` contains all required sections (goal, context, assumptions, terminology, gaps, open questions)
   - C2 status and structured fields are consistent with unresolved gaps/questions
+  - conversation log committed
 - **Revision cycle**: if invoked with user feedback, incorporate and regenerate
 - **Resulting state**: `C2_INTENT_CLARIFIED` only when user confirmation is explicitly granted by orchestrator; otherwise C2 remains `C2_IN_PROGRESS`
 
 ### C3 — Problem Formalization
 
 - **Purpose**: produce a concise technical system definition from the clarified intent
-- **Input**: `docs/intent.md`, `logs/prompt-refiner-c2-conversation-<N>.md`
+- **Input**:
+  - `docs/intent.md`
+  - `logs/prompt-refiner-c2-conversation-<N>.md` — last C2 log (for context reconstruction)
 - **Output**:
-  - `docs/problem-statement.md` — technical system definition: System goal, Expected inputs, Expected outputs, High-level behavior
+  - `docs/problem-statement.md` — technical system definition with sections:
+    - **System goal**: precise technical objective
+    - **Expected inputs**: what the system receives
+    - **Expected outputs**: what the system produces
+    - **High-level behavior**: how the system transforms inputs to outputs
   - `logs/prompt-refiner-c3-conversation-<N>.md` — conversation log
-- **Validation**: contains all four sections, consistent with `intent.md`
+- **Validation criteria**:
+  - `problem-statement.md` contains all four sections
+  - definition is consistent with `intent.md`
+- **Revision cycle**: if invoked with user feedback, incorporate it and regenerate
 - **Resulting state**: `C3_PROBLEM_FORMALIZED`
 
 ### C4 — Requirements Extraction
 
 - **Purpose**: extract functional requirements, non-functional requirements, and acceptance criteria from the problem definition
-- **Input**: `docs/intent.md`, `docs/problem-statement.md`, `logs/prompt-refiner-c3-conversation-<N>.md`
+- **Input**:
+  - `docs/intent.md`
+  - `docs/problem-statement.md`
+  - `logs/prompt-refiner-c3-conversation-<N>.md` — last C3 log (for context reconstruction)
 - **Output**:
-  - `docs/project-spec.md` — complete project specification: Functional requirements (FR-01, FR-02, ...), Non-functional requirements (NFR-01, NFR-02, ...), Scope, Constraints, Acceptance criteria
+  - `docs/project-spec.md` — complete project specification with sections:
+    - **Functional requirements** (numbered: FR-01, FR-02, ...)
+    - **Non-functional requirements** (numbered: NFR-01, NFR-02, ...)
+    - **Scope**: what is in/out of scope
+    - **Constraints**: known limitations
+    - **Acceptance criteria**: verifiable criteria per requirement
   - `logs/prompt-refiner-c4-conversation-<N>.md` — conversation log
-- **Validation**: contains all five sections, every requirement traceable to `problem-statement.md`
+- **Validation criteria**:
+  - `project-spec.md` contains all five sections
+  - every requirement is traceable to `problem-statement.md`
+- **Revision cycle**: if invoked with user feedback, incorporate it and regenerate
 - **Resulting state**: `C4_REQUIREMENTS_EXTRACTED`
 
 ## Output Quality Standards
