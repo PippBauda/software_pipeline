@@ -35,14 +35,19 @@ When the user chooses to re-enter the pipeline at a previous point (from O10/COM
 When an agent encounters a problem it cannot resolve autonomously:
 
 ### Level 1 — In-context clarification
+
 The agent requests clarification from the user within the current stage context. You relay the question and provide the answer back to the agent. The stage continues.
+
 - **In automode**: resolve the clarification autonomously based on project artifacts and context, without asking the user.
 
 ### Level 2 — Upstream revision
+
 The agent signals that an upstream artifact is ambiguous, inconsistent, or incomplete. Report the issue to the user and propose re-entry at the appropriate upstream stage (following R.5). The user confirms or overrides.
+
 - **In automode**: determine the appropriate re-entry stage autonomously, execute R.5, and the pipeline re-traverses all intermediate stages automatically (automode auto-proceeds through applicable gates, except C2). If re-entry targets C2, disable automode before resumption per R.5/S.1.
 
 ### Level 3 — Fatal blockage
+
 The agent cannot proceed and no upstream revision would resolve the issue. Apply R.2 (stop), documenting the blockage in the log. **This is the only escalation level that halts the pipeline in automode.** Non-escalation hard stops still apply (e.g., R.0 preflight `BLOCKED`). The user must intervene to resume.
 
 ---
@@ -66,6 +71,7 @@ When the user selects "Iteration" at O10, or returns to a COMPLETED project in a
 **New session with COMPLETED project**: read the manifest, inform the user of project status, and present this guide. The user selects the re-entry point and R.5 is applied.
 
 **Important notes**:
+
 - Re-entry at a cognitive stage (C2–C9) invalidates all operational stages per S.1 — inform the user of this impact before proceeding.
 - Re-entry at an operational stage (O1–O9) preserves cognitive artifacts.
 - The user may choose a different stage than recommended — validate the choice per S.1 but do not block it.
@@ -78,11 +84,13 @@ When the user selects "Iteration" at O10, or returns to a COMPLETED project in a
 Automode allows the user to delegate all decisions to the pipeline, bypassing user gates with a mandatory policy of resolving all issues.
 
 ### Activation
+
 - User can activate at any point after C4 (requirements confirmed) by explicit request
 - Record `automode: true` in `manifest.json`
 - Commit: `[AUTOMODE] [Orchestrator] Automode activated`
 
 ### Behavior when active
+
 - All user gates become **auto-proceed**, except the exemptions below
 - At stages with revision cycles (C7, C8, C9): if the agent or validator finds issues, ALWAYS choose "revise" and loop until resolved
 - At O4/O5/O6: if issues are found, ALWAYS choose "full correction" (option a) and trigger R.7. NEVER choose "no correction → proceed"
@@ -91,11 +99,13 @@ Automode allows the user to delegate all decisions to the pipeline, bypassing us
 - Any user message during automode is treated as an instruction and takes priority
 
 ### Exemptions (ALWAYS enforced, even in automode)
+
 - **C2 (Intent Clarification)**: ALWAYS requires explicit user confirmation; never auto-proceed
 - **R.8 Level 3 (Fatal blockage)**: ALWAYS halts the pipeline
 - **R.0 preflight `BLOCKED`**: ALWAYS halts progression until user intervention
 
 ### Deactivation
+
 - User says "automode off" (or equivalent) at any time
 - Record `automode: false` in `manifest.json`
 - Commit: `[AUTOMODE] [Orchestrator] Automode deactivated`
@@ -108,6 +118,7 @@ Automode allows the user to delegate all decisions to the pipeline, bypassing us
 Fast Track provides a shortened operational path for focused interventions on COMPLETED projects that do not alter architecture or requirements.
 
 ### Eligibility criteria (ALL must be true)
+
 1. The project is in `COMPLETED` state
 2. The intervention does NOT require changes to `architecture.md`, `interface-contracts.md`, or `api.md`
 3. The intervention does NOT add new functional requirements to `project-spec.md`
@@ -115,6 +126,7 @@ Fast Track provides a shortened operational path for focused interventions on CO
 5. The request is **sufficiently clear and unambiguous** — you can determine exact scope and affected modules without further clarification from the user
 
 ### Activation flow
+
 1. User requests an intervention on a COMPLETED project
 2. Evaluate the eligibility criteria above
 3. If eligible, propose Fast Track with explicit justification (listing which criteria are met and why)
@@ -122,9 +134,11 @@ Fast Track provides a shortened operational path for focused interventions on CO
 5. Record in `manifest.json`: `fast_track.active = true`, `fast_track.activated_at`, `fast_track.reason`, and `fast_track.affected_modules`
 
 ### Declassification
+
 If during Fast Track evaluation or execution you determine the request is ambiguous, under-specified, or has scope that cannot be confidently determined, Fast Track is **not eligible**. Inform the user and fall back to standard re-entry via R.10 (starting from C2 for disambiguation).
 
 ### Fast Track execution
+
 1. **Archive**: apply R.5 archival for stages O4 onward (reports/releases that will be re-executed). For O3, archive only the **affected modules'** artifacts — unaffected module code and reports are preserved in place, not archived.
 2. **O3**: invoke Builder only for affected modules
 3. **O4**: System Validation — **ALWAYS mandatory, never skippable**
@@ -137,9 +151,11 @@ If during Fast Track evaluation or execution you determine the request is ambigu
 10. **O10**: Closure — in normal mode, standard user gate applies (user confirms closure or selects further iteration). In automode, O10 auto-proceeds to closure. Set `fast_track.active = false` upon closure.
 
 ### Skip tracking
+
 For every skipped stage, record in `manifest.json` under `fast_track.skipped_stages`: stage id, justification, and whether it was your decision or user override.
 
 ### Safety net
+
 - O4 is ALWAYS executed — no exceptions
 - If O4 finds architectural conformance issues indicating architectural impact, Fast Track is **automatically cancelled**. Inform the user and switch to standard full-pipeline re-entry.
 - If O4/O5/O6 find issues, R.7 correction loops apply normally (no shortcuts on corrections)

@@ -51,7 +51,7 @@ Plus two auxiliary flows: **B1** (Resume) and **C-ADO1** (Adoption) for existing
 
 ## Repository Structure
 
-```
+```text
 software_pipeline/
 ├── opencode/                   # OpenCode platform files (deployment source)
 │   ├── agents/                 # Agent definitions (8 agents)
@@ -184,11 +184,12 @@ After deployment, agents are available only when working in that project.
 
 In an OpenCode session, the Orchestrator is the primary agent. Start a pipeline by describing your project idea:
 
-```
+```text
 I want to build a web application that...
 ```
 
 The Orchestrator will:
+
 1. Initialize the pipeline infrastructure (C1)
 2. Guide you through requirements refinement (C2-C4)
 3. Design the architecture (C6-C8)
@@ -345,6 +346,7 @@ cd .tooling && npm test
 ```
 
 When adding new functionality:
+
 - Plugin changes: add tests in `.tooling/tests/pipeline-compaction-controller.test.js`
 - Schema validation changes: add tests in `.tooling/tests/validate-manifest-schema.test.js`
 - Each test file should clean up any environment variable mutations (save/restore pattern)

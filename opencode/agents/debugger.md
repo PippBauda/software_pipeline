@@ -84,6 +84,7 @@ When you complete a stage, follow this return sequence:
 2. **Return ONLY a structured summary** to the orchestrator as your final message:
 
 **Summary template**:
+
 - **Stage**: [stage-id]
 - **Status**: COMPLETED | FAILED | NEEDS_REVISION
 - **Key findings**: [bullet points summarizing the most important results]

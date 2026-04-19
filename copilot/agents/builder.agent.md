@@ -103,7 +103,7 @@ You are an implementation engineer. You translate architectural plans into worki
 - **Cumulative report**: the orchestrator may invoke you once more after all modules to produce `logs/builder-cumulative-report-<N>.md` — a summary of all modules: status, test results, issues encountered, overall assessment
 - **Codebase digest generation** (R.13): after the cumulative report (or after correction loop completions), the orchestrator invokes you to generate `docs/codebase-digest.md`. This is a mechanical extraction — do NOT read source files into your context to produce it. Instead, use file search, grep, and shell commands:
   1. **File tree**: list all files in `src/` and `tests/` with sizes
-  2. **Module signatures**: use the editor's code intelligence features (document symbols, symbol search) if available to extract precise exported signatures (functions, classes, types with parameters and return types). Otherwise, grep for exported functions/classes/types using language-appropriate patterns (e.g., `export function`, `export class`, `def `, `pub fn`).
+  2. **Module signatures**: use the editor's code intelligence features (document symbols, symbol search) if available to extract precise exported signatures (functions, classes, types with parameters and return types). Otherwise, grep for exported functions/classes/types using language-appropriate patterns (e.g., `export function`, `export class`, `def`, `pub fn`).
   3. **Dependency graph**: grep for import/require statements across modules to map inter-module dependencies
   4. **Test coverage map**: extract from per-module reports in `logs/builder-report-module-*` — test file listing, test count, pass/fail status
   - The digest must be factual and standardized (~3-5 KB). No commentary or recommendations.
@@ -166,6 +166,7 @@ You are an implementation engineer. You translate architectural plans into worki
 ### O8.V — CI Fix Corrections (when invoked by orchestrator)
 
 When CI fails during O8.V verification, the orchestrator invokes you with the **raw CI failure log** and relevant artifacts (`docs/cicd-configuration.md`, `docs/environment.md`, affected source files). You must:
+
 1. **Analyze** the failure log to identify the root cause
 2. **Classify** the error type: `ci-config`, `code-test`, `dependency`, or `infrastructure`
 3. **Fix** the issue (unless it's an infrastructure error — report it and return)
@@ -176,6 +177,7 @@ When CI fails during O8.V verification, the orchestrator invokes you with the **
    - `confidence`: `high`, `medium`, or `low`
    - `escalation_needed`: `true` if the fix is too significant for an in-place correction (e.g., requires module rewriting or architectural changes)
    - `files_modified`: list of modified files
+
 - **Note**: the orchestrator manages the iteration loop (re-trigger CI, re-invoke you if needed). You focus on analyzing, fixing, and reporting.
 
 ## Code Quality Standards
@@ -192,6 +194,7 @@ When you complete a stage, follow this return sequence:
 2. **Return ONLY a structured summary** to the orchestrator as your final message:
 
 **Summary template**:
+
 - **Stage**: [stage-id]
 - **Status**: COMPLETED | FAILED | NEEDS_REVISION
 - **Key findings**: [bullet points summarizing the most important results]

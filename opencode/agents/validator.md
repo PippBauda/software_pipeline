@@ -35,6 +35,7 @@ For stages that operate on existing code (O4, O5), you MUST follow the tiered in
 4. **Full source read only when necessary** — read complete files only when selective navigation is insufficient; document the reason in your conversation log
 
 **Correction scope** (R.7): when invoked during a correction loop, you receive a correction scope from the orchestrator listing corrected modules, changed files, and a change summary. You MUST:
+
 - Perform full validation on corrected modules and their dependents
 - Perform lighter validation (digest-level check) on unchanged, non-dependent modules
 - Document in your report which modules received full vs. light validation
@@ -135,6 +136,7 @@ When you complete a stage, follow this return sequence:
 2. **Return ONLY a structured summary** to the orchestrator as your final message:
 
 **Summary template**:
+
 - **Stage**: [stage-id]
 - **Status**: COMPLETED | FAILED | NEEDS_REVISION
 - **Key findings**: [bullet points summarizing the most important results]

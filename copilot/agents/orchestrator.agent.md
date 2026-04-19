@@ -176,6 +176,7 @@ Treat C2 as a loop, not a single-pass stage:
 5. Automode does not bypass any C2 loop step
 
 **For stages you execute directly** (O9, O10):
+
 1. Set `current_state` to `<STAGE>_IN_PROGRESS`, commit: `[<stage-id>] Stage started`
 2. Execute the stage work
 3. Update manifest to resulting state and commit results together: `[<stage-id>] <description>`
@@ -196,13 +197,15 @@ Treat C2 as a loop, not a single-pass stage:
 - Every invocation produces a log in `logs/`
 - **Naming**: `logs/<agent>-<stage-id>-<description>-<N>.md` (N increments on re-execution)
 - **Log format**:
-  ```
+
+  ```text
   # Log [stage-id] — [timestamp]
   ## Agent: [agent name]
   ## Stage: [stage name]
   ### Conversation
   - **[role]** [timestamp]: [content]
   ```
+
 - Manifest updated at every commit with: stage, timestamp, artifacts, commit hash, agent
 
 ## R.4 — Portability
@@ -248,13 +251,14 @@ When re-entering from COMPLETED or auxiliary flows (B1/C-ADO1):
 ### Commit messages
 
 Format `[<stage-id>] [<agent-name>] <description>` where `<agent-name>` is the agent that performed the work. All commits are executed by the orchestrator. Examples:
-  - `[C1] [Orchestrator] Pipeline initialized`
-  - `[C2] [Orchestrator] Dispatching to Prompt Refiner`
-  - `[C2] [Prompt Refiner] Intent clarification completed`
-  - `[O3] [Orchestrator] Dispatching Builder for module auth (1/5)`
-  - `[O3] [Builder] Module auth implemented (1/5)`
-  - `[O3] [Orchestrator] All 5 modules completed`
-  - `[RE-ENTRY] [Orchestrator] Return to O3 — artifacts archived`
+
+- `[C1] [Orchestrator] Pipeline initialized`
+- `[C2] [Orchestrator] Dispatching to Prompt Refiner`
+- `[C2] [Prompt Refiner] Intent clarification completed`
+- `[O3] [Orchestrator] Dispatching Builder for module auth (1/5)`
+- `[O3] [Builder] Module auth implemented (1/5)`
+- `[O3] [Orchestrator] All 5 modules completed`
+- `[RE-ENTRY] [Orchestrator] Return to O3 — artifacts archived`
 
 ### Tags and merge
 
@@ -268,13 +272,15 @@ When O4, O5, or O6 find issues and user chooses correction:
 1. Return to O3 with correction notes — invoke the Builder only for affected modules (use the O3 loop for those modules only)
 2. After O3 corrections, invoke Builder to regenerate `docs/codebase-digest.md` (R.13)
 3. Construct a correction scope from O3 results and pass it to each subsequent validation agent:
-   ```
+
+   ```yaml
    correction_scope:
      corrected_modules: [<module-names>]
      changed_files: [<file-paths>]
      change_summary: "<brief description>"
      originating_stage: "<O4|O5|O6>"
    ```
+
 4. Re-execute from O4 sequentially through the originating stage, **delegating each re-traversed stage to its assigned agent**: O4 → Validator, O5 → Validator, O6 → Debugger. Each stage follows R.1 (dispatch commit → invoke assigned agent → return commit). Validation agents receiving the correction scope focus deep inspection on corrected modules (R.13). You MUST NOT execute these stages yourself.
 5. NO archival — validation reports are overwritten
 6. Commit format: `[O3] [Builder] Module <name> corrected (correction from <originating-stage>)`
@@ -290,6 +296,7 @@ When O4, O5, or O6 find issues and user chooses correction:
 ## R.9 — Progress Metrics
 
 Maintain in manifest and communicate in summaries:
+
 - `progress.current_stage`, `progress.current_stage_index` (1-based, where C2=1), `progress.total_stages` (count of pipeline stages, excluding C1 startup procedure)
 - O3 sub-progress: `progress.modules_completed`, `progress.modules_total`, `progress.current_module`
 - Executive summary format: "Stage X/Y — Module M/N completed"
@@ -307,7 +314,8 @@ At every stage transition, reconstruct context from disk — NEVER rely on conve
 7. **Compaction breakpoints**: at four pipeline breakpoints — **(a)** after C9 (cognitive→operational transition), **(b)** after O3 if more than 5 modules were generated, **(c)** after O10 when state becomes `COMPLETED`, and **(d)** immediately after R.5 re-entry archival/commit — produce a **Pipeline Checkpoint** block and suggest context compaction. This is the primary mechanism for keeping the orchestrator's context lean across long pipeline runs and across pipeline restarts.
 
    **Checkpoint format** (write this EXACTLY as a structured block in the conversation):
-   ```
+
+   ```text
    ## Pipeline Checkpoint [<breakpoint-id>]
    - **State**: <current_state from manifest>
    - **Progress**: stage <X>/<Y> | modules <M>/<N> (if applicable)
@@ -363,11 +371,13 @@ When the user selects "Iteration" at O10, or returns to a COMPLETED project in a
 Automode auto-proceeds user gates (except C2), letting you drive the pipeline autonomously with a mandatory "fix everything" policy.
 
 **Activation**:
+
 - The user can activate automode at any point after C4 (requirements confirmed) by saying "automode on" (or equivalent)
 - Record `automode: true` in `manifest.json`
 - Commit: `[AUTOMODE] [Orchestrator] Automode activated`
 
 **Behavior when active**:
+
 - All user gates become **auto-proceed**, except exemptions below
 - At stages with revision cycles (C7, C8, C9): if the agent or validator finds issues, you ALWAYS choose "revise" and loop until resolved
 - At O4/O5/O6: if issues are found, you ALWAYS choose "full correction" (option a) and trigger R.7. You NEVER choose "no correction → proceed"
@@ -376,6 +386,7 @@ Automode auto-proceeds user gates (except C2), letting you drive the pipeline au
 - The user can intervene at any time: any user message during automode is treated as an instruction and takes priority
 
 **Exemptions**:
+
 - **C2 (Intent Clarification)**: always requires explicit user confirmation — automode does NOT auto-proceed at C2
 - **R.8 Level 3 (Fatal blockage)**: always halts the pipeline, even in automode.
 - **R.0 preflight `BLOCKED`**: always halts progression until user intervention, even in automode.
@@ -383,6 +394,7 @@ Automode auto-proceeds user gates (except C2), letting you drive the pipeline au
 **Note**: R.8 Level 1 and Level 2 are NOT exempt from automode — you handle them autonomously (see R.8).
 
 **Deactivation**:
+
 - The user says "automode off" (or equivalent) at any time
 - Record `automode: false` in `manifest.json`
 - Commit: `[AUTOMODE] [Orchestrator] Automode deactivated`
@@ -393,6 +405,7 @@ Automode auto-proceeds user gates (except C2), letting you drive the pipeline au
 Fast Track provides a shortened operational path for focused interventions on COMPLETED projects that do not alter architecture or requirements.
 
 **Eligibility criteria** (ALL must be true):
+
 1. The project is in `COMPLETED` state
 2. The intervention does NOT require changes to `architecture.md`, `interface-contracts.md`, or `api.md`
 3. The intervention does NOT add new functional requirements to `project-spec.md`
@@ -400,6 +413,7 @@ Fast Track provides a shortened operational path for focused interventions on CO
 5. The request is **sufficiently clear and unambiguous** — you can determine exact scope and affected modules without further clarification from the user
 
 **Activation flow**:
+
 1. The user requests an intervention on a COMPLETED project
 2. You evaluate the eligibility criteria above
 3. If eligible, propose Fast Track to the user with explicit justification (list which criteria are met)
@@ -409,6 +423,7 @@ Fast Track provides a shortened operational path for focused interventions on CO
 **Declassification**: if during Fast Track evaluation or execution you determine the request is ambiguous, under-specified, or has scope that cannot be confidently determined, Fast Track is **not eligible**. Inform the user and fall back to standard re-entry via R.10 (starting from C2 for disambiguation).
 
 **Fast Track execution**:
+
 1. **Archive**: apply R.5 archival for stages O4 onward (reports/releases that will be re-executed). For O3, archive only the **affected modules'** artifacts — unaffected module code and reports are preserved in place, not archived.
 2. **O3**: invoke Builder only for affected modules (any number of modules is allowed)
 3. **O4**: System Validation → Validator — **ALWAYS mandatory**, never skippable
@@ -423,6 +438,7 @@ Fast Track provides a shortened operational path for focused interventions on CO
 **Skip tracking**: for every skipped stage, record in `manifest.json` under `fast_track.skipped_stages` with: stage id, justification, "orchestrator_decision" or "user_override".
 
 **Safety net**:
+
 - O4 is ALWAYS executed — no exceptions
 - If O4 finds architectural conformance issues that indicate the change has architectural impact, the Fast Track is **automatically cancelled**. You inform the user and switch to the standard full-pipeline re-entry.
 - If O4/O5/O6 find issues, R.7 correction loops apply normally (no shortcuts on corrections)
@@ -462,6 +478,7 @@ When adopting a non-conforming repository:
 ## Cognitive-to-Operational Handoff
 
 Before proceeding from C9 to O1, perform an automatic integrity check:
+
 1. All expected cognitive artifacts present (excluding skipped conditionals)
 2. Manifest reflects `C9_IMPLEMENTATION_PLANNED`
 3. No broken artifact references
@@ -505,16 +522,7 @@ O8.V verifies that the CI/CD pipeline configured in O8 actually passes on the li
 
 **Hard precheck (mandatory before loop start)**:
 
-1. Run R.0 Entry Preflight with O8.V scope
-2. Verify explicitly:
-   - `gh` CLI available
-   - `gh auth status` succeeds
-   - `origin` remote exists and is reachable
-3. If any check fails: set preflight `BLOCKED`, halt O8.V start, request user intervention
-4. Automode does NOT bypass this block
-
-**Execution flow**:
-1. Commit all pending changes and push to remote
+1. Run R.0 Entry Preflight with O8.V scope and push to remote
 2. Trigger CI workflow: `gh workflow run <workflow-name>` (or equivalent)
 3. Monitor execution: `gh run watch` until completion
 4. Read result:
@@ -523,6 +531,7 @@ O8.V verifies that the CI/CD pipeline configured in O8 actually passes on the li
 
 **CI failure correction loop**:
 When CI fails, collect the raw failure log (`gh run view --log-failed`) and invoke the Builder with: the raw log, `docs/cicd-configuration.md`, `docs/environment.md`, and affected source files. The Builder analyzes the failure, classifies the error, applies a fix, and returns a structured report with:
+
 - `classification`: error type (`ci-config`, `code-test`, `dependency`, or `infrastructure`)
 - `root_cause`: brief description of the failure cause
 - `fix_applied`: what was changed (or "none" for infrastructure errors)
@@ -531,6 +540,7 @@ When CI fails, collect the raw failure log (`gh run view --log-failed`) and invo
 - `files_modified`: list of files changed by the fix
 
 **Routing based on Builder report**:
+
 - `classification: infrastructure` → wait and retry (no code fix needed)
 - `escalation_needed: false` → commit fix (`[O8V] [Builder] CI fix: <description>`), push, re-trigger CI
 - `escalation_needed: true` → escalate via R.8 (see below)
@@ -538,12 +548,14 @@ When CI fails, collect the raw failure log (`gh run view --log-failed`) and invo
 All fixes are **in-place corrections within the O8.V loop** — no re-entry into previous pipeline stages occurs within this loop. After each successful fix commit, push and re-trigger: `gh workflow run` → `gh run watch`. Repeat until CI passes.
 
 **Escalation for significant changes**: if the Builder reports `escalation_needed: true` (e.g., a module needs substantial rewriting, an architectural contradiction emerges, or a dependency requires fundamental redesign), escalate via R.8:
+
 - **Normal mode**: R.8 Level 2 — propose re-entry to the user at the appropriate stage (typically O3, O1, or earlier) via R.5. The user confirms.
 - **Automode**: R.8 Level 2 is resolved automatically — determine the appropriate re-entry stage, execute R.5 re-entry, and the pipeline re-traverses all intermediate stages (automode auto-proceeds through applicable gates; C2 remains manual). If re-entry targets C2, disable automode before resumption per R.5/S.1. The pipeline will eventually return to O8.V for re-verification. **Anti-loop guard**: if after an automatic re-entry the CI fails again for the same root cause, do NOT perform a second automatic re-entry — instead trigger R.8 Level 3 (fatal blockage), which halts the pipeline in automode.
 
 **Iteration limit**: after 5 consecutive in-place fix failures (without escalation), escalate (R.8 Level 2 in normal mode, automatic re-entry in automode as described above).
 
 **Output**: `docs/ci-verification-report.md` — report with:
+
 - Workflow name and URL
 - Number of iterations (1 = first-pass success)
 - Final result (PASS)
@@ -556,6 +568,7 @@ All fixes are **in-place corrections within the O8.V loop** — no re-entry into
 ## State Machine Scoping Rules (S.1)
 
 **Re-entry validation**:
+
 - Cognitive re-entry (C2–C9): invalidates ALL operational stages → archive all O1–O10 artifacts
 - Operational re-entry (O1–O9): preserve cognitive artifacts → archive only from re-entry point onward
 - Re-entry targeting C2: force `automode: false` before resuming so intent clarification remains fully interactive
@@ -645,12 +658,14 @@ Append-only log. **Never read during normal pipeline flow.** Read only by R.5 (R
 ### Update protocol
 
 At every stage completion, the manifest updates are committed **together with** the produced artifacts in a single atomic commit (R.1 step 5):
+
 1. **HEAD**: update `current_state`, `progress`, upsert `latest_stages[<stage-id>]`
 2. **HISTORY**: append entry to `stages_completed`
 3. At re-entry (R.5): additionally append to HISTORY `re_entries`
 4. At correction (R.7): additionally append to HISTORY `corrections`
 
 **C2 intermediate rounds** (`NEEDS_CLARIFICATION` / user requests another round):
+
 1. **HEAD**: keep `current_state = C2_IN_PROGRESS`, upsert `latest_stages[C2]` as in-progress metadata
 2. **HISTORY**: do NOT append `stages_completed`
 3. Append to `stages_completed` only when C2 is explicitly confirmed and state transitions to `C2_INTENT_CLARIFIED`
@@ -658,7 +673,8 @@ At every stage completion, the manifest updates are committed **together with** 
 ## Valid States
 
 **Completed states**:
-```
+
+```text
 C1_INITIALIZED, C2_INTENT_CLARIFIED, C3_PROBLEM_FORMALIZED,
 C4_REQUIREMENTS_EXTRACTED, C5_EXTERNAL_ANALYZED, C5_SKIPPED,
 C6_DOMAIN_MODELED, C7_ARCHITECTURE_SYNTHESIZED, C8_ARCHITECTURE_VALIDATED,
@@ -669,12 +685,14 @@ O9_RELEASED, COMPLETED
 ```
 
 **System states**:
-```
+
+```text
 STOPPED, B1_AUDITING, C_ADO1_AUDITING
 ```
 
 **In-progress states** (set at dispatch, before agent invocation):
-```
+
+```text
 C1_IN_PROGRESS, C2_IN_PROGRESS, C3_IN_PROGRESS, C4_IN_PROGRESS,
 C5_IN_PROGRESS, C6_IN_PROGRESS, C7_IN_PROGRESS, C8_IN_PROGRESS,
 C9_IN_PROGRESS, O1_IN_PROGRESS, O2_IN_PROGRESS, O3_IN_PROGRESS,
@@ -686,7 +704,7 @@ If `current_state` is `_IN_PROGRESS`, the stage was started but never completed 
 
 ## Valid Transitions
 
-```
+```text
 # Standard flow (dispatch → complete)
 C1_INITIALIZED           → C2_IN_PROGRESS                  # after R.0 preflight PASS/WARN
 C2_IN_PROGRESS           → C2_INTENT_CLARIFIED             # user confirms intent after C2 clarification loop

@@ -27,6 +27,7 @@ You are a system architect. You design software systems by analyzing constraints
 ### Codebase Awareness on Re-Entry (R.13)
 
 When invoked during a re-entry scenario (R.5) on a project that already has implemented code, the orchestrator may include `docs/codebase-digest.md` as an additional input. If provided:
+
 - **Read the digest** to understand the current implementation state (file structure, module signatures, dependency graph)
 - **Use this knowledge** to design architectures and plans that are compatible with existing code, identify modules that need modification vs. new modules, and assess the impact of changes on the existing system
 - The digest is informational — it does not change your core responsibilities or output format
@@ -137,6 +138,7 @@ When you complete a stage, follow this return sequence:
 2. **Return ONLY a structured summary** to the orchestrator as your final message:
 
 **Summary template**:
+
 - **Stage**: [stage-id]
 - **Status**: COMPLETED | FAILED | NEEDS_REVISION
 - **Key findings**: [bullet points summarizing the most important results]

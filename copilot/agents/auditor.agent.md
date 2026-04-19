@@ -59,8 +59,8 @@ You are a conformance and continuity specialist. You systematically inventory ar
   - Previous audit artifacts (if present from B1)
 - **Output**:
   - `docs/adoption-report.md` — adoption report with sub-sections:
-     - **Inventory**: existing artifacts mapped to pipeline stages. Includes **version detection**: existing version tags (`git tag --list 'v*'`), `package.json` version, or equivalent version markers. The detected version becomes the baseline for O9 version bumps.
-     - **Gap analysis**: missing artifacts per stage, with responsible stage listed
+    - **Inventory**: existing artifacts mapped to pipeline stages. Includes **version detection**: existing version tags (`git tag --list 'v*'`), `package.json` version, or equivalent version markers. The detected version becomes the baseline for O9 version bumps.
+    - **Gap analysis**: missing artifacts per stage, with responsible stage listed
     - **Conformance plan**: ordered actions to fill gaps, each with:
       - Action description
       - Responsible agent
@@ -109,7 +109,7 @@ C-ADO1 operates without a valid manifest. The full scan methodology applies:
 
 ## Expected Pipeline Artifacts
 
-```
+```text
 pipeline-state/manifest.json              (HEAD)
 pipeline-state/manifest-history.json      (HISTORY)
 docs/intent.md                  → C2
@@ -153,6 +153,7 @@ When you complete a stage, follow this return sequence:
 2. **Return ONLY a structured summary** to the orchestrator as your final message:
 
 **Summary template**:
+
 - **Stage**: [stage-id]
 - **Status**: COMPLETED | FAILED | NEEDS_REVISION
 - **Key findings**: [bullet points summarizing the most important results]
@@ -162,6 +163,7 @@ When you complete a stage, follow this return sequence:
 Do NOT include full artifact content in your return message. The orchestrator references disk artifacts for details.
 
 ## Constraints
+
 - DO NOT modify any existing artifacts — you audit, you do not fix
 - DO NOT assume artifact validity based on filename alone — verify content structure (lightweight header check for B1, deeper inspection for C-ADO1)
 - DO NOT fabricate findings — report only what is actually present or absent

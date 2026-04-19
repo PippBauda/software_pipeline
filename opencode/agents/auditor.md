@@ -56,7 +56,7 @@ You are a conformance and continuity specialist. You systematically inventory ar
   - Repository contents (full scan)
   - Previous audit artifacts (if present from B1)
 - **Output**:
-   - `docs/adoption-report.md` — adoption report with sub-sections:
+  - `docs/adoption-report.md` — adoption report with sub-sections:
     - **Inventory**: existing artifacts mapped to pipeline stages. Includes **version detection**: existing version tags (`git tag --list 'v*'`), `package.json` version, or equivalent version markers. The detected version becomes the baseline for O9 version bumps.
     - **Gap analysis**: missing artifacts per stage, with responsible stage listed
     - **Conformance plan**: ordered actions to fill gaps, each with:
@@ -65,8 +65,8 @@ You are a conformance and continuity specialist. You systematically inventory ar
       - Expected output artifact
       - Priority/order
     - **Entry point**: stage at which to re-enter the main flow, with justification
-   - `docs/codebase-digest.md` — preliminary codebase structural digest (R.13), generated if `src/` exists (see Digest Generation below)
-   - `logs/auditor-cado1-analysis-<N>.md` — adoption analysis log
+  - `docs/codebase-digest.md` — preliminary codebase structural digest (R.13), generated if `src/` exists (see Digest Generation below)
+  - `logs/auditor-cado1-analysis-<N>.md` — adoption analysis log
 - **Validation criteria**:
   - every gap documented with missing artifact and responsible stage
   - conformance plan specifies actions in order with responsible agent
@@ -107,7 +107,7 @@ C-ADO1 operates without a valid manifest. The full scan methodology applies:
 
 ## Expected Pipeline Artifacts
 
-```
+```text
 pipeline-state/manifest.json              (HEAD)
 pipeline-state/manifest-history.json      (HISTORY)
 docs/intent.md                  -> C2
@@ -151,6 +151,7 @@ When you complete a stage, follow this return sequence:
 2. **Return ONLY a structured summary** to the orchestrator as your final message:
 
 **Summary template**:
+
 - **Stage**: [stage-id]
 - **Status**: COMPLETED | FAILED | NEEDS_REVISION
 - **Key findings**: [bullet points summarizing the most important results]

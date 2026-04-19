@@ -2,7 +2,7 @@
 
 ---
 
-# Design Constraints
+## Design Constraints
 
 - **V.1 — Single-user model**: the pipeline is designed for a single user interacting with the orchestrator. No role management, permissions, or multi-user interactions are supported.
 - **V.2 — Stateless agents**: all agents (including the orchestrator) are stateless. Context is reconstructed at each invocation from committed artifacts and the pipeline manifest. No implicit memory exists between invocations. When the same agent is invoked across consecutive stages (e.g., Prompt Refiner in C2→C3→C4), all relevant information from prior invocations MUST be fully encoded in the output artifacts — the agent cannot rely on conversational memory from previous stages. For stages with internal iteration (O3), the orchestrator applies V.2 by invoking the subagent once per iteration unit (module), ensuring each invocation has full context independent of previous iterations.
@@ -12,7 +12,7 @@
 
 ---
 
-# Agents
+## Agents
 
 The pipeline uses the following specialized agents:
 
@@ -67,7 +67,7 @@ The orchestrator consults this table at every stage transition (R.1 step 1, R.CO
 
 ---
 
-# Cognitive Pipeline
+## Cognitive Pipeline
 
 Goal: progressively transform an ambiguous user idea into a complete, validated implementation plan.
 
@@ -299,7 +299,7 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
 
 Final artifacts produced:
 
-```
+```text
 docs/intent.md
 docs/problem-statement.md
 docs/project-spec.md
@@ -323,7 +323,7 @@ These artifacts are consumed by the Operational Pipeline.
 
 ---
 
-# Operational Pipeline
+## Operational Pipeline
 
 Goal: execute the implementation plan and produce working, tested, secure, documented, and releasable software.
 
@@ -624,6 +624,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   **Builder receives**: raw CI failure log + relevant artifacts (`docs/cicd-configuration.md`, `docs/environment.md`, affected source files).
 
   **Builder returns** a structured CI fix report:
+
   | Field | Description |
   |-------|-------------|
   | `classification` | Error type: `ci-config`, `code-test`, `dependency`, or `infrastructure` |
@@ -634,6 +635,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   | `files_modified` | List of modified files |
 
   **Orchestrator routing based on Builder report**:
+
   | Condition | Orchestrator action |
   |-----------|-------------------|
   | `classification: infrastructure` | Wait and retry after delay (no Builder fix needed) |
@@ -719,7 +721,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
 
 ---
 
-# Flow B — Project Resume
+## Flow B — Project Resume
 
 ---
 
@@ -769,7 +771,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
 
 ---
 
-# Flow C — Project Adoption
+## Flow C — Project Adoption
 
 ---
 
@@ -804,13 +806,14 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
 
 ---
 
-# Cross-Cutting Rules
+## Cross-Cutting Rules
 
 ## R.0 — Entry Preflight (Mandatory)
 
 Before any pipeline entry flow, the orchestrator executes a runtime/tooling preflight.
 
 **When mandatory**:
+
 - before first dispatch after C1 startup (new project)
 - before B1 (resume audit)
 - before C-ADO1 (adoption audit)
@@ -818,6 +821,7 @@ Before any pipeline entry flow, the orchestrator executes a runtime/tooling pref
 - before starting O8.V CI verification loop
 
 **Checks**:
+
 - `git` CLI available and repository writable
 - `git rev-parse --is-inside-work-tree` succeeds
 - `git status` succeeds
@@ -825,10 +829,12 @@ Before any pipeline entry flow, the orchestrator executes a runtime/tooling pref
 - if `docs/environment.md` exists (O1+), runtime/package-manager CLIs declared there are available
 
 **Outputs**:
+
 - `docs/runtime-preflight.md` (latest snapshot)
 - `logs/orchestrator-preflight-<N>.md` (detailed checks)
 
 **Decision**:
+
 - `PASS`: continue
 - `WARN`: continue with explicit warning in executive summary
 - `BLOCKED`: halt and request user intervention (**not bypassable by automode**)
@@ -859,6 +865,7 @@ Treat C2 as a loop, not a single-pass stage:
 5. Automode does not bypass any C2 loop step
 
 **For stages the orchestrator executes directly** (C1, O9, O10):
+
 1. Set `current_state` to `<STAGE>_IN_PROGRESS`, commit: `[<stage-id>] [Orchestrator] Stage started`
 2. Execute the stage work
 3. Update manifest to resulting state and commit results together: `[<stage-id>] [Orchestrator] <description>`
@@ -883,13 +890,15 @@ Treat C2 as a loop, not a single-pass stage:
 - Every invocation produces a log in `logs/`
 - **Log naming convention**: log files include an incremental suffix to prevent overwriting on re-executions: `logs/<agent>-<stage-id>-<description>-<N>.md` where `<N>` is an integer starting from 1, incremented for each re-execution of the same stage. Examples: `logs/prompt-refiner-c2-conversation-1.md`, `logs/prompt-refiner-c2-conversation-2.md` (after revision cycle).
 - **Log format**: Markdown, with structure:
-  ```
+
+  ```text
   # Log [stage-id] — [timestamp]
   ## Agent: [agent name]
   ## Stage: [stage name]
   ### Conversation
   - **[role]** [timestamp]: [content]
   ```
+
 - The manifest (`pipeline-state/manifest.json`) is updated at every commit with:
   - completed stage (or IN_PROGRESS for dispatch commits)
   - timestamp
@@ -944,12 +953,13 @@ When the user chooses to re-enter the pipeline at a previous point (from O10/COM
 ### Commit messages
 
 Format `[<stage-id>] [<agent-name>] <description>` where `<agent-name>` is the agent that performed the work. Examples:
-  - `[C1] [Orchestrator] Pipeline initialized`
-  - `[C2] [Orchestrator] Dispatching to Prompt Refiner`
-  - `[C2] [Prompt Refiner] Intent clarification completed`
-  - `[O3] [Orchestrator] Dispatching Builder for module auth (1/5)`
-  - `[O3] [Builder] Module auth implemented (1/5)`
-  - `[RE-ENTRY] [Orchestrator] Return to O3 — artifacts archived in archive/20260316T120000/`
+
+- `[C1] [Orchestrator] Pipeline initialized`
+- `[C2] [Orchestrator] Dispatching to Prompt Refiner`
+- `[C2] [Prompt Refiner] Intent clarification completed`
+- `[O3] [Orchestrator] Dispatching Builder for module auth (1/5)`
+- `[O3] [Builder] Module auth implemented (1/5)`
+- `[RE-ENTRY] [Orchestrator] Return to O3 — artifacts archived in archive/20260316T120000/`
 
 ### Tags and merge
 
@@ -968,6 +978,7 @@ When a validation stage (O4, O5, or O6) identifies issues and the user chooses c
 6. **Commit format**: correction loop commits follow the standard R.6 format, e.g., `[O3] [Builder] Module <name> corrected (correction from O4)`
 
 **Examples**:
+
 - O4→O3 correction: O3 → O4 (re-validates)
 - O5→O3 correction: O3 → O4 → O5 (re-validates then re-audits)
 - O6→O3 correction: O3 → O4 → O5 → O6 (full re-validation chain)
@@ -1020,7 +1031,7 @@ Stages that operate on existing code (O4, O5, O6, O7, and re-entry stages) face 
 
 ### Levels
 
-**Level 0 — Codebase Digest (static, pre-computed)**
+#### Level 0 — Codebase Digest (static, pre-computed)
 
 A lightweight artifact (`docs/codebase-digest.md`) that provides a structural map of the codebase. Every agent that needs codebase awareness reads this artifact first. It is small enough (~3-5 KB) to always fit in the agent's context alongside other inputs.
 
@@ -1034,7 +1045,7 @@ A lightweight artifact (`docs/codebase-digest.md`) that provides a structural ma
 - **Regeneration triggers**: (1) O3 completion (initial or correction loop), (2) R.5 re-entry at any operational stage (orchestrator requests Builder to regenerate before dispatching the re-entry target stage), (3) C-ADO1 completion (preliminary digest from existing code)
 - **Artifact path**: `docs/codebase-digest.md`
 
-**Level 1 — Structural Navigation (on-demand, tool-based)**
+#### Level 1 — Structural Navigation (on-demand, tool-based)
 
 Agents use their existing tools (`glob`, `grep`, `read`, `bash`) and, when available, the `lsp` tool for targeted code inspection. Level 1 is appropriate when the agent knows *what* to look for — a specific function, class, import path, or error location.
 
@@ -1050,7 +1061,7 @@ Agents use their existing tools (`glob`, `grep`, `read`, `bash`) and, when avail
 - **Use cases**: tracing a specific function referenced in a bug report, checking how a module implements an interface contract, finding all callers of a function flagged in a security audit
 - **Protocol**: after reading the digest (Level 0), the agent identifies specific files or patterns to inspect and uses navigation tools to read only the relevant code sections — not entire files when only a function signature is needed.
 
-**Level 2 — Full Source Read (last resort)**
+#### Level 2 — Full Source Read (last resort)
 
 Direct reading of complete source files into the agent's context. This is the most expensive operation and should only be used when Level 0 + Level 1 are insufficient.
 
@@ -1070,7 +1081,7 @@ Every agent operating on existing code MUST follow this sequence:
 
 When the orchestrator initiates a correction loop (R.7), it constructs a **correction scope** from the O3 correction results and passes it to the subsequent validation agents (O4, O5, O6) alongside the standard inputs:
 
-```
+```yaml
 correction_scope:
   corrected_modules: [<module-names>]
   changed_files: [<file-paths>]
@@ -1079,6 +1090,7 @@ correction_scope:
 ```
 
 Validation agents receiving a correction scope:
+
 - **MUST** perform full validation on corrected modules (Level 1 deep inspection)
 - **MAY** perform lighter validation on unchanged modules (Level 0 digest check only), unless the correction could have cross-module impact (e.g., interface changes) — in which case dependent modules also receive Level 1 inspection
 - **MAY** use `lsp findReferences` (when available) to automatically identify modules dependent on corrected modules, enriching the impact analysis beyond what the correction scope explicitly lists
@@ -1089,6 +1101,7 @@ This reduces the cost of correction loop re-traversals (R.7) from O(full codebas
 ### Re-Entry Awareness
 
 When the pipeline re-enters via R.5 at an operational stage (O1–O9) on a project with existing code:
+
 1. The orchestrator verifies `docs/codebase-digest.md` exists. If it does not (e.g., re-entry predates R.13, or digest was archived), the orchestrator dispatches the Builder to generate it before proceeding to the re-entry target stage.
 2. All cognitive-phase agents (Prompt Refiner, Architect) invoked during re-entry at cognitive stages (C2–C9) receive `docs/codebase-digest.md` as an additional input when it exists, giving them awareness of the current implementation state.
 
@@ -1111,6 +1124,7 @@ When the user selects "Iteration" at O10, or returns to a COMPLETED project in a
 **New session with COMPLETED project**: when a user initiates a new pipeline session with an existing project whose manifest shows `COMPLETED`, the orchestrator reads the manifest, informs the user of the project status, and presents this re-entry guide. The user selects the re-entry point and R.5 is applied.
 
 **Notes**:
+
 - Re-entry at a cognitive stage (C2–C9) invalidates all operational stages per S.1 — the orchestrator MUST inform the user of this impact before proceeding.
 - Re-entry at an operational stage (O1–O9) preserves cognitive artifacts.
 - The user may choose a different stage than recommended — the orchestrator validates the choice per S.1 but does not block it.
@@ -1121,11 +1135,13 @@ When the user selects "Iteration" at O10, or returns to a COMPLETED project in a
 Automode allows the user to delegate all decisions to the pipeline, bypassing user gates with a mandatory policy of resolving all issues found at every stage.
 
 **Activation**:
+
 - The user can activate automode at any point after C4 (requirements confirmed) by explicit request
 - The orchestrator records `automode: true` in `manifest.json`
 - Commit: `[AUTOMODE] [Orchestrator] Automode activated`
 
 **Behavior when active**:
+
 - All user gates become **auto-proceed**, except exemptions below
 - At stages with revision cycles (C7, C8, C9): if the agent or validator finds issues, the orchestrator ALWAYS chooses "revise" and loops until resolved
 - At O4/O5/O6: if issues are found, the orchestrator ALWAYS chooses "full correction" (option a) and triggers R.7. The orchestrator NEVER chooses "no correction → proceed"
@@ -1134,6 +1150,7 @@ Automode allows the user to delegate all decisions to the pipeline, bypassing us
 - The user can intervene at any time: any user message during automode is treated as an instruction and takes priority over automode behavior
 
 **Exemptions**:
+
 - **C2 (Intent Clarification)**: always requires explicit user confirmation — automode does NOT auto-proceed at C2.
 - **R.8 Level 3 (Fatal blockage)**: always halts the pipeline, even in automode.
 - **R.0 preflight `BLOCKED`**: always halts progression until user intervention, even in automode.
@@ -1141,6 +1158,7 @@ Automode allows the user to delegate all decisions to the pipeline, bypassing us
 **Note**: R.8 Level 1 and Level 2 are NOT exempt from automode — the orchestrator handles them autonomously (see R.8 for details).
 
 **Deactivation**:
+
 - The user says "automode off" (or equivalent) at any time
 - The orchestrator records `automode: false` in `manifest.json`
 - Commit: `[AUTOMODE] [Orchestrator] Automode deactivated`
@@ -1151,6 +1169,7 @@ Automode allows the user to delegate all decisions to the pipeline, bypassing us
 Fast Track provides a shortened operational path for focused interventions on COMPLETED projects that do not alter architecture or requirements.
 
 **Eligibility criteria** (ALL must be true):
+
 1. The project is in `COMPLETED` state
 2. The intervention does NOT require changes to `architecture.md`, `interface-contracts.md`, or `api.md`
 3. The intervention does NOT add new functional requirements to `project-spec.md`
@@ -1158,6 +1177,7 @@ Fast Track provides a shortened operational path for focused interventions on CO
 5. The request is **sufficiently clear and unambiguous** — the orchestrator can determine exact scope and affected modules without further clarification from the user
 
 **Activation flow**:
+
 1. The user requests an intervention on a COMPLETED project
 2. The orchestrator evaluates the eligibility criteria above
 3. If eligible, the orchestrator proposes Fast Track to the user with explicit justification (listing which criteria are met and why)
@@ -1167,6 +1187,7 @@ Fast Track provides a shortened operational path for focused interventions on CO
 **Declassification**: if during Fast Track evaluation or execution the orchestrator determines the request is ambiguous, under-specified, or has scope that cannot be confidently determined, Fast Track is **not eligible**. The orchestrator informs the user and falls back to standard re-entry via R.10 (starting from C2 for disambiguation).
 
 **Fast Track execution**:
+
 1. **Archive**: apply R.5 archival for stages O4 onward (reports/releases that will be re-executed). For O3, archive only the **affected modules'** artifacts — unaffected module code and reports are preserved in place, not archived.
 2. **O3**: invoke Builder only for affected modules (any number of modules is allowed — scope is determined by the intervention, not an arbitrary limit)
 3. **O4**: System Validation → Validator — **ALWAYS mandatory**, never skippable
@@ -1181,13 +1202,14 @@ Fast Track provides a shortened operational path for focused interventions on CO
 **Skip tracking**: for every skipped stage, the orchestrator records in `manifest.json` under `fast_track.skipped_stages`: stage id, justification, and whether it was the orchestrator's decision or user override.
 
 **Safety net**:
+
 - O4 is ALWAYS executed — no exceptions
 - If O4 finds architectural conformance issues that indicate the change has architectural impact, the Fast Track is **automatically cancelled**. The orchestrator informs the user and switches to the standard full-pipeline re-entry.
 - If O4/O5/O6 find issues, R.7 correction loops apply normally (no shortcuts on corrections)
 
 ---
 
-# Manifest Schema (Split Architecture)
+## Manifest Schema (Split Architecture)
 
 The pipeline state is split across two files for context efficiency:
 
@@ -1290,24 +1312,27 @@ Append-only log. **Never read during normal pipeline flow.** Read only by R.5 (R
 ## Update protocol
 
 At every stage completion, the manifest updates are committed **together with** the produced artifacts in a single atomic commit (R.1 step 5):
+
 1. **HEAD**: update `current_state`, `progress`, upsert `latest_stages[<stage-id>]`
 2. **HISTORY**: append entry to `stages_completed`
 3. At re-entry (R.5): additionally append to HISTORY `re_entries`
 4. At correction (R.7): additionally append to HISTORY `corrections`
 
 **C2 intermediate rounds** (`NEEDS_CLARIFICATION` / user requests another round):
+
 1. **HEAD**: keep `current_state = C2_IN_PROGRESS`, upsert `latest_stages[C2]` as in-progress metadata
 2. **HISTORY**: do NOT append `stages_completed`
 3. Append to `stages_completed` only when C2 is explicitly confirmed and state transitions to `C2_INTENT_CLARIFIED`
 
 ---
 
-# Pipeline State Machine
+## Pipeline State Machine
 
 ## Valid States
 
 ### Completed states
-```
+
+```text
 C1_INITIALIZED
 C2_INTENT_CLARIFIED
 C3_PROBLEM_FORMALIZED
@@ -1331,7 +1356,8 @@ COMPLETED
 ```
 
 ### In-progress states
-```
+
+```text
 C1_IN_PROGRESS
 C2_IN_PROGRESS
 C3_IN_PROGRESS
@@ -1355,7 +1381,8 @@ O10_IN_PROGRESS
 ```
 
 ### System states
-```
+
+```text
 STOPPED
 B1_AUDITING
 C_ADO1_AUDITING
@@ -1363,7 +1390,7 @@ C_ADO1_AUDITING
 
 ## Valid Transitions
 
-```
+```text
 # Dispatch transitions (orchestrator sets IN_PROGRESS before invoking agent)
 C1_INITIALIZED           → C2_IN_PROGRESS                  [dispatch to Prompt Refiner after R.0 preflight PASS/WARN]
 C2_IN_PROGRESS           → C2_INTENT_CLARIFIED             [user confirms intent after C2 clarification loop]
@@ -1430,6 +1457,7 @@ any *_IN_PROGRESS state  → same stage _IN_PROGRESS         [re-execute from sc
 ## State Machine Scoping Rules (S.1)
 
 **Re-entry validation**: when the user requests re-entry from COMPLETED, the orchestrator validates the re-entry point:
+
 - Re-entry at a **cognitive stage** (C2–C9) automatically invalidates all operational stages (O1–O10). All operational artifacts are archived per R.5.
 - Re-entry at an **operational stage** (O1–O9) preserves cognitive artifacts and archives only operational artifacts from the re-entry point onward.
 - Re-entry targeting **C2** forces `automode: false` before resumption, preserving mandatory interactive clarification.
@@ -1455,9 +1483,9 @@ any *_IN_PROGRESS state  → same stage _IN_PROGRESS         [re-execute from sc
 
 ---
 
-# Pipeline Summary
+## Pipeline Summary
 
-```
+```text
 COGNITIVE PIPELINE
 
 C1  Initialization                   (Orchestrator)

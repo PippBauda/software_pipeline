@@ -33,6 +33,7 @@ All seven OpenCode agent files were enriched with:
 Affected files: `auditor.md`, `builder.md`, `validator.md`, `debugger.md`, `prompt-refiner.md`, `architect.md`, `analyst.md`.
 
 Additional targeted fixes:
+
 - `builder.md`: removed "commit executed" from O2 validation criteria (commit is orchestrator responsibility per R.1).
 - `builder.md`: enriched O8.V section with artifact list and revision-cycle note (backported from Copilot).
 - `validator.md`: expanded C8 to full sub-bullet format.
@@ -43,6 +44,7 @@ Additional targeted fixes:
 All eight Copilot agent files were realigned to match the updated OpenCode definitions (source of truth).
 
 Key changes:
+
 - **orchestrator.agent.md**: updated V.5 numbering, B1/C-ADO1 procedure descriptions, O3 commit convention, system state list.
 - **builder.agent.md**: removed "commit executed" from O2, reordered sections (Code Quality Standards before Return Protocol), added O8.V content, added bold headers to O1 execution steps, added explicit report filename to O3 execution steps.
 - **prompt-refiner.agent.md**: added C2 validation criterion.

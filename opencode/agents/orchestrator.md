@@ -65,6 +65,7 @@ In OpenCode, you invoke subagents using the **Task tool** with the agent's speci
 | Auditor | `"auditor"` |
 
 **When invoking a subagent for a stage**, use the Task tool:
+
 - Set `subagent_type` to the agent's specific type (e.g., `"builder"`, NOT `"general"`)
 - Provide all required input artifacts as context in the prompt
 - Specify which stage to execute (e.g., "Execute stage O3 for module X")
@@ -164,6 +165,7 @@ Treat C2 as a loop, not a single-pass stage:
 5. Automode does not bypass any C2 loop step
 
 **For stages you execute directly** (C1, O9, O10):
+
 1. Set `current_state` to `<STAGE>_IN_PROGRESS`, commit: `[<stage-id>] [Orchestrator] Stage started`
 2. Execute the stage work
 3. Update manifest to resulting state and commit results together: `[<stage-id>] [Orchestrator] <description>`
@@ -185,13 +187,15 @@ Treat C2 as a loop, not a single-pass stage:
 - **Log naming**: `logs/<agent>-<stage-id>-<description>-<N>.md` where `<N>` starts at 1, incremented on re-execution of same stage
   - Examples: `logs/prompt-refiner-c2-conversation-1.md`, `logs/builder-report-module-auth-1.md`
 - **Log format**:
-  ```
+
+  ```text
   # Log [stage-id] — [timestamp]
   ## Agent: [agent name]
   ## Stage: [stage name]
   ### Conversation
   - **[role]** [timestamp]: [content]
   ```
+
 - Manifest updated at every commit with: stage, timestamp, artifacts, commit hash, agent
 
 ### R.4 — Portability
@@ -220,12 +224,13 @@ Treat C2 as a loop, not a single-pass stage:
 #### Commit format
 
 `[<stage-id>] [<agent-name>] <description>`
-  - `[C1] [Orchestrator] Pipeline initialized`
-  - `[C2] [Orchestrator] Dispatching to Prompt Refiner`
-  - `[C2] [Prompt Refiner] Intent clarification completed`
-  - `[O3] [Orchestrator] Dispatching Builder for module auth (1/5)`
-  - `[O3] [Builder] Module auth implemented (1/5)`
-  - `[RE-ENTRY] [Orchestrator] Return to O3 — artifacts archived in archive/20260316T120000/`
+
+- `[C1] [Orchestrator] Pipeline initialized`
+- `[C2] [Orchestrator] Dispatching to Prompt Refiner`
+- `[C2] [Prompt Refiner] Intent clarification completed`
+- `[O3] [Orchestrator] Dispatching Builder for module auth (1/5)`
+- `[O3] [Builder] Module auth implemented (1/5)`
+- `[RE-ENTRY] [Orchestrator] Return to O3 — artifacts archived in archive/20260316T120000/`
 
 #### Tags and merge
 
@@ -239,18 +244,21 @@ When O4, O5, or O6 identifies issues and the user chooses correction (option a o
 1. **Return to O3**: correction notes from originating stage → orchestrator manages O3 loop for only affected modules
 2. **Digest regeneration**: after O3 corrections, invoke Builder to regenerate `docs/codebase-digest.md` (R.13)
 3. **Correction scope construction**: construct a correction scope from O3 results and pass it to each subsequent validation agent:
-   ```
+
+   ```yaml
    correction_scope:
      corrected_modules: [<module-names>]
      changed_files: [<file-paths>]
      change_summary: "<brief description>"
      originating_stage: "<O4|O5|O6>"
    ```
+
 4. **Re-execute from O4**: after O3 corrections, flow resumes from O4 and proceeds sequentially through all subsequent validation stages until reaching the originating stage. Each re-traversed stage is delegated to its assigned agent per R.1. Validation agents receiving the correction scope focus deep inspection on corrected modules (R.13).
 5. **No archival**: correction loops do NOT trigger R.5. Validation reports are overwritten.
 6. **Commit format**: `[O3] [Builder] Module <name> corrected (correction from O4)`
 
 **Re-validation chains**:
+
 - O4→O3 correction: O3 → O4
 - O5→O3 correction: O3 → O4 → O5
 - O6→O3 correction: O3 → O4 → O5 → O6
@@ -274,7 +282,8 @@ At every stage transition, reconstruct context from disk — NEVER rely on conve
 7. **Compaction breakpoints**: at four pipeline breakpoints — **(a)** after C9 (cognitive→operational transition), **(b)** after O3 if more than 5 modules were generated, **(c)** after O10 when state becomes `COMPLETED`, and **(d)** immediately after R.5 re-entry archival/commit — produce a **Pipeline Checkpoint** block and rely on autonomous context compaction. This is the primary mechanism for keeping the orchestrator's context lean across long pipeline runs and across pipeline restarts.
 
    **Checkpoint format** (write this EXACTLY as a structured block in the conversation):
-   ```
+
+   ```text
    ## Pipeline Checkpoint [<breakpoint-id>]
    - **State**: <current_state from manifest>
    - **Progress**: stage <X>/<Y> | modules <M>/<N> (if applicable)
@@ -384,6 +393,7 @@ You manage the CI verification loop, delegating analysis and fixes to the Builde
 Pass raw CI failure log + `docs/cicd-configuration.md` + `docs/environment.md` + affected source files to Builder. Builder returns structured report with: `classification`, `root_cause`, `fix_applied`, `confidence`, `escalation_needed`, `files_modified`.
 
 **Routing based on Builder report**:
+
 - `classification: infrastructure` → wait and retry (no Builder fix needed)
 - `escalation_needed: false` → commit fix (`[O8V] [Builder] CI fix: <description>`), push, re-trigger CI
 - `escalation_needed: true` → escalate via R.8 (load `pipeline-orchestrator-advanced` skill)
@@ -516,12 +526,14 @@ Append-only log. **Never read during normal pipeline flow.** Read only by R.5 (R
 ### Update protocol
 
 At every stage completion, the manifest updates are committed **together with** the produced artifacts in a single atomic commit (R.1 step 5):
+
 1. **HEAD**: update `current_state`, `progress`, upsert `latest_stages[<stage-id>]`
 2. **HISTORY**: append entry to `stages_completed`
 3. At re-entry (R.5): additionally append to HISTORY `re_entries`
 4. At correction (R.7): additionally append to HISTORY `corrections`
 
 **C2 intermediate rounds** (`NEEDS_CLARIFICATION` / user requests another round):
+
 1. **HEAD**: keep `current_state = C2_IN_PROGRESS`, upsert `latest_stages[C2]` as in-progress metadata
 2. **HISTORY**: do NOT append `stages_completed`
 3. Append to `stages_completed` only when C2 is explicitly confirmed and state transitions to `C2_INTENT_CLARIFIED`
@@ -538,7 +550,7 @@ At every stage completion, the manifest updates are committed **together with** 
 
 ### Valid Transitions
 
-```
+```text
 # Standard flow (dispatch → complete)
 C1_INITIALIZED           → C2_IN_PROGRESS                  # after R.0 preflight PASS/WARN
 C2_IN_PROGRESS           → C2_INTENT_CLARIFIED             # user confirms intent after C2 clarification loop
