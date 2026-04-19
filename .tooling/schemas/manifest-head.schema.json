@@ -100,7 +100,7 @@
         },
         "current_stage_index": {
           "type": "integer",
-          "minimum": 0,
+          "minimum": 1,
           "description": "1-based index of the current stage in the active flow."
         },
         "total_stages": {

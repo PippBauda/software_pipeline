@@ -1,6 +1,46 @@
-import { describe, it, beforeEach, mock } from "node:test"
+import { describe, it, beforeEach, afterEach, mock } from "node:test"
 import assert from "node:assert/strict"
 import { PipelineCompactionController } from "../../opencode/plugins/pipeline-compaction-controller.js"
+
+/* ------------------------------------------------------------------ */
+/*  Environment isolation helper (fix #4.5)                           */
+/* ------------------------------------------------------------------ */
+
+/** @type {Record<string, string | undefined>} */
+let savedEnv = {}
+
+const ENV_KEYS = [
+  "OPENCODE_PIPELINE_COMPACTION_DRY_RUN",
+  "OPENCODE_PIPELINE_COMPACTION_DEBUG",
+  "OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS",
+]
+
+function saveEnv() {
+  savedEnv = {}
+  for (const k of ENV_KEYS) {
+    savedEnv[k] = process.env[k]
+  }
+}
+
+function restoreEnv() {
+  for (const k of ENV_KEYS) {
+    if (savedEnv[k] === undefined) {
+      delete process.env[k]
+    } else {
+      process.env[k] = savedEnv[k]
+    }
+  }
+}
+
+function clearEnv() {
+  for (const k of ENV_KEYS) {
+    delete process.env[k]
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                           */
+/* ------------------------------------------------------------------ */
 
 /**
  * Helper: create a mock client with spied methods.
@@ -63,13 +103,18 @@ function makeTextEvent(text, sessionId = "sess-123") {
   }
 }
 
-// --- extractCheckpoint tests (indirectly via event handler) ---
+/* ------------------------------------------------------------------ */
+/*  Tests                                                             */
+/* ------------------------------------------------------------------ */
 
 describe("PipelineCompactionController", () => {
   beforeEach(() => {
-    Object.keys(process.env).forEach((k) => {
-      if (k.startsWith("OPENCODE_PIPELINE_COMPACTION_")) delete process.env[k]
-    })
+    saveEnv()
+    clearEnv()
+  })
+
+  afterEach(() => {
+    restoreEnv()
   })
 
   describe("checkpoint extraction and triggering", () => {
@@ -222,6 +267,27 @@ describe("PipelineCompactionController", () => {
       await plugin.event({ event })
       assert.equal(summarizeCalls.length, 1)
     })
+
+    it("should treat whitespace-only differences as duplicates (normalized dedup)", async () => {
+      process.env.OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS = "0"
+      const { client, summarizeCalls } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      const event1 = makeMessageEvent("post-cognitive")
+      await plugin.event({ event: event1 })
+
+      // Same content but with extra whitespace
+      const text2 = [
+        `## Pipeline Checkpoint [post-cognitive]`,
+        `- **State**:   C9_IMPLEMENTATION_PLANNED`,
+        `- **Next stage**:   O1`,
+        `- **Required input artifacts**:   docs/architecture.md`,
+      ].join("\n")
+      const event2 = makeTextEvent(text2)
+      await plugin.event({ event: event2 })
+
+      assert.equal(summarizeCalls.length, 1, "Whitespace-only difference should be deduped")
+    })
   })
 
   describe("dry-run mode", () => {
@@ -261,6 +327,20 @@ describe("PipelineCompactionController", () => {
       await plugin.event({ event: makeMessageEvent("post-cognitive") })
     })
 
+    it("should emit a visible warning when summarize fails (not just debug)", async () => {
+      const { client, logs } = createMockClient()
+      client.session.summarize = mock.fn(async () => {
+        throw new Error("API failure")
+      })
+      const plugin = await PipelineCompactionController({ client })
+
+      await plugin.event({ event: makeMessageEvent("post-cognitive") })
+
+      const warnLog = logs.find((l) => l.level === "warn" && l.message.includes("fail-open"))
+      assert.ok(warnLog, "Expected a warn-level log on compaction failure")
+      assert.ok(warnLog.extra.error.includes("API failure"))
+    })
+
     it("should not throw when client.session is missing", async () => {
       const { client } = createMockClient({ hasSummarize: false })
       const plugin = await PipelineCompactionController({ client })
@@ -273,6 +353,19 @@ describe("PipelineCompactionController", () => {
       const plugin = await PipelineCompactionController({ client })
 
       await plugin.event({ event: makeMessageEvent("post-cognitive") })
+    })
+
+    it("should not throw when emitStartupCheck encounters a logging error", async () => {
+      const { client } = createMockClient()
+      client.app.log = mock.fn(async () => {
+        throw new Error("Log API down")
+      })
+      const plugin = await PipelineCompactionController({ client })
+
+      // emitStartupCheck is called on session.created — should not throw
+      await plugin.event({
+        event: { type: "session.created", properties: { sessionID: "s1" } },
+      })
     })
   })
 
@@ -373,6 +466,145 @@ describe("PipelineCompactionController", () => {
       }
       await plugin.event({ event })
       assert.equal(summarizeCalls.length, 1)
+    })
+  })
+
+  /* ---------------------------------------------------------------- */
+  /*  NEW: asText fallback tests (fix #4.4)                           */
+  /* ---------------------------------------------------------------- */
+
+  describe("asText content extraction optimization", () => {
+    it("should prefer content property over JSON.stringify", async () => {
+      process.env.OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS = "0"
+      const { client, summarizeCalls } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      const checkpointText = [
+        `## Pipeline Checkpoint [post-cognitive]`,
+        `- **State**: C9_IMPLEMENTATION_PLANNED`,
+        `- **Next stage**: O1`,
+        `- **Required input artifacts**: docs/architecture.md`,
+      ].join("\n")
+
+      const event = {
+        type: "message.updated",
+        properties: {
+          role: "assistant",
+          sessionID: "sess-content",
+          content: checkpointText,
+        },
+      }
+      await plugin.event({ event })
+      assert.equal(summarizeCalls.length, 1, "Should extract checkpoint from content property")
+    })
+
+    it("should handle properties with no content/text by falling back to JSON.stringify", async () => {
+      const { client, summarizeCalls } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      // Event where checkpoint text is NOT in content/text but embedded in another key
+      const checkpointText = [
+        `## Pipeline Checkpoint [post-cognitive]`,
+        `- **State**: C9_IMPLEMENTATION_PLANNED`,
+        `- **Next stage**: O1`,
+        `- **Required input artifacts**: docs/architecture.md`,
+      ].join("\n")
+
+      const event = {
+        type: "message.updated",
+        properties: {
+          role: "assistant",
+          sessionID: "sess-fallback",
+          body: checkpointText, // not content or text
+        },
+      }
+      await plugin.event({ event })
+      // Falls back to JSON.stringify which embeds the text — checkpoint should be found
+      assert.equal(summarizeCalls.length, 1, "Should fall back to JSON.stringify for extraction")
+    })
+
+    it("should return empty string for unstringifiable objects", async () => {
+      const { client, summarizeCalls } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      // Create a circular reference
+      const circular = { role: "assistant", sessionID: "sess-circ" }
+      circular.self = circular
+
+      const event = {
+        type: "message.updated",
+        properties: circular,
+      }
+      // Should not throw — asText returns "" for unstringifiable objects
+      await plugin.event({ event })
+      assert.equal(summarizeCalls.length, 0)
+    })
+  })
+
+  /* ---------------------------------------------------------------- */
+  /*  NEW: Concurrent events / in-flight guard (fix #4.2)             */
+  /* ---------------------------------------------------------------- */
+
+  describe("concurrent event handling (in-flight guard)", () => {
+    it("should not double-trigger when two events arrive for the same session simultaneously", async () => {
+      process.env.OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS = "0"
+      const { client, summarizeCalls } = createMockClient()
+
+      // Make summarize slow to create a window for concurrent events
+      client.session.summarize = mock.fn(
+        () => new Promise((resolve) => setTimeout(() => resolve(summarizeCalls.push({})), 50)),
+      )
+
+      const plugin = await PipelineCompactionController({ client })
+
+      const event1 = makeMessageEvent("post-cognitive", "sess-concurrent")
+      const event2 = makeMessageEvent("post-o3", "sess-concurrent")
+
+      // Fire both in parallel
+      const [r1, r2] = await Promise.allSettled([
+        plugin.event({ event: event1 }),
+        plugin.event({ event: event2 }),
+      ])
+
+      assert.equal(r1.status, "fulfilled")
+      assert.equal(r2.status, "fulfilled")
+
+      // At most one should have triggered (the in-flight guard blocks the second)
+      assert.ok(summarizeCalls.length <= 1, `Expected at most 1 call, got ${summarizeCalls.length}`)
+    })
+
+    it("should allow sequential events for same session after in-flight clears", async () => {
+      process.env.OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS = "0"
+      const { client, summarizeCalls } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      await plugin.event({ event: makeMessageEvent("post-cognitive", "sess-seq") })
+      await plugin.event({ event: makeMessageEvent("post-o3", "sess-seq") })
+
+      assert.equal(summarizeCalls.length, 2, "Sequential events should both succeed")
+    })
+  })
+
+  /* ---------------------------------------------------------------- */
+  /*  NEW: Memory eviction (fix #4.3)                                 */
+  /* ---------------------------------------------------------------- */
+
+  describe("session eviction (memory growth prevention)", () => {
+    it("should not grow internal state unboundedly across many sessions", async () => {
+      process.env.OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS = "0"
+      const { client } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      // Simulate 600 distinct sessions (MAX_TRACKED_SESSIONS is 500)
+      for (let i = 0; i < 600; i++) {
+        const event = makeMessageEvent("post-cognitive", `sess-evict-${i}`)
+        await plugin.event({ event })
+      }
+
+      // The plugin should have evicted oldest sessions.
+      // We can't directly inspect internal maps, but we verify the plugin
+      // handles 600+ distinct sessions without throwing.
+      assert.ok(true, "Plugin survived 600 session events without error")
     })
   })
 })

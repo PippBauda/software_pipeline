@@ -1,0 +1,14 @@
+{
+  "schema_version": "99.0",
+  "pipeline_id": "test-pipeline-003",
+  "project_name": "bad-version-project",
+  "branch": "pipeline/bad-version",
+  "created_at": "2026-04-20T10:00:00Z",
+  "current_state": "C1_INITIALIZED",
+  "progress": {
+    "current_stage": "C1",
+    "current_stage_index": 1,
+    "total_stages": 18
+  },
+  "latest_stages": {}
+}

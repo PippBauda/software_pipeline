@@ -4,6 +4,9 @@
   "description": "Multi-agent AI pipeline specification for transforming project ideas into working, tested, secure, documented, and releasable software.",
   "type": "module",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "test": "node --test",
     "lint": "eslint .",
@@ -13,10 +16,12 @@
     "validate:schema": "node scripts/validate-manifest-schema.js"
   },
   "devDependencies": {
-    "eslint": "^9.0.0",
-    "prettier": "^3.4.0",
-    "@eslint/js": "^9.0.0",
-    "globals": "^15.0.0"
+    "@eslint/js": "9.39.4",
+    "ajv": "8.18.0",
+    "ajv-formats": "3.0.1",
+    "eslint": "9.39.4",
+    "globals": "15.15.0",
+    "prettier": "3.8.3"
   },
   "keywords": [
     "ai-pipeline",

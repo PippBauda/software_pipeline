@@ -297,6 +297,58 @@ opencode
 - **Correction loops** — validation stages (O4/O5/O6) can send code back for fixes without full re-entry
 - **Re-entry protocol** — return to any previous stage from a completed pipeline, with archival
 
+## Contributing
+
+### Prerequisites
+
+- Node.js >= 20 (see `engines` in `.tooling/package.json`)
+
+### Setup
+
+```bash
+cd .tooling
+npm ci
+```
+
+### Commands
+
+All commands run from the `.tooling/` directory:
+
+| Command | Description |
+|---------|-------------|
+| `npm test` | Run all tests (Node.js built-in test runner) |
+| `npm run lint` | Lint JS files with ESLint |
+| `npm run lint:fix` | Lint + auto-fix |
+| `npm run format` | Format with Prettier |
+| `npm run format:check` | Check formatting (CI) |
+| `npm run validate:schema` | Validate a manifest against the HEAD schema |
+
+To run ESLint from the repository root (as CI does):
+
+```bash
+NODE_PATH=.tooling/node_modules npx --prefix .tooling eslint --config eslint.config.js .
+```
+
+### Project layout rules
+
+- **Root directory** must stay clean — only pipeline specification files and essential config.
+- All dev tooling (tests, scripts, schemas, dependencies) lives in `.tooling/`.
+- Agent definitions live in `opencode/` and `copilot/` (not dot-prefixed, intentionally).
+- New test fixtures go in `.tooling/tests/fixtures/`.
+
+### Testing
+
+Tests use the Node.js built-in test runner (`node:test`). Run with:
+
+```bash
+cd .tooling && npm test
+```
+
+When adding new functionality:
+- Plugin changes: add tests in `.tooling/tests/pipeline-compaction-controller.test.js`
+- Schema validation changes: add tests in `.tooling/tests/validate-manifest-schema.test.js`
+- Each test file should clean up any environment variable mutations (save/restore pattern)
+
 ## Pipeline Definition
 
 - `pipeline_4.1.md` — the complete formal specification, serves as the canonical reference

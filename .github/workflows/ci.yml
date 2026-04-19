@@ -14,22 +14,23 @@ jobs:
         node-version: [20, 22]
 
     steps:
-      - uses: actions/checkout@v4
+      # fix #14 — pinned to full SHA for supply-chain security
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        # fix #14 — pinned to full SHA
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ matrix.node-version }}
 
+      # fix #4 — deterministic install from lockfile
       - name: Install dependencies
-        run: npm install
+        run: npm ci
         working-directory: .tooling
 
-      - name: Link node_modules to root (for eslint config resolution)
-        run: ln -s .tooling/node_modules node_modules
-
+      # fix #15 — NODE_PATH replaces the fragile root symlink
       - name: Lint
-        run: npx --prefix .tooling eslint .
+        run: NODE_PATH=.tooling/node_modules npx --prefix .tooling eslint --config eslint.config.js .
 
       - name: Check formatting
         run: npm run format:check

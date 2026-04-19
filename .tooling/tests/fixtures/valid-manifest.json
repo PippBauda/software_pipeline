@@ -1,0 +1,23 @@
+{
+  "schema_version": "4.1",
+  "pipeline_id": "test-pipeline-001",
+  "project_name": "test-project",
+  "branch": "pipeline/test-project",
+  "created_at": "2026-04-20T10:00:00Z",
+  "current_state": "C1_INITIALIZED",
+  "progress": {
+    "current_stage": "C1",
+    "current_stage_index": 1,
+    "total_stages": 18
+  },
+  "latest_stages": {
+    "C1": {
+      "state": "C1_INITIALIZED",
+      "agent": "orchestrator",
+      "timestamp": "2026-04-20T10:00:00Z",
+      "commit_hash": "abc1234",
+      "artifacts": ["pipeline-state/manifest.json"],
+      "execution_index": 1
+    }
+  }
+}

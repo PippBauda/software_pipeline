@@ -46,6 +46,27 @@
  */
 
 /**
+ * @typedef {Object} PipelineCompactionPlugin
+ * @property {(params: { event: PipelineEvent }) => Promise<void>} event
+ *   Handle incoming pipeline events.
+ * @property {(input: unknown, output: CompactionOutput) => Promise<void>} experimental.session.compacting
+ *   Hook into session compaction to preserve checkpoint blocks.
+ */
+
+/* ------------------------------------------------------------------ */
+/*  Module-level constants (fix #8 — deduplicated regex)              */
+/* ------------------------------------------------------------------ */
+
+/** Regex: matches a Pipeline Checkpoint header, capturing the id inside brackets. */
+const CHECKPOINT_HEADER_RE = /##\s*Pipeline Checkpoint\s*\[([^\]]+)\]/i
+
+/** Regex: matches the full checkpoint block until the next heading or horizontal rule. */
+const CHECKPOINT_BLOCK_RE = /##\s*Pipeline Checkpoint\s*\[[^\]]+\][\s\S]*?(?=\n##\s|\n---|$)/i
+
+/** Maximum tracked sessions before oldest entries are evicted (fix #1). */
+const MAX_TRACKED_SESSIONS = 500
+
+/**
  * Pipeline Compaction Controller — OpenCode plugin.
  *
  * Monitors assistant messages for Pipeline Checkpoint blocks and triggers
@@ -60,10 +81,7 @@
  * - `OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS` — Minimum ms between compactions per session (default 120000)
  *
  * @param {PluginParams} params - Plugin initialization parameters
- * @returns {Promise<{
- *   event: (params: { event: PipelineEvent }) => Promise<void>,
- *   "experimental.session.compacting": (input: unknown, output: CompactionOutput) => Promise<void>
- * }>}
+ * @returns {Promise<PipelineCompactionPlugin>}
  */
 export const PipelineCompactionController = async ({ client }) => {
   /** @type {Set<string>} */
@@ -91,6 +109,20 @@ export const PipelineCompactionController = async ({ client }) => {
   const startupLogged = new Set()
 
   /**
+   * Evict the oldest tracked session entries when size exceeds MAX_TRACKED_SESSIONS.
+   * Uses Map/Set insertion-order iteration to remove the oldest entries first (fix #1).
+   */
+  const evictStaleSessions = () => {
+    if (lastCompactionAt.size <= MAX_TRACKED_SESSIONS) return
+    for (const key of lastCompactionAt.keys()) {
+      lastCompactionAt.delete(key)
+      lastSignature.delete(key)
+      startupLogged.delete(key)
+      if (lastCompactionAt.size <= MAX_TRACKED_SESSIONS) break
+    }
+  }
+
+  /**
    * Extract a session ID from an object by probing multiple candidate paths.
    * @param {Record<string, unknown>} obj - Object to extract session ID from
    * @returns {string|undefined}
@@ -113,12 +145,19 @@ export const PipelineCompactionController = async ({ client }) => {
   }
 
   /**
-   * Convert a value to its string representation.
+   * Convert a value to its text representation.
+   * Prefers explicit `content` / `text` properties over full JSON serialization
+   * to avoid unnecessary stringify on high-frequency events (fix #9).
    * @param {unknown} value
    * @returns {string}
    */
   const asText = (value) => {
     if (typeof value === "string") return value
+    if (value !== null && typeof value === "object") {
+      const obj = /** @type {Record<string, unknown>} */ (value)
+      if (typeof obj.content === "string") return obj.content
+      if (typeof obj.text === "string") return obj.text
+    }
     try {
       return JSON.stringify(value)
     } catch {
@@ -132,13 +171,11 @@ export const PipelineCompactionController = async ({ client }) => {
    * @returns {Checkpoint|undefined}
    */
   const extractCheckpoint = (text) => {
-    const header = text.match(/##\s*Pipeline Checkpoint\s*\[([^\]]+)\]/i)
+    const header = text.match(CHECKPOINT_HEADER_RE)
     if (!header) return undefined
 
     const id = header[1].trim().toLowerCase()
-    const blockMatch = text.match(
-      /##\s*Pipeline Checkpoint\s*\[[^\]]+\][\s\S]*?(?=\n##\s|\n---|$)/i,
-    )
+    const blockMatch = text.match(CHECKPOINT_BLOCK_RE)
     const block = blockMatch ? blockMatch[0].trim() : `## Pipeline Checkpoint [${id}]`
     return { id, block }
   }
@@ -162,7 +199,7 @@ export const PipelineCompactionController = async ({ client }) => {
    */
   const looksLikeOrchestratorCheckpoint = (text) => {
     return (
-      /##\s*Pipeline Checkpoint\s*\[[^\]]+\]/i.test(text) &&
+      CHECKPOINT_HEADER_RE.test(text) &&
       /-\s*\*\*State\*\*:/i.test(text) &&
       /-\s*\*\*Next stage\*\*:/i.test(text) &&
       /-\s*\*\*Required input artifacts\*\*:/i.test(text)
@@ -192,6 +229,15 @@ export const PipelineCompactionController = async ({ client }) => {
   }
 
   /**
+   * Normalize a checkpoint block for deduplication.
+   * Collapses whitespace runs and trims so that insignificant formatting
+   * differences do not defeat the dedup guard (fix #10).
+   * @param {string} block
+   * @returns {string}
+   */
+  const normalizeBlock = (block) => block.replace(/\s+/g, " ").trim()
+
+  /**
    * Trigger context compaction for a session, respecting cooldown, dedup, and in-flight guards.
    * @param {string} sessionID - Target session ID
    * @param {string} signature - Checkpoint signature for deduplication
@@ -205,7 +251,12 @@ export const PipelineCompactionController = async ({ client }) => {
       await debugLog("Skip compaction: already in-flight", { sessionID })
       return
     }
+
+    // Claim the in-flight slot atomically, before any further await (fix #7).
+    inFlight.add(sessionID)
+
     if (now - lastAt < COOLDOWN_MS) {
+      inFlight.delete(sessionID)
       await debugLog("Skip compaction: cooldown active", {
         sessionID,
         cooldownMs: COOLDOWN_MS,
@@ -214,11 +265,11 @@ export const PipelineCompactionController = async ({ client }) => {
       return
     }
     if (lastSignature.get(sessionID) === signature) {
+      inFlight.delete(sessionID)
       await debugLog("Skip compaction: duplicate checkpoint signature", { sessionID, signature })
       return
     }
 
-    inFlight.add(sessionID)
     lastSignature.set(sessionID, signature)
 
     try {
@@ -232,6 +283,7 @@ export const PipelineCompactionController = async ({ client }) => {
           },
         })
         lastCompactionAt.set(sessionID, Date.now())
+        evictStaleSessions()
         await debugLog("Dry-run compaction event handled", { sessionID, signature })
         return
       }
@@ -241,10 +293,26 @@ export const PipelineCompactionController = async ({ client }) => {
         body: {},
       })
       lastCompactionAt.set(sessionID, Date.now())
+      evictStaleSessions()
       await debugLog("Autonomous compaction executed", { sessionID, signature })
-    } catch {
-      await debugLog("Compaction attempt failed (fail-open)", { sessionID, signature })
-      // fail-open: pipeline continues without autonomous compaction
+    } catch (err) {
+      // fail-open: pipeline continues without autonomous compaction.
+      // Emit a visible warning (not just debug) so operators can detect
+      // recurring failures without enabling DEBUG mode (fix #6).
+      if (client?.app?.log) {
+        try {
+          await client.app.log({
+            body: {
+              service: "pipeline-compaction-controller",
+              level: "warn",
+              message: "Compaction attempt failed (fail-open)",
+              extra: { sessionID, signature, error: String(err) },
+            },
+          })
+        } catch {
+          // last-resort: ignore logging failures
+        }
+      }
     } finally {
       inFlight.delete(sessionID)
     }
@@ -252,6 +320,7 @@ export const PipelineCompactionController = async ({ client }) => {
 
   /**
    * Emit a one-time startup diagnostic log for a session.
+   * Wrapped in try/catch for fail-open safety (fix #2).
    * @param {string} [sessionID]
    * @returns {Promise<void>}
    */
@@ -260,46 +329,54 @@ export const PipelineCompactionController = async ({ client }) => {
     if (startupLogged.has(key)) return
     startupLogged.add(key)
 
-    const diagnostics = {
-      dryRun: DRY_RUN,
-      debug: DEBUG,
-      cooldownMs: COOLDOWN_MS,
-      targetCheckpoints: Array.from(TARGET_CHECKPOINTS),
-      hasSessionSummarize: Boolean(client?.session?.summarize),
-      hasAppLog: Boolean(client?.app?.log),
-      sessionID: sessionID || undefined,
-    }
+    try {
+      const diagnostics = {
+        dryRun: DRY_RUN,
+        debug: DEBUG,
+        cooldownMs: COOLDOWN_MS,
+        targetCheckpoints: Array.from(TARGET_CHECKPOINTS),
+        hasSessionSummarize: Boolean(client?.session?.summarize),
+        hasAppLog: Boolean(client?.app?.log),
+        sessionID: sessionID || undefined,
+      }
 
-    if (!client?.app?.log) return
+      if (!client?.app?.log) return
 
-    await client.app.log({
-      body: {
-        service: "pipeline-compaction-controller",
-        level: diagnostics.hasSessionSummarize ? "info" : "warn",
-        message: diagnostics.hasSessionSummarize
-          ? "Startup check: plugin ready"
-          : "Startup check: session.summarize unavailable",
-        extra: {
-          diagnostics,
-          rawEnv: {
-            OPENCODE_PIPELINE_COMPACTION_DRY_RUN: rawDryRun || undefined,
-            OPENCODE_PIPELINE_COMPACTION_DEBUG: rawDebug || undefined,
-            OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS: rawCooldown || undefined,
-          },
-        },
-      },
-    })
-
-    if (rawCooldown && COOLDOWN_MS === 120000 && rawCooldown !== "120000") {
       await client.app.log({
         body: {
           service: "pipeline-compaction-controller",
-          level: "warn",
-          message:
-            "Startup check: invalid OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS, defaulting to 120000",
-          extra: { rawCooldown, effectiveCooldownMs: COOLDOWN_MS, sessionID: sessionID || undefined },
+          level: diagnostics.hasSessionSummarize ? "info" : "warn",
+          message: diagnostics.hasSessionSummarize
+            ? "Startup check: plugin ready"
+            : "Startup check: session.summarize unavailable",
+          extra: {
+            diagnostics,
+            rawEnv: {
+              OPENCODE_PIPELINE_COMPACTION_DRY_RUN: rawDryRun || undefined,
+              OPENCODE_PIPELINE_COMPACTION_DEBUG: rawDebug || undefined,
+              OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS: rawCooldown || undefined,
+            },
+          },
         },
       })
+
+      if (rawCooldown && COOLDOWN_MS === 120000 && rawCooldown !== "120000") {
+        await client.app.log({
+          body: {
+            service: "pipeline-compaction-controller",
+            level: "warn",
+            message:
+              "Startup check: invalid OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS, defaulting to 120000",
+            extra: {
+              rawCooldown,
+              effectiveCooldownMs: COOLDOWN_MS,
+              sessionID: sessionID || undefined,
+            },
+          },
+        })
+      }
+    } catch {
+      // fail-open: startup diagnostic is best-effort
     }
   }
 
@@ -348,7 +425,7 @@ export const PipelineCompactionController = async ({ client }) => {
 
       await emitStartupCheck(sessionID)
 
-      const signature = `${checkpoint.id}:${checkpoint.block}`
+      const signature = `${checkpoint.id}:${normalizeBlock(checkpoint.block)}`
       await triggerCompaction(sessionID, signature)
     },
 
