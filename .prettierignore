@@ -1,1 +1,8 @@
-node_modules/
+# Ignore everything by default — this is a specification repo
+*
+
+# Only format the actual code
+!opencode/plugins/**/*.js
+!tests/**/*.js
+!scripts/**/*.js
+!eslint.config.js

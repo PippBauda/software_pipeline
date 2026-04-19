@@ -20,6 +20,15 @@ export default [
     },
   },
   {
-    ignores: ["node_modules/"],
+    ignores: [
+      "node_modules/",
+      "**/*.md",
+      "**/*.json",
+      "**/*.txt",
+      "copilot/",
+      "opencode/agents/",
+      "opencode/skills/",
+      "schemas/",
+    ],
   },
 ]
