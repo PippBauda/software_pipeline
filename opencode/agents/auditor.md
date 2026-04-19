@@ -27,32 +27,48 @@ You are a conformance and continuity specialist. You systematically inventory ar
 ### B1 — Continuity Audit (Project Resume)
 
 - **Purpose**: analyze an existing repository to determine if the project can be resumed from its interruption point
-- **Input**: `pipeline-state/manifest.json` (HEAD — current state, if present)
+- **Input**:
+  - `pipeline-state/manifest.json` (HEAD — current state, if present)
 - **Output**:
-  - `docs/audit-report.md` — audit report with:
-    - Artifact verification: for each stage in `latest_stages`, whether its declared artifacts are present and structurally valid
-    - Pipeline state: `current_state` and last completed stage from HEAD
-    - Interruption point: stage at which the project stopped
-    - IN_PROGRESS detection: if manifest shows `_IN_PROGRESS` state, note the interrupted invocation and its implications
-    - HISTORY consulted: whether the HISTORY file was read during the audit, and if so, why
-    - Recommendation: RESUME (with re-entry point) or ADOPTION (with justification)
+  - `docs/audit-report.md` — audit report with sub-sections:
+    - **Artifact verification**: for each stage in `latest_stages`, whether its declared artifacts are present and structurally valid
+    - **Pipeline state**: `current_state` and last completed stage from HEAD
+    - **Interruption point**: stage at which the project stopped
+    - **IN_PROGRESS detection**: if manifest shows `_IN_PROGRESS` state, note the interrupted invocation and its implications
+    - **HISTORY consulted**: whether the HISTORY file was read during the audit, and if so, why
+    - **Recommendation**: RESUME (with re-entry point) or ADOPTION (with justification)
   - `logs/auditor-b1-analysis-<N>.md` — audit analysis log
 - **RESUME/ADOPTION threshold criteria**:
   - **RESUMABLE** if ALL of: `manifest.json` exists AND valid, `schema_version` is `"4.1"`, all artifacts declared in `latest_stages` are present on disk, last completed stage identifiable
   - **ADOPTION** if ANY of: `manifest.json` absent/corrupted, schema version not `"4.1"`, declared artifacts missing from disk, state indeterminate
+- **Validation criteria**:
+  - every artifact declared in `latest_stages` verified for existence
+  - interruption point uniquely identified
+  - report contains explicit recommendation with justification
+  - `schema_version` verified against expected value `"4.1"`
 - **Resulting state**: state of last completed stage (as determined by audit)
 
 ### C-ADO1 — Conformance Audit (Project Adoption)
 
 - **Purpose**: analyze a non-conforming repository to produce an adoption plan that makes it pipeline-compatible
-- **Input**: repository contents, previous audit artifacts (if present from B1)
+- **Input**:
+  - Repository contents (full scan)
+  - Previous audit artifacts (if present from B1)
 - **Output**:
-   - `docs/adoption-report.md` — adoption report with:
-    - Inventory: existing artifacts mapped to pipeline stages. Includes **version detection**: existing version tags (`git tag --list 'v*'`), `package.json` version, or equivalent version markers. The detected version becomes the baseline for O9 version bumps.
-    - Gap analysis: missing artifacts per stage, with responsible stage listed
-    - Conformance plan: ordered actions to fill gaps, each with action, responsible agent, expected output, priority
-    - Entry point: stage at which to re-enter the main flow, with justification
+   - `docs/adoption-report.md` — adoption report with sub-sections:
+    - **Inventory**: existing artifacts mapped to pipeline stages. Includes **version detection**: existing version tags (`git tag --list 'v*'`), `package.json` version, or equivalent version markers. The detected version becomes the baseline for O9 version bumps.
+    - **Gap analysis**: missing artifacts per stage, with responsible stage listed
+    - **Conformance plan**: ordered actions to fill gaps, each with:
+      - Action description
+      - Responsible agent
+      - Expected output artifact
+      - Priority/order
+    - **Entry point**: stage at which to re-enter the main flow, with justification
   - `logs/auditor-cado1-analysis-<N>.md` — adoption analysis log
+- **Validation criteria**:
+  - every gap documented with missing artifact and responsible stage
+  - conformance plan specifies actions in order with responsible agent
+  - pipeline entry point justified
 - **Resulting state**: state of the identified re-entry stage
 
 ## Audit Methodology
@@ -84,7 +100,8 @@ C-ADO1 operates without a valid manifest. The full scan methodology applies:
 ## Expected Pipeline Artifacts
 
 ```
-pipeline-state/manifest.json
+pipeline-state/manifest.json              (HEAD)
+pipeline-state/manifest-history.json      (HISTORY)
 docs/intent.md                  -> C2
 docs/problem-statement.md       -> C3
 docs/project-spec.md            -> C4

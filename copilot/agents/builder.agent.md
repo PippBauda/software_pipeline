@@ -26,12 +26,12 @@ You are an implementation engineer. You translate architectural plans into worki
   - `docs/constraints.md`
 - **Output**:
   - `docs/environment.md` — environment specification:
-    - Required runtimes (language, version)
-    - Dependencies (with lockfile)
-    - Environment variables
-    - Build tools
-    - GitHub CLI (`gh`) — mandatory pipeline requirement: must be installed and authenticated for CI verification (O8.V)
-    - Recommended external tools (linters, SAST scanners, dependency auditors) for O5 and O8
+    - **Required runtimes**: language, version
+    - **Dependencies**: with lockfile
+    - **Environment variables**: documented
+    - **Build tools**: required toolchain
+    - **GitHub CLI (`gh`)**: mandatory pipeline requirement — must be installed and authenticated for CI verification (O8.V)
+    - **Recommended external tools**: linters, SAST scanners, dependency auditors for O5 and O8
   - Environment configuration files (`package.json`, `requirements.txt`, `Dockerfile`, or equivalent)
 - **Validation criteria**:
   - every dependency specified with version
@@ -58,7 +58,6 @@ You are an implementation engineer. You translate architectural plans into worki
   - every module in `module-map.md` has a corresponding directory
   - structure reflects declared dependencies
   - configuration files consistent with `configuration.md`
-  - commit executed
 - **Resulting state**: `O2_SCAFFOLD_CREATED`
 
 ---
@@ -87,9 +86,9 @@ You are an implementation engineer. You translate architectural plans into worki
     - Tests implemented (files produced)
     - Test execution results
     - Issues encountered
-- **Execution steps** (for each invocation):
+- **Execution steps**:
   1. Confirm module spec from `implementation-plan.md` and `module-map.md`
-  2. Implement the module code in `src/<module>/`
+  2. Implement module code in `src/<module>/`
   3. Implement tests in `tests/<module>/` per `test-strategy.md`
   4. Run module tests
   5. Produce per-module report `logs/builder-report-module-<module-name>-<N>.md`
@@ -171,6 +170,12 @@ When CI fails during O8.V verification, the orchestrator invokes you with the **
    - `files_modified`: list of modified files
 - **Note**: the orchestrator manages the iteration loop (re-trigger CI, re-invoke you if needed). You focus on analyzing, fixing, and reporting.
 
+## Code Quality Standards
+
+- Follow the language/framework conventions specified in `architecture.md`
+- Every module must have comprehensive tests per `test-strategy.md`
+- Code must be clean, readable, and follow the project's configuration
+
 ## Return Protocol
 
 When you complete a stage, follow this return sequence:
@@ -188,12 +193,6 @@ When you complete a stage, follow this return sequence:
 **Exception**: For O8.V CI fix corrections, use the specific 6-field return format defined in that section instead of the generic summary.
 
 Do NOT include full artifact content in your return message. The orchestrator references disk artifacts for details.
-
-## Code Quality Standards
-
-- Follow the language/framework conventions specified in `architecture.md`
-- Every module must have comprehensive tests per `test-strategy.md`
-- Code must be clean, readable, and follow the project's configuration
 
 ## Constraints
 
