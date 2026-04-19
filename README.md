@@ -32,7 +32,7 @@ Plus two auxiliary flows: **B1** (Resume) and **C-ADO1** (Adoption) for existing
 | O6 | Debugger | Runtime debugging & smoke tests |
 | O7 | Builder | Documentation generation |
 | O8 | Builder | CI/CD configuration |
-| O8.V | Orchestrator | CI verification loop |
+| O8.V | Orchestrator + Builder | CI verification loop |
 | O9 | Orchestrator | Release & deployment |
 | O10 | Orchestrator | Closure & final report |
 
@@ -45,7 +45,7 @@ Plus two auxiliary flows: **B1** (Resume) and **C-ADO1** (Adoption) for existing
 | **Analyst** | External code source analysis (C5) |
 | **Architect** | System design, APIs, implementation planning (C6, C7, C9) |
 | **Validator** | Architecture validation, system validation, security audit (C8, O4, O5) |
-| **Builder** | Implementation: environment, scaffold, code, docs, CI/CD (O1-O3, O7, O8) |
+| **Builder** | Implementation: environment, scaffold, code, docs, CI/CD (O1-O3, O7, O8, O8.V fixes) |
 | **Debugger** | Runtime debugging and smoke testing (O6) |
 | **Auditor** | Continuity and conformance audits (B1, C-ADO1) |
 
