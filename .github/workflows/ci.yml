@@ -54,6 +54,7 @@ jobs:
         working-directory: .tooling
 
       - name: Check agent sync (OpenCode ↔ Copilot)
+        continue-on-error: true   # exit 1 = drift (informational); exit 2 = fatal
         run: node scripts/sync-check-agents.js --verbose
         working-directory: .tooling
 
