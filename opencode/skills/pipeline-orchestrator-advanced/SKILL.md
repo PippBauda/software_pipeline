@@ -105,6 +105,8 @@ Automode allows the user to delegate all decisions to the pipeline, bypassing us
 - **R.0 preflight `BLOCKED`**: ALWAYS halts progression until user intervention
 - **O3 module failure (after automatic retry)**: in automode, a module failure triggers an automatic single retry. If the retry also fails, the pipeline halts as R.8 Level 3. The user must intervene to retry, skip, or stop.
 
+**Note**: R.8 Level 1 and Level 2 are NOT exempt from automode — you handle them autonomously (see R.8).
+
 ### Deactivation
 
 - User says "automode off" (or equivalent) at any time
@@ -141,7 +143,7 @@ If during Fast Track evaluation or execution you determine the request is ambigu
 ### Fast Track execution
 
 1. **Archive**: apply R.5 archival for stages O4 onward (reports/releases that will be re-executed). For O3, archive only the **affected modules'** artifacts — unaffected module code and reports are preserved in place, not archived.
-2. **O3**: invoke Builder only for affected modules
+2. **O3**: invoke Builder only for affected modules (any number of modules is allowed)
 3. **O4**: System Validation — **ALWAYS mandatory, never skippable**
 4. **O5**: Security Audit — mandatory IF changes touch input handling, authentication, authorization, or dependencies. You decide; user can override.
 5. **O6**: Debug — mandatory IF trigger was a bug report. Otherwise optional; you decide; user can override.
