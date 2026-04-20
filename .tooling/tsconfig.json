@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "checkJs": true,
+    "allowJs": true,
+    "noEmit": true,
+    "strict": true,
+    "moduleResolution": "bundler",
+    "module": "es2022",
+    "target": "es2022",
+    "lib": ["es2022"],
+    "types": ["node"],
+    "skipLibCheck": true
+  },
+  "include": [
+    "scripts/**/*.js",
+    "tests/**/*.js",
+    "../opencode/plugins/**/*.js"
+  ],
+  "exclude": [
+    "node_modules",
+    "tests/fixtures"
+  ]
+}

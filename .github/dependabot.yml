@@ -1,0 +1,40 @@
+version: 2
+updates:
+  # npm dependencies in .tooling/
+  - package-ecosystem: "npm"
+    directory: "/.tooling"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    groups:
+      # Group lint/format tools — they change together and are low-risk
+      lint-and-format:
+        patterns:
+          - "eslint*"
+          - "@eslint/*"
+          - "prettier"
+          - "markdownlint-cli"
+          - "globals"
+          - "husky"
+          - "lint-staged"
+      # Schema validation — keep ajv and ajv-formats in sync
+      schema:
+        patterns:
+          - "ajv*"
+      # TypeScript tooling
+      typescript:
+        patterns:
+          - "typescript"
+          - "@types/*"
+
+  # GitHub Actions — keep action SHA pins up to date
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "ci"

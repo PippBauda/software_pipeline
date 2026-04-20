@@ -106,7 +106,7 @@ export function validate(manifestPath, schemaPath = DEFAULT_SCHEMA_PATH) {
   if (!pathCheck.valid) {
     return {
       valid: false,
-      errors: [pathCheck.error],
+      errors: [pathCheck.error ?? "Unknown path error"],
       manifestPath,
       schemaPath,
     }
@@ -117,9 +117,10 @@ export function validate(manifestPath, schemaPath = DEFAULT_SCHEMA_PATH) {
     const raw = readFileSync(pathCheck.resolved, "utf-8")
     manifest = JSON.parse(raw)
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
     return {
       valid: false,
-      errors: [`Failed to read/parse ${pathCheck.resolved}: ${err.message}`],
+      errors: [`Failed to read/parse ${pathCheck.resolved}: ${message}`],
       manifestPath: pathCheck.resolved,
       schemaPath,
     }

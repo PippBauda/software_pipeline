@@ -28,11 +28,6 @@ jobs:
         run: npm ci
         working-directory: .tooling
 
-      # Symlink node_modules to root so eslint.config.js ESM imports resolve correctly.
-      # Required because NODE_PATH is not used for ES module resolution in Node.js.
-      - name: Link node_modules for eslint config
-        run: ln -s .tooling/node_modules node_modules
-
       - name: Lint (ESLint)
         run: npx --prefix .tooling eslint .
 
@@ -47,11 +42,30 @@ jobs:
         run: node scripts/check-version.js
         working-directory: .tooling
 
+      - name: Type check (JSDoc)
+        run: npm run typecheck
+        working-directory: .tooling
+
       - name: Check agent sync (OpenCode ↔ Copilot)
         run: node scripts/sync-check-agents.js --verbose
         working-directory: .tooling
         continue-on-error: true
 
-      - name: Run tests
-        run: npm test
+      - name: Run tests with coverage
+        run: npm run test:ci
+        working-directory: .tooling
+
+      - name: Check coverage threshold (≥ 80%)
+        run: |
+          node --input-type=module <<'EOF'
+          import { readFileSync } from 'node:fs';
+          const lcov = readFileSync('coverage.lcov', 'utf8');
+          const lf = (lcov.match(/^LF:(\d+)/gm) || []).reduce((s, x) => s + Number(x.slice(3)), 0);
+          const lh = (lcov.match(/^LH:(\d+)/gm) || []).reduce((s, x) => s + Number(x.slice(3)), 0);
+          if (lf === 0) { console.log('No lines found in coverage report'); process.exit(0); }
+          const pct = Math.round(lh / lf * 100);
+          console.log(`Line coverage: ${pct}% (${lh}/${lf} lines)`);
+          if (pct < 80) { console.error('Coverage below threshold (80%)'); process.exit(1); }
+          console.log('Coverage threshold met.');
+          EOF
         working-directory: .tooling

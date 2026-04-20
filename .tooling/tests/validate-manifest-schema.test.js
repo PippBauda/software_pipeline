@@ -14,7 +14,7 @@ describe("sanitizePath", () => {
   it("should reject empty string", () => {
     const result = sanitizePath("")
     assert.equal(result.valid, false)
-    assert.ok(result.error.includes("non-empty"))
+    assert.ok(result.error?.includes("non-empty"))
   })
 
   it("should reject non-string input", () => {
@@ -25,13 +25,13 @@ describe("sanitizePath", () => {
   it("should reject non-.json extension", () => {
     const result = sanitizePath(resolve(FIXTURES, "not-json.txt"))
     assert.equal(result.valid, false)
-    assert.ok(result.error.includes(".json"))
+    assert.ok(result.error?.includes(".json"))
   })
 
   it("should reject non-existent file", () => {
     const result = sanitizePath(resolve(FIXTURES, "does-not-exist.json"))
     assert.equal(result.valid, false)
-    assert.ok(result.error.includes("not found"))
+    assert.ok(result.error?.includes("not found"))
   })
 
   it("should accept a valid .json path that exists", () => {

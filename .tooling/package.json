@@ -8,7 +8,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test",
+    "test": "node --test --experimental-test-coverage",
+    "test:ci": "node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=coverage.lcov",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -16,16 +17,34 @@
     "validate:schema": "node scripts/validate-manifest-schema.js",
     "sync-check": "node scripts/sync-check-agents.js",
     "check-version": "node scripts/check-version.js",
-    "lint:md": "markdownlint '**/*.md' --ignore node_modules --ignore ../**/node_modules"
+    "lint:md": "markdownlint '**/*.md' --ignore node_modules --ignore ../**/node_modules",
+    "typecheck": "tsc --noEmit",
+    "prepare": "cd .. && husky .tooling/.husky"
+  },
+  "lint-staged": {
+    "*.js": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.md": [
+      "markdownlint"
+    ],
+    "*.json": [
+      "prettier --write"
+    ]
   },
   "devDependencies": {
     "@eslint/js": "9.39.4",
+    "@types/node": "^25.6.0",
     "ajv": "8.18.0",
     "ajv-formats": "3.0.1",
     "eslint": "9.39.4",
     "globals": "15.15.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "markdownlint-cli": "0.44.0",
-    "prettier": "3.8.3"
+    "prettier": "3.8.3",
+    "typescript": "^6.0.3"
   },
   "keywords": [
     "ai-pipeline",

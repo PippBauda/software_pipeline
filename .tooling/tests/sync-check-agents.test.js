@@ -13,7 +13,8 @@ describe("sync-check-agents", () => {
       execFileSync("node", [SCRIPT, "--verbose"], { encoding: "utf-8" });
     } catch (err) {
       // exit code 1 = drift detected, acceptable
-      assert.equal(err.status, 1, `Unexpected exit code: ${err.status}\n${err.stderr}`);
+      const e = /** @type {any} */ (err)
+      assert.equal(e.status, 1, `Unexpected exit code: ${e.status}\n${e.stderr}`);
     }
   });
 
@@ -22,7 +23,7 @@ describe("sync-check-agents", () => {
     try {
       output = execFileSync("node", [SCRIPT, "--verbose"], { encoding: "utf-8" });
     } catch (err) {
-      output = err.stdout || "";
+      output = /** @type {any} */ (err).stdout || "";
     }
     assert.match(output, /8 pairs/, "Should find 8 agent pairs");
   });

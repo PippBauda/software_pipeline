@@ -31,18 +31,27 @@ const verbose = process.argv.includes("--verbose");
 /*  Helpers                                                           */
 /* ------------------------------------------------------------------ */
 
-/** Strip YAML frontmatter delimited by --- */
+/** Strip YAML frontmatter delimited by ---
+ * @param {string} content
+ * @returns {string}
+ */
 function stripFrontmatter(content) {
   const match = content.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/);
   return match ? content.slice(match[0].length) : content;
 }
 
-/** Extract H2 (##) headers from markdown */
+/** Extract H2 (##) headers from markdown
+ * @param {string} md
+ * @returns {string[]}
+ */
 function extractH2s(md) {
   return [...md.matchAll(/^## (.+)$/gm)].map((m) => m[1].trim());
 }
 
-/** Extract stage references like C2, C5, O1, O10 */
+/** Extract stage references like C2, C5, O1, O10
+ * @param {string} md
+ * @returns {string[]}
+ */
 function extractStages(md) {
   const stages = new Set();
   for (const m of md.matchAll(/\b([CO]\d{1,2})\b/g)) {
@@ -51,11 +60,15 @@ function extractStages(md) {
   return [...stages].sort();
 }
 
-/** Normalise whitespace for comparison (collapse runs, trim) */
+/** Normalise whitespace for comparison (collapse runs, trim)
+ * @param {string} text
+ * @returns {string}
+ */
 function normalise(text) {
   return text.replace(/\s+/g, " ").trim();
 }
 
+/** @param {string} text @returns {string} */
 function hash(text) {
   return createHash("sha256").update(normalise(text)).digest("hex").slice(0, 12);
 }

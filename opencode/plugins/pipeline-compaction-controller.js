@@ -49,8 +49,12 @@
  * @typedef {Object} PipelineCompactionPlugin
  * @property {(params: { event: PipelineEvent }) => Promise<void>} event
  *   Handle incoming pipeline events.
- * @property {(input: unknown, output: CompactionOutput) => Promise<void>} experimental.session.compacting
+ * @property {(input: unknown, output: CompactionOutput) => Promise<void>} [experimental.session.compacting]
  *   Hook into session compaction to preserve checkpoint blocks.
+ */
+
+/**
+ * @typedef {PipelineCompactionPlugin & Record<string, unknown>} PipelineCompactionPluginFull
  */
 
 /* ------------------------------------------------------------------ */
@@ -81,7 +85,7 @@ const MAX_TRACKED_SESSIONS = 500
  * - `OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS` — Minimum ms between compactions per session (default 120000)
  *
  * @param {PluginParams} params - Plugin initialization parameters
- * @returns {Promise<PipelineCompactionPlugin>}
+ * @returns {Promise<PipelineCompactionPluginFull>}
  */
 export const PipelineCompactionController = async ({ client }) => {
   /** @type {Set<string>} */
@@ -128,14 +132,16 @@ export const PipelineCompactionController = async ({ client }) => {
    * @returns {string|undefined}
    */
   const extractSessionId = (obj) => {
+    const info = /** @type {Record<string, unknown>} */ (obj?.info ?? {})
+    const session = /** @type {Record<string, unknown>} */ (obj?.session ?? {})
     const candidates = [
       obj?.sessionID,
       obj?.sessionId,
       obj?.id,
-      obj?.info?.sessionID,
-      obj?.info?.sessionId,
-      obj?.info?.id,
-      obj?.session?.id,
+      info?.sessionID,
+      info?.sessionId,
+      info?.id,
+      session?.id,
     ]
 
     for (const value of candidates) {
@@ -186,7 +192,9 @@ export const PipelineCompactionController = async ({ client }) => {
    * @returns {boolean}
    */
   const isAssistantMessage = (properties) => {
-    const role = properties?.role || properties?.info?.role || properties?.message?.role
+    const info = /** @type {Record<string, unknown>} */ (properties?.info ?? {})
+    const message = /** @type {Record<string, unknown>} */ (properties?.message ?? {})
+    const role = properties?.role || info?.role || message?.role
     if (!role) return false
     return String(role).toLowerCase() === "assistant"
   }
@@ -274,7 +282,7 @@ export const PipelineCompactionController = async ({ client }) => {
 
     try {
       if (DRY_RUN) {
-        await client.app.log({
+        await client.app?.log({
           body: {
             service: "pipeline-compaction-controller",
             level: "info",
@@ -288,7 +296,7 @@ export const PipelineCompactionController = async ({ client }) => {
         return
       }
 
-      await client.session.summarize({
+      await client.session?.summarize({
         path: { id: sessionID },
         body: {},
       })
@@ -390,7 +398,7 @@ export const PipelineCompactionController = async ({ client }) => {
       if (!event || event.type === "session.compacted") return
 
       if (event.type === "session.created") {
-        const createdSessionID = extractSessionId(event.properties) || extractSessionId(event)
+        const createdSessionID = extractSessionId(event.properties ?? {}) || extractSessionId(/** @type {Record<string, unknown>} */ (event))
         await emitStartupCheck(createdSessionID)
         return
       }
@@ -413,7 +421,7 @@ export const PipelineCompactionController = async ({ client }) => {
         return
       }
 
-      const sessionID = extractSessionId(props) || extractSessionId(event)
+      const sessionID = extractSessionId(props) || extractSessionId(/** @type {Record<string, unknown>} */ (event))
       if (!sessionID) {
         await debugLog("Skip compaction: missing session id", {})
         return

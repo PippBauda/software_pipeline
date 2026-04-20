@@ -25,21 +25,25 @@ const REQUIRED_H2 = ["Your Identity", "Return Protocol", "Constraints"];
 /** Required H2 sections for orchestrator */
 const ORCHESTRATOR_REQUIRED_H2 = ["Your Identity", "Pipeline Overview", "Stage Routing Table"];
 
+/** @param {string} content @returns {string} */
 function stripFrontmatter(content) {
   const match = content.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/);
   return match ? content.slice(match[0].length) : content;
 }
 
+/** @param {string} content @returns {string | null} */
 function extractFrontmatter(content) {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   return match ? match[1] : null;
 }
 
+/** @param {string} md @returns {string | null} */
 function extractH1(md) {
   const match = md.match(/^# (.+)$/m);
   return match ? match[1].trim() : null;
 }
 
+/** @param {string} md @returns {string[]} */
 function extractH2s(md) {
   return [...md.matchAll(/^## (.+)$/gm)].map((m) => m[1].trim());
 }
@@ -62,11 +66,11 @@ for (const platform of PLATFORMS) {
         });
 
         it("should declare a model in frontmatter", () => {
-          assert.match(fm, /model:/i, "Frontmatter must include 'model:'");
+          assert.match(fm ?? "", /model:/i, "Frontmatter must include 'model:'");
         });
 
         it("should declare a description in frontmatter", () => {
-          assert.match(fm, /description:/i, "Frontmatter must include 'description:'");
+          assert.match(fm ?? "", /description:/i, "Frontmatter must include 'description:'");
         });
 
         it("should have an H1 title", () => {

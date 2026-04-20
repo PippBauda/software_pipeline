@@ -34,6 +34,10 @@ console.log(`Canonical pipeline version: ${pipelineVersion} (from package.json $
 /*  Files to check                                                    */
 /* ------------------------------------------------------------------ */
 
+/**
+ * @param {string} dir
+ * @returns {string[]}
+ */
 function agentFiles(dir) {
   return readdirSync(dir)
     .filter((f) => f.endsWith(".md"))

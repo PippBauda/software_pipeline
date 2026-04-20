@@ -46,21 +46,23 @@ function clearEnv() {
  * Helper: create a mock client with spied methods.
  */
 function createMockClient({ hasSummarize = true, hasLog = true } = {}) {
+  /** @type {import("../../opencode/plugins/pipeline-compaction-controller.js").AppLogBody[]} */
   const logs = []
+  /** @type {unknown[]} */
   const summarizeCalls = []
 
   return {
     client: {
       app: hasLog
         ? {
-            log: mock.fn(async (req) => {
+            log: mock.fn(async (/** @type {any} */ req) => {
               logs.push(req.body)
             }),
           }
         : undefined,
       session: hasSummarize
         ? {
-            summarize: mock.fn(async (req) => {
+            summarize: mock.fn(async (/** @type {any} */ req) => {
               summarizeCalls.push(req)
             }),
           }
@@ -73,6 +75,8 @@ function createMockClient({ hasSummarize = true, hasLog = true } = {}) {
 
 /**
  * Helper: build a message event with checkpoint text.
+ * @param {string} checkpointId
+ * @param {string} [sessionId]
  */
 function makeMessageEvent(checkpointId, sessionId = "sess-123") {
   const text = [
@@ -92,6 +96,7 @@ function makeMessageEvent(checkpointId, sessionId = "sess-123") {
   }
 }
 
+/** @param {string} text @param {string} [sessionId] */
 function makeTextEvent(text, sessionId = "sess-123") {
   return {
     type: "message.updated",
@@ -126,7 +131,7 @@ describe("PipelineCompactionController", () => {
       await plugin.event({ event })
 
       assert.equal(summarizeCalls.length, 1)
-      assert.equal(summarizeCalls[0].path.id, "sess-123")
+      assert.equal((/** @type {any} */ (summarizeCalls[0])).path.id, "sess-123")
     })
 
     it("should trigger compaction for all target checkpoints", async () => {
@@ -186,7 +191,7 @@ describe("PipelineCompactionController", () => {
 
       await plugin.event({ event: { type: "session.compacted" } })
       await plugin.event({ event: { type: "something.else" } })
-      await plugin.event({ event: null })
+      await plugin.event({ event: /** @type {any} */ (null) })
 
       assert.equal(summarizeCalls.length, 0)
     })
@@ -198,7 +203,7 @@ describe("PipelineCompactionController", () => {
       const plugin = await PipelineCompactionController({ client })
 
       await plugin.event({ event: makeMessageEvent("post-cognitive", "my-session") })
-      assert.equal(summarizeCalls[0].path.id, "my-session")
+      assert.equal((/** @type {any} */ (summarizeCalls[0])).path.id, "my-session")
     })
 
     it("should extract sessionId (camelCase) from event fallback", async () => {
@@ -212,7 +217,7 @@ describe("PipelineCompactionController", () => {
         properties: { role: "assistant", content: text },
       }
       await plugin.event({ event })
-      assert.equal(summarizeCalls[0].path.id, "fallback-session")
+      assert.equal((/** @type {any} */ (summarizeCalls[0])).path.id, "fallback-session")
     })
 
     it("should skip if no session ID found anywhere", async () => {
@@ -318,6 +323,7 @@ describe("PipelineCompactionController", () => {
   describe("fail-open behavior", () => {
     it("should not throw when summarize fails", async () => {
       const { client } = createMockClient()
+      // @ts-ignore -- session is guaranteed non-null when hasSummarize=true
       client.session.summarize = mock.fn(async () => {
         throw new Error("API failure")
       })
@@ -329,6 +335,7 @@ describe("PipelineCompactionController", () => {
 
     it("should emit a visible warning when summarize fails (not just debug)", async () => {
       const { client, logs } = createMockClient()
+      // @ts-ignore -- session is guaranteed non-null when hasSummarize=true
       client.session.summarize = mock.fn(async () => {
         throw new Error("API failure")
       })
@@ -338,7 +345,7 @@ describe("PipelineCompactionController", () => {
 
       const warnLog = logs.find((l) => l.level === "warn" && l.message.includes("fail-open"))
       assert.ok(warnLog, "Expected a warn-level log on compaction failure")
-      assert.ok(warnLog.extra.error.includes("API failure"))
+      assert.ok(String((/** @type {any} */ (warnLog)).extra?.error ?? "").includes("API failure"))
     })
 
     it("should not throw when client.session is missing", async () => {
@@ -357,6 +364,7 @@ describe("PipelineCompactionController", () => {
 
     it("should not throw when emitStartupCheck encounters a logging error", async () => {
       const { client } = createMockClient()
+      // @ts-ignore -- app is guaranteed non-null when hasLog=true
       client.app.log = mock.fn(async () => {
         throw new Error("Log API down")
       })
@@ -405,9 +413,11 @@ describe("PipelineCompactionController", () => {
     it("should add context hint to output", async () => {
       const { client } = createMockClient()
       const plugin = await PipelineCompactionController({ client })
+      const compacting = /** @type {Function} */ (/** @type {any} */ (plugin)["experimental.session.compacting"])
 
+      /** @type {{ context?: string[] }} */
       const output = {}
-      await plugin["experimental.session.compacting"](null, output)
+      await compacting(null, output)
 
       assert.ok(Array.isArray(output.context))
       assert.equal(output.context.length, 1)
@@ -417,9 +427,11 @@ describe("PipelineCompactionController", () => {
     it("should append to existing context array", async () => {
       const { client } = createMockClient()
       const plugin = await PipelineCompactionController({ client })
+      const compacting = /** @type {Function} */ (/** @type {any} */ (plugin)["experimental.session.compacting"])
 
+      /** @type {{ context: string[] }} */
       const output = { context: ["existing hint"] }
-      await plugin["experimental.session.compacting"](null, output)
+      await compacting(null, output)
 
       assert.equal(output.context.length, 2)
       assert.equal(output.context[0], "existing hint")
@@ -528,8 +540,9 @@ describe("PipelineCompactionController", () => {
       const plugin = await PipelineCompactionController({ client })
 
       // Create a circular reference
+      /** @type {Record<string, unknown>} */
       const circular = { role: "assistant", sessionID: "sess-circ" }
-      circular.self = circular
+      circular["self"] = circular
 
       const event = {
         type: "message.updated",
@@ -551,8 +564,9 @@ describe("PipelineCompactionController", () => {
       const { client, summarizeCalls } = createMockClient()
 
       // Make summarize slow to create a window for concurrent events
+      // @ts-ignore -- session is guaranteed non-null when hasSummarize=true
       client.session.summarize = mock.fn(
-        () => new Promise((resolve) => setTimeout(() => resolve(summarizeCalls.push({})), 50)),
+        () => new Promise((resolve) => setTimeout(() => { summarizeCalls.push({}); resolve(); }, 50)),
       )
 
       const plugin = await PipelineCompactionController({ client })
