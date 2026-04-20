@@ -28,6 +28,13 @@ jobs:
         run: npm ci
         working-directory: .tooling
 
+      # eslint.config.js is in the repo root and uses ESM imports (@eslint/js, globals).
+      # Node.js ESM resolution does not support NODE_PATH, so node_modules must be
+      # reachable from the root. A symlink is the cleanest solution without moving
+      # the config file or duplicating dependencies.
+      - name: Link node_modules for eslint config
+        run: ln -s .tooling/node_modules node_modules
+
       - name: Lint (ESLint)
         run: npx --prefix .tooling eslint .
 
