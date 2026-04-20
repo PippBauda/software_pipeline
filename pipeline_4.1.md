@@ -200,7 +200,7 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
   - `docs/project-spec.md`
   - `docs/upstream-analysis.md` (optional)
 - **Output**:
-  - `docs/constraints.md` — performance, security, environment, scalability constraints
+  - `docs/constraints.md` — performance, security, environment, scalability constraints; for projects using a typed language (TypeScript, Python with type annotations, Java, Go, etc.) or a language supporting static type checking (JavaScript with JSDoc + `tsc --noEmit`), must include a **type-checking constraint** declaring the tool (e.g., `tsc`, `mypy`, `pyright`) and strictness level
   - `docs/domain-model.md` — domain entities, relationships, operations
   - `logs/architect-c6-domain-modeling-<N>.md` — conversation log
 - **Transformation**: requirements and external analysis are analyzed to extract explicit and implicit constraints and to build the application domain conceptual model.
@@ -281,14 +281,13 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
   - `docs/task-graph.md` — task graph with dependencies
   - `docs/implementation-plan.md` — implementation plan with execution order and per-module specifications
   - `docs/module-map.md` — module map with responsibilities and interfaces
-  - `docs/test-strategy.md` — test strategy: test types (unit, integration, e2e), coverage criteria, minimum thresholds, acceptance criteria per module
-  - `logs/architect-c9-planning-<N>.md` — conversation log
+  - `docs/test-strategy.md` — test strategy: test types (unit, integration, e2e), coverage criteria, minimum thresholds (line coverage must be a numeric value; default is ≥ 80% unless `docs/project-spec.md` explicitly justifies a lower threshold), acceptance criteria per module
 - **Transformation**: the architecture is decomposed into implementable work units with their dependencies, priorities, and verification criteria.
 - **Validation criteria**:
   - every architectural component is mapped to at least one task
   - the dependency graph is acyclic
   - every module has declared responsibilities, interfaces, and dependencies
-  - the test strategy defines at least: test types, coverage threshold, criteria per module
+  - the test strategy defines at least: test types, a numeric coverage threshold (≥ 80% by default), criteria per module
   - the user has confirmed the plan (user gate passed)
 - **User gate**: plan and test strategy confirmation
 - **Resulting state**: `C9_IMPLEMENTATION_PLANNED`
@@ -365,12 +364,16 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - `docs/repository-structure.md` — documented repository structure
   - physical directory and placeholder file structure
   - project configuration files based on `configuration.md`
+  - pre-commit hook configuration (e.g., `husky` + `lint-staged` for Node.js, `pre-commit` framework for Python, or the idiomatic equivalent for the chosen language/runtime) — runs at minimum: linter and formatter check on staged files
+  - `Makefile` (or the idiomatic equivalent for the chosen language/OS: `just`, `Taskfile.yml`, `run.sh`) with targets: `install`, `test`, `lint`, `build`, `check` — providing a single discoverable entry point for all common developer operations regardless of the underlying toolchain
   - `logs/builder-o2-scaffold-<N>.md` — conversation log
 - **Transformation**: the implementation plan, module map, and configuration model are converted into the physical project structure.
 - **Validation criteria**:
   - every module in `module-map.md` has a corresponding directory
   - the structure reflects dependencies declared in the architecture
   - configuration files are consistent with `configuration.md`
+  - pre-commit hooks are installed and operational (a dry-run on staged files completes without errors)
+  - all declared `Makefile` (or equivalent) targets execute without error
   - the commit has been executed
 - **Error handling**: if directory creation fails or configuration files cannot be generated (e.g., conflicting module paths, invalid configuration model), the Builder documents the failure in the conversation log with: affected component, error type, and impact. The orchestrator notifies the user and awaits instructions (retry, revise configuration, stop).
 - **Resulting state**: `O2_SCAFFOLD_CREATED`
@@ -404,7 +407,8 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
     - module spec confirmed
     - code implemented (files produced)
     - tests implemented (files produced)
-    - test execution results
+    - test execution results (including per-module line coverage)
+    - type-check results (if a type-checking tool is declared in `docs/constraints.md` — must report zero errors; a module with type errors is treated as a failing module)
     - issues encountered
 - **Output** (on completion):
   - `logs/builder-cumulative-report-1.md` — cumulative report (produced by a final Builder invocation)
@@ -428,6 +432,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - every module declared in the plan is implemented
   - every module has tests conforming to the strategy defined in `test-strategy.md`
   - module tests pass before proceeding to the next module
+  - per-module line coverage meets the numeric threshold defined in `test-strategy.md`; the coverage result is recorded in the per-module report; a module that fails its coverage threshold is treated as a failing module
   - a commit has been executed for each completed module
   - a per-module report exists for each module
 - **Error handling**: if a module fails, the **orchestrator** (not the Builder) notifies the user and awaits instructions (retry, skip, stop). If the user chooses **skip**, the orchestrator checks the dependency graph (`docs/task-graph.md`) and reports all downstream modules that depend on the skipped module, asking the user whether to skip those as well or stop.
@@ -464,6 +469,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - no interface contract violations
   - code coverage ≥ threshold defined in `test-strategy.md`
   - cyclomatic complexity within defined limits
+  - if a type-checking tool is declared in `docs/constraints.md`: type-check passes with zero errors (result reported in the **Static analysis** sub-section of the validator report)
 - **User gate**: the user chooses between:
   - **a)** full correction → return to O3 with all notes (correction loop, see R.7)
   - **b)** selective correction → return to O3 with selected points (correction loop, see R.7)
@@ -558,7 +564,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - `logs/builder-o7-documentation-<N>.md` — conversation log
 - **Transformation**: architectural artifacts, project specification, and source code are synthesized into documentation oriented to end users and developers.
 - **Validation criteria**:
-  - `README.md` contains: description, prerequisites, installation instructions, usage instructions
+  - `README.md` contains: description, prerequisites, installation instructions, usage instructions, and a "Quick start" section documenting the available `Makefile` (or equivalent) targets
   - `api-reference.md` covers all public APIs
   - `installation-guide.md` is sufficient to reproduce the environment from scratch
 - **User gate** (optional): documentation review. Auto-proceeds in automode (V.4). In normal mode, the user may request revisions before proceeding.
@@ -577,13 +583,16 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - `docs/repository-structure.md`
 - **Output**:
   - CI/CD configuration files (`.github/workflows/`, `.gitlab-ci.yml`, `Jenkinsfile`, or equivalent)
+  - automated dependency update configuration (`.github/dependabot.yml`, `renovate.json`, or the equivalent for the target CI platform) — covers at minimum the project's package manager and CI actions; update schedule: weekly
   - `docs/cicd-configuration.md` — CI/CD configuration documentation: steps, triggers, environments
   - `logs/builder-o8-cicd-<N>.md` — conversation log
 - **Transformation**: the test strategy, repository structure, and environment specifications are translated into a configured CI/CD pipeline.
 - **Validation criteria**:
   - the CI/CD pipeline is configured and documented
   - triggers are defined (push, PR, tag)
-  - steps include at least: install, lint, test, build
+  - steps include at least: install, lint, test (with coverage reporting and threshold enforcement per `test-strategy.md`), build
+  - if a type-checking tool is declared in `docs/constraints.md`: a `typecheck` step is included in the CI pipeline and must pass with zero errors
+  - automated dependency update configuration is present and covers the project package manager (and CI actions if on GitHub)
   - configuration is consistent with `test-strategy.md`
 - **User gate** (optional): CI/CD configuration review. Auto-proceeds in automode (V.4). In normal mode, the user may request revisions before proceeding to O8.V verification.
 - **Resulting state**: `O8_CICD_CONFIGURED`
