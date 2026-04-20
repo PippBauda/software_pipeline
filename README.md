@@ -2,6 +2,61 @@
 
 A formal, multi-agent software development pipeline that transforms ambiguous ideas into working, tested, secure, documented, and releasable software. The pipeline is driven by AI agents coordinated by an Orchestrator, with full traceability via Git and a structured manifest.
 
+## Quick Start
+
+1. **Install** — run `./install.sh` and follow the prompts (choose platform and deployment scope):
+
+   ```bash
+   ./install.sh
+   ```
+
+2. **Open** — start an OpenCode (or Copilot Chat) session in any project directory.
+
+3. **Describe** — tell the Orchestrator what you want to build:
+
+   ```text
+   I want to build a REST API that manages a to-do list with user authentication.
+   ```
+
+4. The pipeline starts automatically. The Orchestrator guides you through requirements,
+   architecture, code generation, testing, and release. At each step it will ask for
+   your confirmation before proceeding.
+
+> **Tip**: after requirements are confirmed (stage C4), type `automode on` to let the
+> pipeline run fully autonomously through build, test, security audit, and release.
+
+No prior technical knowledge is required — the agents handle the implementation.
+
+## Prerequisites
+
+### For running the pipeline (end users)
+
+| Requirement | Notes |
+|-------------|-------|
+| [OpenCode](https://opencode.ai) or [GitHub Copilot](https://github.com/features/copilot) | The AI platform the agents run on |
+| [Git](https://git-scm.com) | Required for all pipeline operations |
+| [GitHub CLI (`gh`)](https://cli.github.com) | **Required for CI verification (O8.V).** Must be installed and authenticated (`gh auth login`). See note below. |
+
+> **GitHub CLI note**: `gh` is used in stage O8.V to push to GitHub, trigger workflows,
+> and monitor CI runs. This makes O8.V **GitHub-specific**. If your repository is hosted
+> on GitLab, Bitbucket, or another platform, O8.V will be blocked at the preflight check.
+> In that case, you can either: (a) mirror the repository to GitHub for CI verification,
+> or (b) skip O8.V and configure CI manually, proceeding directly from O8 to O9.
+
+### For LSP-enhanced code analysis (optional but recommended)
+
+The pipeline agents can use Language Server Protocol (LSP) tools for richer code navigation
+(symbol lookup, go-to-definition, find-references). This improves the quality of validation,
+security audit, and debug stages.
+
+To activate LSP in OpenCode: open **Settings → Experimental → LSP** and enable it for the
+language(s) used in your project. No configuration is needed beyond toggling the setting.
+LSP is optional — agents fall back to text-based navigation when it is unavailable.
+
+### For contributing / developing the pipeline itself
+
+- Node.js >= 20 (see `engines` in `.tooling/package.json`)
+
 ## Overview
 
 The pipeline has two macro-phases:
@@ -287,6 +342,21 @@ opencode
 - Compaction quality looks wrong:
   - Verify `compaction-prompt.txt` exists alongside the plugin and `opencode.json` uses `"prompt": "{file:compaction-prompt.txt}"`
 
+## Expected Duration and Token Cost
+
+The table below gives rough estimates for a **new project** run end-to-end (C1 → O10).
+Actual values depend on project complexity, model speed, and number of correction loops.
+
+| Project size | Modules | Wall-clock time | Approximate tokens |
+|---|---|---|---|
+| Small (e.g., a CLI tool, a simple API) | 3–5 | 30–60 min | 300 K–700 K |
+| Medium (e.g., a full-stack web app) | 6–12 | 1–3 hours | 700 K–2 M |
+| Large (e.g., a multi-service platform) | 13–20 | 3–6 hours | 2 M–5 M |
+
+> **Note**: these are estimates for `claude-opus-4.6`. Faster/cheaper models reduce cost
+> but may affect output quality. Automode reduces wall-clock time (no user gate wait time)
+> but does not reduce token usage.
+
 ## Key Design Principles
 
 - **Git as source of truth** — every stage transition produces a commit
@@ -299,10 +369,6 @@ opencode
 - **Re-entry protocol** — return to any previous stage from a completed pipeline, with archival
 
 ## Contributing
-
-### Prerequisites
-
-- Node.js >= 20 (see `engines` in `.tooling/package.json`)
 
 ### Setup
 

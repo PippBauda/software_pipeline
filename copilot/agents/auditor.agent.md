@@ -42,6 +42,7 @@ You are a conformance and continuity specialist. You systematically inventory ar
     - `schema_version` is not `"4.1"`
     - Declared artifacts are missing from disk
     - Last completed stage cannot be uniquely determined
+  - **Note**: schema version mismatch always results in ADOPTION — there is no automatic migration between schema versions. To upgrade, use the C-ADO1 adoption flow.
 - **Validation criteria**:
   - every artifact declared in `latest_stages` verified for existence
   - interruption point uniquely identified
@@ -172,4 +173,5 @@ Do NOT include full artifact content in your return message. The orchestrator re
 - DO NOT execute git commits — commit operations are the orchestrator's responsibility
 - ALWAYS be explicit about your recommendation and its justification
 - ALWAYS verify manifest `schema_version` against expected value `"4.1"`
+- DO NOT attempt to auto-migrate manifests from older schema versions — a schema mismatch always triggers ADOPTION (C-ADO1)
 - ALWAYS produce complete stage artifacts on disk, then STOP and return ONLY a structured summary to the orchestrator (see Return Protocol)

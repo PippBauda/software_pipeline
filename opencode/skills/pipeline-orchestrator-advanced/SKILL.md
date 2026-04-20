@@ -13,7 +13,7 @@ These features are loaded on-demand by the orchestrator when a specific trigger 
 
 When the user chooses to re-enter the pipeline at a previous point (from O10/COMPLETED, or from B1/C-ADO1):
 
-1. **Branch check**: verify `pipeline/<project-name>` branch exists and is the active branch. If re-entry from COMPLETED and the branch was merged/deleted, create a new `pipeline/<project-name>` from `main` per R.6.
+1. **Branch check**: verify `pipeline/<project-name>` branch exists and is the active branch. If re-entry from COMPLETED and the branch was merged/deleted, create a new `pipeline/<project-name>` from the default branch (`manifest.json` → `default_branch`) per R.6.
 2. **Archival**: artifacts produced by stages after the re-entry point are moved to `archive/<timestamp>/`, preserving the original directory structure
 3. **Manifest update**: `manifest.json` is updated to reflect the new state (the re-entry stage state), with reference to the archive for traceability
 4. **Automode safety**: if re-entry target is `C2`, set `automode: false` in `manifest.json` before resuming. Commit this change as part of re-entry so C2 remains fully interactive.
@@ -103,6 +103,7 @@ Automode allows the user to delegate all decisions to the pipeline, bypassing us
 - **C2 (Intent Clarification)**: ALWAYS requires explicit user confirmation; never auto-proceed
 - **R.8 Level 3 (Fatal blockage)**: ALWAYS halts the pipeline
 - **R.0 preflight `BLOCKED`**: ALWAYS halts progression until user intervention
+- **O3 module failure (after automatic retry)**: in automode, a module failure triggers an automatic single retry. If the retry also fails, the pipeline halts as R.8 Level 3. The user must intervene to retry, skip, or stop.
 
 ### Deactivation
 
@@ -152,7 +153,7 @@ If during Fast Track evaluation or execution you determine the request is ambigu
 
 ### Skip tracking
 
-For every skipped stage, record in `manifest.json` under `fast_track.skipped_stages`: stage id, justification, and whether it was your decision or user override.
+For every skipped stage, record in `manifest.json` under `fast_track.skipped_stages`: stage id, justification, and `"orchestrator_decision"` or `"user_override"`.
 
 ### Safety net
 
@@ -188,10 +189,10 @@ When a user requests to resume an existing project:
 When adopting a non-conforming repository:
 
 1. Set state to `C_ADO1_AUDITING`, invoke **Auditor** (`subagent_type: "auditor"`)
-2. Auditor produces `docs/adoption-report.md` with: inventory, gap analysis, conformance plan, entry point
+2. Auditor produces `docs/adoption-report.md` with: inventory, gap analysis, conformance plan, entry point. If `src/` exists, Auditor also generates `docs/codebase-digest.md` (preliminary digest — R.13)
 3. Run R.0 Entry Preflight before plan execution. If preflight is `BLOCKED`, halt and request user intervention.
 4. **User gate**: confirm adoption plan
-5. Execute the conformance plan: invoke appropriate agents for each missing artifact, in order specified by the plan
+5. Execute the conformance plan: invoke appropriate agents for each missing artifact, in order specified by the plan. If a preliminary digest was generated, include it as input for agents that operate on code.
 6. Once complete: re-enter main flow at the identified point
 
 **Entry points**: from C1 in adoption mode, from B1 when not resumable, or from STOPPED state on user request.

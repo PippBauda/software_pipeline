@@ -211,13 +211,13 @@ Treat C2 as a loop, not a single-pass stage:
 
 - **Branch name**: `pipeline/<project-name>`
 - **Creation**: the branch is created explicitly during C1 initialization. This is the only moment the pipeline creates a branch.
-  - **New project**: create from default branch (`main`). If repo is empty, the first commit establishes the branch.
-  - **Adoption**: create from `main`.
+  - **New project**: create from the default branch. If repo is empty, the first commit establishes the branch.
+  - **Adoption**: create from the default branch.
 - **Conflict**: if `pipeline/<project-name>` already exists at C1 time, STOP and ask the user to resolve (delete/rename existing branch, or choose a different project name).
 - **Resume (B1)**: branch must already exist. Resolve branch name from manifest `branch` field; if absent (legacy manifest), search `pipeline/*` branches matching `project_name` — if exactly one match, use it and backfill `branch` in manifest; if none or ambiguous, ask user. If branch does not exist, B1 flags it as inconsistency.
-- **Re-entry (R.5)**: continue on existing branch. Exception: if re-entry from COMPLETED and branch was merged/deleted, create new `pipeline/<project-name>` from `main`.
-- **Scope**: work exclusively on `pipeline/<project-name>`. No commits to `main` until merge.
-- **Merge**: on O10 closure, merge to `main`, then tag (see O10 for the full closure sequence).
+- **Re-entry (R.5)**: continue on existing branch. Exception: if re-entry from COMPLETED and branch was merged/deleted, create new `pipeline/<project-name>` from the default branch (`manifest.json` → `default_branch`).
+- **Scope**: work exclusively on `pipeline/<project-name>`. No commits to the default branch until merge.
+- **Merge**: on O10 closure, merge to the default branch (`manifest.json` → `default_branch`), then tag (see O10 for the full closure sequence).
 - **Post-merge cleanup**: branch deletion is part of the O10 closure sequence. In normal mode, user confirms or declines. In automode, branch is deleted automatically.
 - **No force push**: never use `--force`.
 
@@ -234,8 +234,8 @@ Treat C2 as a loop, not a single-pass stage:
 
 #### Tags and merge
 
-- **Tags**: the version number is determined by O9. The Git tag is created by O10 **after** merging to `main`, so the tag always points to a commit on `main`.
-- **Merge**: on O10 closure, merge to `main`, tag, then branch cleanup (see O10 for the full closure sequence)
+- **Tags**: the version number is determined by O9. The Git tag is created by O10 **after** merging to the default branch, so the tag always points to a commit on the default branch.
+- **Merge**: on O10 closure, merge to the default branch, tag, then branch cleanup (see O10 for the full closure sequence)
 
 ### R.7 — Correction Loops
 
@@ -332,12 +332,13 @@ C1 is NOT a pipeline stage — it is automatic infrastructure setup.
 - **Trigger**: new project request (no `manifest.json` exists), OR adoption request
 - **Actions**:
   1. Initialize Git repository (if needed)
-  2. Create and switch to branch `pipeline/<project-name>` per R.6 (if branch already exists, STOP and ask user)
-  3. Create directories: `docs/`, `logs/`, `pipeline-state/`, `archive/`
-  4. Create `pipeline-state/manifest.json` (HEAD) with state `C1_INITIALIZED` and `branch` field
-  5. Create `pipeline-state/manifest-history.json` (HISTORY) with empty arrays
-  6. Create `logs/session-init-1.md`
-  7. Commit: `[C1] [Orchestrator] Pipeline initialized`
+  2. **Detect default branch**: run `git symbolic-ref --short HEAD` before creating any branch — record result as `default_branch` for the manifest
+  3. Create and switch to branch `pipeline/<project-name>` per R.6 (if branch already exists, STOP and ask user)
+  4. Create directories: `docs/`, `logs/`, `pipeline-state/`, `archive/`
+  5. Create `pipeline-state/manifest.json` (HEAD) with state `C1_INITIALIZED`, `branch` field, and `default_branch` field
+  6. Create `pipeline-state/manifest-history.json` (HISTORY) with empty arrays
+  7. Create `logs/session-init-1.md`
+  8. Commit: `[C1] [Orchestrator] Pipeline initialized`
 - **Dual mode**:
   - **New project**: after initialization, run R.0 Entry Preflight, then dispatch C2
   - **Project adoption**: create infrastructure, set manifest to `C_ADO1_AUDITING`, invoke Auditor for C-ADO1
@@ -361,7 +362,9 @@ You manage the O3 iteration loop. The Builder is invoked once per module.
 7. Final commit: `[O3] [Orchestrator] All N modules completed`
 8. Manifest → `O3_MODULES_GENERATED`
 
-**Error handling**: if a module fails, notify user and await instructions (retry, skip, stop). On skip: check dependency graph (`task-graph.md`) and report all downstream modules that depend on the skipped module.
+**Error handling**: if a module fails:
+- **Normal mode**: notify user and await instructions (retry, skip, stop). On skip: check dependency graph (`task-graph.md`) and report all downstream modules that depend on the skipped module.
+- **Automode**: trigger an **automatic single retry** — re-invoke the Builder with the same module assignment and the failure output as correction context. If the retry also fails, escalate as **R.8 Level 3 (fatal blockage)** — the pipeline halts even in automode. The user must intervene to retry, skip, or stop. Automatic module skipping in automode is never performed.
 
 **Correction loops** (from R.7): invoke Builder only for affected modules. Unaffected modules retain their existing code and commits. After corrections, invoke Builder to regenerate `docs/codebase-digest.md` (R.13), then construct correction scope for downstream validation agents.
 
@@ -425,7 +428,7 @@ Pass raw CI failure log + `docs/cicd-configuration.md` + `docs/environment.md` +
 - **Validation**: every artifact in manifest is present, no untracked files outside manifest, manifest has final state + timestamp
 - **User gate** (normal mode): user chooses:
   - **Iteration**: re-entry at a specific pipeline point (C2–O9) — load `pipeline-orchestrator-advanced` skill for R.5 + R.10
-  - **Closure**: pipeline concluded. Closure sequence: (1) merge `pipeline/<project-name>` to `main`, (2) tag the merge result with the version from O9, (3) branch cleanup — user confirms or declines deletion of `pipeline/<project-name>`
+  - **Closure**: pipeline concluded. Closure sequence: (1) merge `pipeline/<project-name>` to the default branch (`manifest.json` → `default_branch`), (2) tag the merge result with the version from O9, (3) branch cleanup — user confirms or declines deletion of `pipeline/<project-name>`
 - **Automode behavior**: O10 auto-proceeds to **Closure**. Execute the full closure sequence automatically (merge → tag → branch deletion), then present an executive summary including the **Re-Entry Guide** (R.10) so the user can see available options from `COMPLETED` state.
 - **Resulting state**: `COMPLETED`
 
@@ -443,6 +446,7 @@ Read at every stage transition (R.CONTEXT). Must stay small (<5 KB).
   "pipeline_id": "<unique-pipeline-identifier>",
   "project_name": "<project-name>",
   "branch": "pipeline/<project-name>",
+  "default_branch": "<repository-default-branch>",
   "created_at": "<ISO-8601-timestamp>",
   "current_state": "<state-id>",
   "progress": {
@@ -516,6 +520,8 @@ Append-only log. **Never read during normal pipeline flow.** Read only by R.5 (R
 
 ### Key fields
 
+- `pipeline_id`: unique identifier for this pipeline execution. **Format**: `<project-name>-<ISO-8601-compact-timestamp>Z` (e.g., `my-project-20260420T120000Z`). Generated at C1 initialization. Spaces in project name are replaced with hyphens.
+- `default_branch`: the repository's default branch at pipeline start. Detected at C1 via `git symbolic-ref --short HEAD` before creating the pipeline branch. Used by O10 as the merge target and by R.5 when re-creating a deleted pipeline branch.
 - `current_state`: from the State Machine below. Can be completed (e.g., `C2_INTENT_CLARIFIED`) or in-progress (e.g., `C2_IN_PROGRESS`)
 - `progress`: real-time tracking (R.9). `current_module` only populated during O3.
 - `latest_stages`: map keyed by canonical stage_id (C1, C2, ..., O10). Contains only the most recent execution metadata per stage. Updated (upserted) at every stage completion — replaces previous entry for that stage_id. For C2 intermediate clarification rounds, it may hold in-progress metadata before final confirmation.
@@ -623,6 +629,7 @@ any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scr
 - Every orchestrator↔subagent transition produces a commit (dispatch and return)
 - `_IN_PROGRESS` state always has a corresponding dispatch commit in Git history
 - Automode active: every gate resolves to "proceed" or "full correction" — never "skip" or "no correction", **except C2 which always requires explicit user confirmation**
+- In automode: O3 module failure triggers an automatic single retry; if the retry also fails, escalate as R.8 Level 3 — never auto-skip failing modules
 - Fast Track active: O4 never skipped; architectural finding cancels Fast Track
 
 ## Operational Constraints
@@ -643,6 +650,7 @@ any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scr
 - After C-ADO1 completion: if Auditor generated `docs/codebase-digest.md` (preliminary digest from existing code), include it in subsequent agent invocations during conformance plan execution and re-entry (R.13)
 - In automode (R.11): ALWAYS choose "full correction" when issues are found
 - In automode (R.11): NEVER auto-proceed C2 — intent clarification is always user-confirmed
+- In automode (R.11): if an O3 module fails, perform ONE automatic retry before halting as R.8 Level 3; NEVER auto-skip failing modules
 - R.0 preflight BLOCKED state is always a hard stop until user intervention (automode does not bypass)
 - In Fast Track (R.12): ALWAYS execute O4
 

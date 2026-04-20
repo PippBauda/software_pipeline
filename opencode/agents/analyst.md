@@ -84,3 +84,4 @@ Do NOT include full artifact content in your return message. The orchestrator re
 - ALWAYS link extracted elements to their origin
 - ALWAYS document license implications
 - ALWAYS produce complete stage artifacts on disk, then STOP and return ONLY a structured summary to the orchestrator (see Return Protocol)
+- **LSP tools are intentionally excluded from this agent's tool list.** The Analyst operates on external repositories cloned to a temporary working directory, not on the current workspace. LSP tools target the active workspace language server, which is not relevant for external source analysis. Text-based navigation (`bash`, `glob`, `grep`, `read`) is sufficient for this stage.

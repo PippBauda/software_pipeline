@@ -92,8 +92,8 @@ Goal: progressively transform an ambiguous user idea into a complete, validated 
   - `manifest.json` contains state `C1_INITIALIZED` with timestamp and `branch` field matching the active branch
   - the initial commit has been executed
 - **Dual mode**:
-  - **New project**: create branch per R.6 → standard initialization → `C1_INITIALIZED` → run R.0 Entry Preflight → proceed to C2
-  - **Project adoption**: create branch per R.6 → create infrastructure, set manifest to `C_ADO1_AUDITING` → invoke Auditor for C-ADO1
+  - **New project**: detect default branch (`git symbolic-ref --short HEAD`) and record as `default_branch` in manifest → create pipeline branch per R.6 → standard initialization → `C1_INITIALIZED` → run R.0 Entry Preflight → proceed to C2
+  - **Project adoption**: detect default branch and record as `default_branch` in manifest → create branch per R.6 → create infrastructure, set manifest to `C_ADO1_AUDITING` → invoke Auditor for C-ADO1
 - **Resulting state**: `C1_INITIALIZED` (new project) or `C_ADO1_AUDITING` (adoption)
 
 ---
@@ -436,6 +436,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - a commit has been executed for each completed module
   - a per-module report exists for each module
 - **Error handling**: if a module fails, the **orchestrator** (not the Builder) notifies the user and awaits instructions (retry, skip, stop). If the user chooses **skip**, the orchestrator checks the dependency graph (`docs/task-graph.md`) and reports all downstream modules that depend on the skipped module, asking the user whether to skip those as well or stop.
+- **Automode behavior on module failure**: in automode, a module failure triggers an **automatic single retry** (the orchestrator re-invokes the Builder with the same module assignment and the failure output as correction context). If the retry also fails, the orchestrator escalates as **R.8 Level 3 (fatal blockage)** — halting the pipeline even in automode. The user must intervene to retry, skip, or stop. **Rationale**: automatic module skipping in automode is unsafe because a skipped module propagates dependency failures into O4/O5/O6, producing a broken build that is expensive to recover from at that point.
 - **Correction loops**: when O3 is invoked via R.7 with correction notes from O4/O5/O6, the orchestrator identifies which modules need correction from the notes and invokes the Builder only for those modules (not all modules). Unaffected modules retain their existing code and commits. After corrections are complete, the Builder regenerates `docs/codebase-digest.md` (R.13) and the orchestrator constructs a correction scope for downstream validation agents (see R.13 — Correction Scope).
 - **Resulting state**: `O3_MODULES_GENERATED`
 
@@ -562,6 +563,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - `docs/api-reference.md` — developer API documentation (generated from code and `api.md`)
   - `docs/installation-guide.md` — installation and configuration guide
   - `logs/builder-o7-documentation-<N>.md` — conversation log
+- **Existing `README.md` handling**: if `README.md` already exists in the project root (e.g., after C-ADO1 adoption or a Fast Track re-entry at O7), the Builder MUST NOT silently overwrite it. Protocol: (1) read the existing content, (2) save it verbatim to `docs/existing-readme.md`, (3) produce a new `README.md` incorporating any project-specific content from the existing file that is not covered by the pipeline documentation template (e.g., contribution guidelines, domain-specific notes, license badges, project-specific usage examples). The Builder documents the merge decision (what was preserved, what was replaced) in its conversation log.
 - **Transformation**: architectural artifacts, project specification, and source code are synthesized into documentation oriented to end users and developers.
 - **Validation criteria**:
   - `README.md` contains: description, prerequisites, installation instructions, usage instructions, and a "Quick start" section documenting the available `Makefile` (or equivalent) targets
@@ -697,7 +699,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - the determined version follows semantic versioning
   - the changelog is complete and tracks changes
   - release notes are consistent with the changelog
-- **Note**: O9 determines the version number but does **not** create the Git tag. The tag is applied by O10 after merge to `main` (see O10 and R.6).
+- **Note**: O9 determines the version number but does **not** create the Git tag. The tag is applied by O10 after merge to the default branch (`manifest.json` → `default_branch`) (see O10 and R.6).
 - **User gate**: release confirmation (the user sees the determined version and may override it)
 - **Resulting state**: `O9_RELEASED`
 
@@ -706,7 +708,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
 ## O10 — Closure and Final Report
 
 - **Agent**: Orchestrator (direct)
-- **Purpose**: verify repository integrity, consolidate the pipeline state, merge to `main`, tag the release, and provide a final report to the user.
+- **Purpose**: verify repository integrity, consolidate the pipeline state, merge to the default branch, tag the release, and provide a final report to the user.
 - **Input**:
   - all artifacts produced by the pipeline (cognitive + operational)
   - `pipeline-state/manifest.json`
@@ -714,7 +716,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - `docs/final-report.md` — cumulative final report
   - `pipeline-state/manifest.json` — manifest updated with state `COMPLETED`
   - Git tag with the semantic version determined by O9 (from `latest_stages[O9].version`)
-- **Transformation**: all artifacts are inventoried, verified for integrity, and synthesized into a final report. The pipeline branch is merged to `main` and tagged.
+- **Transformation**: all artifacts are inventoried, verified for integrity, and synthesized into a final report. The pipeline branch is merged to the default branch and tagged.
 - **Validation criteria**:
   - every artifact declared in the manifest is present in the repository
   - no untracked files remain outside the manifest
@@ -722,8 +724,8 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
 - **User gate** (normal mode): the user chooses between:
   - **Iteration**: re-entry at a specific pipeline point (C2–O9) providing instructions. On re-entry the **Re-Entry Protocol** (R.5) is applied. The re-entry point is validated by the orchestrator (see S.1 under State Machine). The orchestrator presents the **Re-Entry Guide** (R.10) to help the user select the correct re-entry stage.
   - **Closure**: the pipeline is concluded. The orchestrator performs the closure sequence:
-    1. Merge `pipeline/<project-name>` to `main` (per R.6)
-    2. Tag the merge result on `main` with the version from O9 (e.g., `git tag v1.0.0`)
+    1. Merge `pipeline/<project-name>` to the default branch (read from `manifest.json` → `default_branch`)
+    2. Tag the merge result on the default branch with the version from O9 (e.g., `git tag v1.0.0`)
     3. **Branch cleanup**: the user confirms or declines deletion of `pipeline/<project-name>`.
 - **Automode behavior**: O10 auto-proceeds to **Closure**. The orchestrator executes the full closure sequence automatically (merge → tag → branch deletion), then presents an executive summary including the **Re-Entry Guide** (R.10) so the user can see available options from `COMPLETED` state. The user can request re-entry at any time after closure.
 - **Resulting state**: `COMPLETED`
@@ -928,7 +930,7 @@ Treat C2 as a loop, not a single-pass stage:
 
 When the user chooses to re-enter the pipeline at a previous point (from O10/COMPLETED, or from B1/C-ADO1):
 
-1. **Branch check**: verify the `pipeline/<project-name>` branch exists and is the active branch. If re-entry from COMPLETED and the branch was merged/deleted, create a new `pipeline/<project-name>` from `main` per R.6.
+1. **Branch check**: verify the `pipeline/<project-name>` branch exists and is the active branch. If re-entry from COMPLETED and the branch was merged/deleted, create a new `pipeline/<project-name>` from the default branch (`manifest.json` → `default_branch`) per R.6.
 2. **Archival**: artifacts produced by stages after the re-entry point are moved to `archive/<timestamp>/`, preserving the original structure
 3. **Manifest update**: `manifest.json` is updated to reflect the new state (the re-entry stage state), with reference to the archive for traceability
 4. **Automode safety**: if re-entry target is `C2`, the orchestrator sets `automode: false` in `manifest.json` before resuming so C2 remains fully interactive.
@@ -949,13 +951,13 @@ When the user chooses to re-enter the pipeline at a previous point (from O10/COM
 
 - **Branch name**: `pipeline/<project-name>`
 - **Creation**: the branch is created explicitly during C1 initialization (see C1 actions). This is the only moment the pipeline creates a branch.
-  - **New project**: create `pipeline/<project-name>` from the default branch (`main`). If the repository is empty (no commits yet), the first commit on `pipeline/<project-name>` establishes the branch.
-  - **Adoption**: create `pipeline/<project-name>` from `main` (the existing project code is on `main`).
+  - **New project**: detect and record the current default branch (see C1). Create `pipeline/<project-name>` from the default branch. If the repository is empty (no commits yet), the first commit on `pipeline/<project-name>` establishes the branch.
+  - **Adoption**: create `pipeline/<project-name>` from the default branch (the existing project code is on the default branch).
 - **Conflict**: if `pipeline/<project-name>` already exists at C1 time, the orchestrator MUST stop and ask the user to resolve (delete/rename the existing branch, or choose a different project name). Do not overwrite or force-create.
 - **Resume (B1)**: the branch must already exist. The orchestrator resolves the branch name from the manifest `branch` field; if absent (legacy manifest), it searches `pipeline/*` branches to find the one matching `project_name` (see B1 — Branch resolution). If the branch does not exist, B1 flags this as an inconsistency in the audit report.
-- **Re-entry (R.5)**: the branch already exists — continue working on it. Exception: if re-entry happens from COMPLETED state and the branch was already merged/deleted, create a new `pipeline/<project-name>` from `main`.
-- **Scope**: the orchestrator works exclusively on `pipeline/<project-name>` during pipeline execution. No commits to `main` until merge.
-- **Merge**: on O10 closure, merge `pipeline/<project-name>` to `main`, then tag the version (see O10 for the full closure sequence).
+- **Re-entry (R.5)**: the branch already exists — continue working on it. Exception: if re-entry happens from COMPLETED state and the branch was already merged/deleted, create a new `pipeline/<project-name>` from the default branch (read from `manifest.json` → `default_branch`).
+- **Scope**: the orchestrator works exclusively on `pipeline/<project-name>` during pipeline execution. No commits to the default branch until merge.
+- **Merge**: on O10 closure, merge `pipeline/<project-name>` to the default branch (`manifest.json` → `default_branch`), then tag the version (see O10 for the full closure sequence).
 - **Post-merge cleanup**: branch deletion is part of the O10 closure sequence. In normal mode, the user confirms or declines deletion. In automode, the branch is deleted automatically after merge and tagging.
 - **No force push**: the pipeline never uses `--force` on any branch.
 
@@ -972,8 +974,8 @@ Format `[<stage-id>] [<agent-name>] <description>` where `<agent-name>` is the a
 
 ### Tags and merge
 
-- **Tags**: the version number is determined by O9 (see O9 — Version determination). The Git tag is created by O10 **after** merging `pipeline/<project-name>` to `main`, so the tag always points to a commit on `main`. This ensures the tag remains valid after the pipeline branch is deleted.
-- **Merge**: on O10 closure, merge `pipeline/<project-name>` to `main`, tag, then branch cleanup (see O10 for the full closure sequence)
+- **Tags**: the version number is determined by O9 (see O9 — Version determination). The Git tag is created by O10 **after** merging `pipeline/<project-name>` to the default branch, so the tag always points to a commit on the default branch. This ensures the tag remains valid after the pipeline branch is deleted.
+- **Merge**: on O10 closure, merge `pipeline/<project-name>` to the default branch (`manifest.json` → `default_branch`), tag, then branch cleanup (see O10 for the full closure sequence)
 
 ## R.7 — Correction Loops
 
@@ -1163,6 +1165,7 @@ Automode allows the user to delegate all decisions to the pipeline, bypassing us
 - **C2 (Intent Clarification)**: always requires explicit user confirmation — automode does NOT auto-proceed at C2.
 - **R.8 Level 3 (Fatal blockage)**: always halts the pipeline, even in automode.
 - **R.0 preflight `BLOCKED`**: always halts progression until user intervention, even in automode.
+- **O3 module failure (after automatic retry)**: if a module fails twice (initial attempt + one automatic retry), the pipeline halts as R.8 Level 3. The user must intervene.
 
 **Note**: R.8 Level 1 and Level 2 are NOT exempt from automode — the orchestrator handles them autonomously (see R.8 for details).
 
@@ -1232,6 +1235,7 @@ Read at every stage transition (R.CONTEXT). Must stay small (<5 KB).
   "pipeline_id": "<unique-pipeline-identifier>",
   "project_name": "<project-name>",
   "branch": "pipeline/<project-name>",
+  "default_branch": "<repository-default-branch>",
   "created_at": "<ISO-8601-timestamp>",
   "current_state": "<state-id>",
   "progress": {
@@ -1306,9 +1310,10 @@ Append-only log. **Never read during normal pipeline flow.** Read only by R.5 (R
 ## Field descriptions
 
 - `schema_version`: manifest schema version (`4.1`), verified by B1 for compatibility. Both HEAD and HISTORY share the same version.
-- `pipeline_id`: unique identifier for this pipeline execution. Same value in both files.
+- `pipeline_id`: unique identifier for this pipeline execution. Same value in both files. **Format**: `<project-name>-<ISO-8601-compact-timestamp>` in UTC (e.g., `my-project-20260420T120000Z`). Generated at C1 initialization. Spaces in the project name are replaced with hyphens.
 - `project_name`: human-readable project name, used in branch naming (R.6)
 - `branch`: the Git branch where pipeline execution occurs (R.6). Set at C1, used by B1 to locate the working branch on resume.
+- `default_branch`: the repository's default branch at pipeline start (e.g., `main`, `master`, `develop`). Detected by the orchestrator at C1 via `git symbolic-ref --short HEAD` before creating the pipeline branch. Used by O10 as the merge target. Stored here so O10 does not need to re-detect it.
 - `current_state`: the current state from the state machine. Can be a completed state (e.g., `C2_INTENT_CLARIFIED`) or an in-progress state (e.g., `C2_IN_PROGRESS`) indicating an active or interrupted invocation.
 - `progress`: real-time progress tracking (see R.9). `current_module` is populated only during O3.
 - `latest_stages` (HEAD only): map keyed by canonical stage_id (C1, C2, ..., O10). Contains only the most recent execution metadata per stage. Updated (upserted) at every stage completion — replaces previous entry for that stage_id. For C2 intermediate clarification rounds, it may hold in-progress metadata before final confirmation. Provides O(1) lookup for current pipeline state. **O9-specific field**: `latest_stages[O9]` additionally contains a `version` field (e.g., `"v1.0.0"`) with the determined semantic version, used by O10 for tagging after merge.
@@ -1332,6 +1337,13 @@ At every stage completion, the manifest updates are committed **together with** 
 1. **HEAD**: keep `current_state = C2_IN_PROGRESS`, upsert `latest_stages[C2]` as in-progress metadata
 2. **HISTORY**: do NOT append `stages_completed`
 3. Append to `stages_completed` only when C2 is explicitly confirmed and state transitions to `C2_INTENT_CLARIFIED`
+
+## Schema Version Compatibility and Migration
+
+- B1 (Continuity Audit) checks `schema_version` against `"4.1"`. A mismatch triggers ADOPTION (C-ADO1 conformance audit), not an automatic upgrade.
+- **No automatic migration**: there is no in-place migration between schema versions. When upgrading to a future pipeline version with a different `schema_version`, run the new pipeline's C-ADO1 adoption flow against the existing repository. The existing codebase and cognitive artifacts are preserved; only the pipeline state infrastructure (`pipeline-state/`) is rebuilt under the new schema.
+- **Minor version bumps** (e.g., v4.1 → v4.2): schema additions and deprecations are documented in `CHANGELOG.md`. Additive changes (new optional fields) are backward-compatible and do not change `schema_version`. Structural changes increment `schema_version`.
+- **Major version bumps** (e.g., v4.x → v5.0): always include a migration guide in `CHANGELOG.md` describing which cognitive and operational artifacts can be preserved and which must be regenerated.
 
 ---
 

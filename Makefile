@@ -49,6 +49,6 @@ check-version: ## Verify version consistency across files
 sync-check: ## Check OpenCode ↔ Copilot agent drift
 	cd $(TOOLING) && node scripts/sync-check-agents.js --verbose
 
-check: lint lint-md format-check typecheck check-version test ## Full pre-merge check suite
+check: lint lint-md format-check typecheck check-version sync-check test ## Full pre-merge check suite
 	@echo ""
 	@echo "All checks passed."

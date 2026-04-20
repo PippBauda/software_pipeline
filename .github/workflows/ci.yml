@@ -56,7 +56,6 @@ jobs:
       - name: Check agent sync (OpenCode ↔ Copilot)
         run: node scripts/sync-check-agents.js --verbose
         working-directory: .tooling
-        continue-on-error: true
 
       - name: Run tests with coverage
         run: npm run test:ci

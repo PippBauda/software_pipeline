@@ -142,10 +142,12 @@ You are an implementation engineer. You translate architectural plans into worki
     - Configuration
   - `docs/api-reference.md` — developer API documentation (from code + `api.md`)
   - `docs/installation-guide.md` — installation and configuration guide
+- **Existing `README.md` handling**: if `README.md` already exists in the project root (e.g., after C-ADO1 adoption or a Fast Track re-entry at O7), DO NOT silently overwrite it. Protocol: (1) read the existing content, (2) save it verbatim to `docs/existing-readme.md`, (3) produce a new `README.md` incorporating any project-specific content from the existing file not covered by the pipeline template (e.g., contribution guidelines, domain-specific notes, license badges). Document the merge decision (what was preserved, what was replaced) in the conversation log.
 - **Validation criteria**:
   - `README.md` contains: description, prerequisites, installation, usage, and a "Quick start" section documenting the available `Makefile` (or equivalent) targets
   - `api-reference.md` covers all public APIs
   - `installation-guide.md` sufficient to reproduce environment from scratch
+  - if `README.md` existed before O7, `docs/existing-readme.md` is present and the conversation log documents the merge decision
 - **Resulting state**: `O7_DOCUMENTATION_GENERATED`
 
 ### O8 — CI/CD Configuration
@@ -227,3 +229,4 @@ Do NOT include full artifact content in your return message. The orchestrator re
 - ALWAYS produce per-module reports for every module in O3
 - ALWAYS include `gh` CLI as a mandatory tool in `docs/environment.md` during O1
 - ALWAYS produce complete stage artifacts on disk, then STOP and return ONLY a structured summary to the orchestrator (see Return Protocol)
+- NEVER silently overwrite an existing `README.md` — always follow the README merge protocol in O7
