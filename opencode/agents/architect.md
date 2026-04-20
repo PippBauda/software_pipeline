@@ -44,6 +44,7 @@ When invoked during a re-entry scenario (R.5) on a project that already has impl
     - **Security**: authentication, authorization, data protection requirements
     - **Environment**: target platforms, runtime requirements, deployment constraints
     - **Scalability**: growth expectations, load patterns
+    - **Type-checking** (when applicable): for projects using a typed language (TypeScript, Python with type annotations, Java, Go, etc.) or a language supporting static type checking (JavaScript with JSDoc + `tsc --noEmit`), declare the tool (e.g., `tsc`, `mypy`, `pyright`) and strictness level. Omit this category only for languages/projects where no static type checker is applicable.
   - `docs/domain-model.md` — domain conceptual model:
     - **Entities**: domain objects with attributes
     - **Relationships**: associations, dependencies, hierarchies
@@ -110,7 +111,7 @@ When invoked during a re-entry scenario (R.5) on a project that already has impl
     - File structure expectations
   - `docs/test-strategy.md` — test strategy:
     - Test types: unit, integration, e2e
-    - Coverage criteria and minimum thresholds
+    - Coverage criteria and minimum thresholds — the threshold MUST be a numeric value (e.g., "line coverage ≥ 80%"); the default is ≥ 80% unless `docs/project-spec.md` explicitly justifies a lower value
     - Acceptance criteria per module
     - Tools and frameworks
   - `logs/architect-c9-planning-<N>.md` — planning log
@@ -118,7 +119,7 @@ When invoked during a re-entry scenario (R.5) on a project that already has impl
   - every architectural component maps to at least one task
   - dependency graph is acyclic
   - every module has declared responsibilities, interfaces, and dependencies
-  - test strategy defines: test types, coverage threshold, criteria per module
+  - test strategy defines: test types, a numeric coverage threshold (≥ 80% by default), criteria per module
 - **Revision cycle**: if invoked with user feedback, incorporate it and regenerate
 - **Resulting state**: `C9_IMPLEMENTATION_PLANNED`
 

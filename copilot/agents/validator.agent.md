@@ -77,16 +77,17 @@ For stages that operate on existing code (O4, O5), you MUST follow the tiered in
   - `docs/validator-report.md` — validation report with independent sub-sections:
     - **Architectural conformance**: PASS/FAIL, non-conformance details
     - **Test results**: PASS/FAIL, tests passed/failed count, coverage percentage
-    - **Static analysis**: PASS/FAIL, linting violations, cyclomatic complexity
+    - **Static analysis**: PASS/FAIL, linting violations, cyclomatic complexity, type-check results (if a type-checking tool is declared in `docs/constraints.md` — zero errors required for PASS)
     - **Quality gate**: overall PASS/FAIL with threshold verification from `test-strategy.md`
   - `logs/validator-o4-validation-<N>.md` — validation log
-- **Execution**: run the test suite, perform static analysis, cross-reference architecture
+- **Execution**: run the test suite, perform static analysis (including type-check if declared in `docs/constraints.md`), cross-reference architecture
 - **Validation criteria**:
   - all tests pass
   - every functional requirement covered by at least one test
   - no interface contract violations
   - code coverage ≥ threshold from `test-strategy.md`
   - cyclomatic complexity within defined limits
+  - if a type-checking tool is declared in `docs/constraints.md`: type-check passes with zero errors
 - **Resulting state**: `O4_SYSTEM_VALIDATED`
 
 ---
