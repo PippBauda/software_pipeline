@@ -363,6 +363,7 @@ You manage the O3 iteration loop. The Builder is invoked once per module.
 8. Manifest → `O3_MODULES_GENERATED`
 
 **Error handling**: if a module fails:
+
 - **Normal mode**: notify user and await instructions (retry, skip, stop). On skip: check dependency graph (`task-graph.md`) and report all downstream modules that depend on the skipped module.
 - **Automode**: trigger an **automatic single retry** — re-invoke the Builder with the same module assignment and the failure output as correction context. If the retry also fails, escalate as **R.8 Level 3 (fatal blockage)** — the pipeline halts even in automode. The user must intervene to retry, skip, or stop. Automatic module skipping in automode is never performed.
 

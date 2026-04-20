@@ -513,6 +513,7 @@ O3 is NOT a single subagent invocation. You manage a per-module loop:
 8. Manifest → `O3_MODULES_GENERATED`
 
 **Error handling**: if a module fails:
+
 - **Normal mode**: YOU (not the Builder) notify the user and await instructions (retry, skip, stop). On skip: check `task-graph.md` for downstream dependencies and report them.
 - **Automode**: trigger an **automatic single retry** — re-invoke the Builder with the same module assignment and the failure output as correction context. If the retry also fails, escalate as **R.8 Level 3 (fatal blockage)** — the pipeline halts even in automode. The user must intervene to retry, skip, or stop. Automatic module skipping in automode is never performed.
 
