@@ -716,7 +716,7 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - `docs/final-report.md` — cumulative final report
   - `pipeline-state/manifest.json` — manifest updated with state `COMPLETED`
   - Git tag with the semantic version determined by O9 (from `latest_stages[O9].version`)
-- **Transformation**: all artifacts are inventoried, verified for integrity, and synthesized into a final report. The pipeline branch is merged to the default branch and tagged.
+- **Transformation**: all artifacts are inventoried, verified for integrity, and synthesized into a final report. If `docs/decision-log.md` exists, compact it per R.15 compaction rules before producing the final report. The pipeline branch is merged to the default branch and tagged.
 - **Validation criteria**:
   - every artifact declared in the manifest is present in the repository
   - no untracked files remain outside the manifest
@@ -932,14 +932,15 @@ When the user chooses to re-enter the pipeline at a previous point (from O10/COM
 
 1. **Branch check**: verify the `pipeline/<project-name>` branch exists and is the active branch. If re-entry from COMPLETED and the branch was merged/deleted, create a new `pipeline/<project-name>` from the default branch (`manifest.json` → `default_branch`) per R.6.
 2. **Archival**: artifacts produced by stages after the re-entry point are moved to `archive/<timestamp>/`, preserving the original structure
-3. **Manifest update**: `manifest.json` is updated to reflect the new state (the re-entry stage state), with reference to the archive for traceability
-4. **Automode safety**: if re-entry target is `C2`, the orchestrator sets `automode: false` in `manifest.json` before resuming so C2 remains fully interactive.
-5. **Commit**: the re-entry is committed with message `[RE-ENTRY] [Orchestrator] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
-6. **Post-reentry checkpoint**: the orchestrator writes a `Pipeline Checkpoint [post-reentry]` containing: resulting state, `from_state -> target_stage`, archive path, scope impact, next stage/agent, required input artifacts, pending gate
-7. **Context compaction**: after writing the post-reentry checkpoint, the orchestrator triggers autonomous context compaction (on OpenCode via plugin). Manual compaction remains a fallback.
-8. **Resumption**: execution resumes from the indicated stage with artifacts from preceding stages intact
-9. **Preflight**: run R.0 Entry Preflight before first post-reentry dispatch. If preflight is `BLOCKED`, halt and request user intervention.
-10. **Delegation**: the orchestrator identifies the agent responsible for the target stage from the Agent-to-Stage mapping and delegates to that agent following R.1 (starting from step 2, dispatch commit). The orchestrator MUST NOT execute stages assigned to other agents.
+3. **Decision log compaction** (R.15): if `docs/decision-log.md` exists, compact it per R.15 compaction rules. The compacted file is included in the re-entry commit (step 6).
+4. **Manifest update**: `manifest.json` is updated to reflect the new state (the re-entry stage state), with reference to the archive for traceability
+5. **Automode safety**: if re-entry target is `C2`, the orchestrator sets `automode: false` in `manifest.json` before resuming so C2 remains fully interactive.
+6. **Commit**: the re-entry is committed with message `[RE-ENTRY] [Orchestrator] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
+7. **Post-reentry checkpoint**: the orchestrator writes a `Pipeline Checkpoint [post-reentry]` containing: resulting state, `from_state -> target_stage`, archive path, scope impact, next stage/agent, required input artifacts, pending gate
+8. **Context compaction**: after writing the post-reentry checkpoint, the orchestrator triggers autonomous context compaction (on OpenCode via plugin). Manual compaction remains a fallback.
+9. **Resumption**: execution resumes from the indicated stage with artifacts from preceding stages intact
+10. **Preflight**: run R.0 Entry Preflight before first post-reentry dispatch. If preflight is `BLOCKED`, halt and request user intervention.
+11. **Delegation**: the orchestrator identifies the agent responsible for the target stage from the Agent-to-Stage mapping and delegates to that agent following R.1 (starting from step 2, dispatch commit). The orchestrator MUST NOT execute stages assigned to other agents.
 
 **Scope**: R.5 applies ONLY to user-initiated re-entry (from COMPLETED or from auxiliary flows B1/C-ADO1). Correction loops (O4→O3, O5→O3, O6→O3) are governed by R.7 and do NOT trigger archival.
 
@@ -1052,6 +1053,7 @@ A lightweight artifact (`docs/codebase-digest.md`) that provides a structural ma
   - **Module signatures**: public API surface of each module (exported functions/classes/types with parameter signatures and return types), extracted via LSP (`documentSymbol`/`workspaceSymbol`) when available, otherwise via grep/glob pattern matching
   - **Dependency graph**: inter-module import/dependency relationships
   - **Test coverage map**: per-module test file listing, test count, and latest pass/fail status from O3 reports
+  - **Decision log summary** (if `docs/decision-log.md` exists): total decision count and stage of most recent entry (R.15)
 - **Format**: Markdown with standardized sections. The digest is a factual snapshot — no commentary, no recommendations.
 - **Regeneration triggers**: (1) O3 completion (initial or correction loop), (2) R.5 re-entry at any operational stage (orchestrator requests Builder to regenerate before dispatching the re-entry target stage), (3) C-ADO1 completion (preliminary digest from existing code)
 - **Artifact path**: `docs/codebase-digest.md`
@@ -1218,6 +1220,68 @@ Fast Track provides a shortened operational path for focused interventions on CO
 - O4 is ALWAYS executed — no exceptions
 - If O4 finds architectural conformance issues that indicate the change has architectural impact, the Fast Track is **automatically cancelled**. The orchestrator informs the user and switches to the standard full-pipeline re-entry.
 - If O4/O5/O6 find issues, R.7 correction loops apply normally (no shortcuts on corrections)
+
+## R.15 — Decision Log
+
+A lightweight project artifact (`docs/decision-log.md`) that captures key decisions with rationale, enabling traceability across pipeline runs and re-entries. Unlike transient conversation context, the decision log is a committed Git artifact — it survives session boundaries, context compaction, and re-entries.
+
+### Writing
+
+Any agent, at any stage, appends to `docs/decision-log.md` when making a **choice between genuine alternatives**. Do not log straightforward applications of the spec or obvious implementation details.
+
+**Format** — the file is a Markdown table. Each decision appends one row:
+
+```markdown
+# Decision Log
+
+| # | Stage | Decision | Rationale | Alternatives considered |
+|---|-------|----------|-----------|------------------------|
+| 1 | O1 | Stack: React + Vite + Tailwind | User needs SPA, no SSR | Next.js (overkill for scope) |
+| 2 | O2 | Flat src/ structure | <5 modules, premature separation | Monorepo packages/ (rejected: complexity) |
+```
+
+- `#`: sequential number (auto-incremented)
+- `Stage`: stage ID (e.g., `O1`, `O3`, `O5-correction`, `RE-ENTRY`)
+- `Decision`: what was chosen (1 sentence)
+- `Rationale`: why (1 sentence)
+- `Alternatives considered`: what was rejected and brief reason
+
+**File creation**: the first agent that needs to log a decision creates `docs/decision-log.md` with the table header. This typically happens during O1 or O2 but may occur at any stage.
+
+**Writing guideline** (for all agents): *Log a decision only when choosing between genuine alternatives. Don't log straightforward applications of the spec or obvious implementation details.*
+
+### Reading
+
+The decision log is read **on-demand**, never at every stage transition:
+
+| When | Who | Why |
+|------|-----|-----|
+| R.5 re-entry | Orchestrator | Compaction + context reconstruction |
+| R.7 correction loops | Builder / Validator | Understand prior implementation choices |
+| O10 completion | Orchestrator | Final compaction before closure |
+| B1 / C-ADO1 audit | Auditor | Verify decision consistency |
+| User request | Any agent | Answer "why did you choose X?" |
+
+### Compaction
+
+At two natural boundaries the orchestrator compacts the decision log:
+
+1. **R.5 re-entry** (step 3 — after archival, before manifest update): read `docs/decision-log.md`, apply compaction rules below, rewrite the file, include it in the re-entry commit.
+2. **O10 pipeline completion** (before producing `docs/final-report.md`): compact as part of closure.
+
+**Compaction rules** (semantic — requires judgment):
+
+- **Superseded**: if a later decision replaces an earlier one on the same topic, merge into a single entry with the final state and a note about what changed (e.g., "vitest, switched from jest due to ESM issues")
+- **Contradictory**: keep only the final decision with brief context of the change
+- **Transient**: remove tactical/ordering decisions no longer relevant (e.g., "implemented module X before Y")
+- **Permanent**: retain fundamental choices (architecture, stack, constraints) unchanged
+- **Lessons learned**: retain if still actionable; remove if incorporated into code or documentation
+
+**Bound**: after compaction the decision log should stabilize at ~15-25 permanent entries plus uncompacted entries from the current run. The file does not have a hard size cap but compaction keeps it bounded across iterations.
+
+### Codebase Digest Reference
+
+When `docs/decision-log.md` exists, the R.13 Level 0 codebase digest (`docs/codebase-digest.md`) includes a summary line: total decision count and stage of the most recent entry. This gives agents awareness that the decision log exists without requiring a full read.
 
 ---
 

@@ -121,6 +121,7 @@ C1 is NOT a pipeline stage — it is an automatic infrastructure setup that you 
 - **Purpose**: verify repository integrity, merge to `main`, tag release, and provide final report
 - **Input**: all artifacts, `manifest.json`
 - **Output**: `docs/final-report.md`, manifest updated to `COMPLETED`, Git tag with version from O9
+- **Pre-report**: if `docs/decision-log.md` exists, compact it per R.15 compaction rules before producing the final report
 - **Validation**: every manifest artifact exists, no untracked files, manifest final state set
 - **User gate** (normal mode): user chooses **Iteration** (re-entry via R.5) or **Closure**.
   - **Closure sequence**: (1) merge `pipeline/<project-name>` to the default branch (`manifest.json` → `default_branch`), (2) tag the merge result with the version from O9, (3) branch cleanup — user confirms or declines deletion of `pipeline/<project-name>`. Once the user selects Closure, the sequence executes without further confirmation.
@@ -221,14 +222,15 @@ When re-entering from COMPLETED or auxiliary flows (B1/C-ADO1):
 
 1. **Branch check**: verify `pipeline/<project-name>` branch exists and is the active branch. If re-entry from COMPLETED and branch was merged/deleted, create new `pipeline/<project-name>` from the default branch (`manifest.json` → `default_branch`) per R.6.
 2. **Archive**: move post-re-entry artifacts to `archive/<timestamp>/`
-3. **Update manifest**: set new state, reference archive
-4. **Automode safety**: if re-entry target is `C2`, set `automode: false` in `manifest.json` before resuming. Commit this change as part of re-entry so C2 remains fully interactive.
-5. **Commit**: `[RE-ENTRY] [Orchestrator] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
-6. **Post-reentry checkpoint**: write `## Pipeline Checkpoint [post-reentry]` with: resulting state, `from_state -> target_stage`, archive path, scope impact, next stage/agent, required input artifacts, pending gate
-7. **Context compaction**: suggest immediate compaction after the checkpoint. If autonomous compaction support exists, allow automatic compaction at this point.
-8. **Resume**: from indicated stage with preceding artifacts intact
-9. **Preflight**: run R.0 Entry Preflight before first post-reentry dispatch. If preflight is `BLOCKED`, halt and request user intervention.
-10. **Delegation**: identify the agent responsible for the target stage from the Agent-to-Stage mapping and delegate using R.1 (starting from step 2, dispatch commit). You MUST NOT execute stages assigned to other agents.
+3. **Decision log compaction** (R.15): if `docs/decision-log.md` exists, compact it per R.15 compaction rules. The compacted file is included in the re-entry commit (step 6).
+4. **Update manifest**: set new state, reference archive
+5. **Automode safety**: if re-entry target is `C2`, set `automode: false` in `manifest.json` before resuming. Commit this change as part of re-entry so C2 remains fully interactive.
+6. **Commit**: `[RE-ENTRY] [Orchestrator] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
+7. **Post-reentry checkpoint**: write `## Pipeline Checkpoint [post-reentry]` with: resulting state, `from_state -> target_stage`, archive path, scope impact, next stage/agent, required input artifacts, pending gate
+8. **Context compaction**: suggest immediate compaction after the checkpoint. If autonomous compaction support exists, allow automatic compaction at this point.
+9. **Resume**: from indicated stage with preceding artifacts intact
+10. **Preflight**: run R.0 Entry Preflight before first post-reentry dispatch. If preflight is `BLOCKED`, halt and request user intervention.
+11. **Delegation**: identify the agent responsible for the target stage from the Agent-to-Stage mapping and delegate using R.1 (starting from step 2, dispatch commit). You MUST NOT execute stages assigned to other agents.
 
 **Scope**: R.5 applies ONLY to user-initiated re-entry. Correction loops (O4/O5/O6→O3) use R.7 instead.
 **Archive policy**: never auto-deleted. Full traceability preserved.
@@ -287,6 +289,20 @@ When O4, O5, or O6 find issues and user chooses correction:
 6. Commit format: `[O3] [Builder] Module <name> corrected (correction from <originating-stage>)`
 
 **Examples**: O4→O3→O4 | O5→O3→O4→O5 | O6→O3→O4→O5→O6
+
+## R.15 — Decision Log
+
+A committed artifact (`docs/decision-log.md`) that captures key decisions with rationale across pipeline runs. Any agent appends a row when making a choice between genuine alternatives — not for straightforward spec applications.
+
+**Format**: Markdown table with columns: `#`, `Stage`, `Decision`, `Rationale`, `Alternatives considered`.
+
+**File creation**: the first agent that needs to log a decision creates the file with the table header (typically during O1 or O2).
+
+**Reading**: on-demand only — during R.5 re-entry (compaction), R.7 correction loops (context), O10 closure (compaction), B1/C-ADO1 audit (consistency), or user request.
+
+**Compaction**: at R.5 re-entry (step 3, after archival) and O10 (before final report), compact the log: merge superseded entries, remove transient decisions, retain permanent choices. Target: ~15-25 permanent entries.
+
+**Instruct agents**: when dispatching any agent, include in the context brief: *"If you make a choice between genuine alternatives, append it to `docs/decision-log.md` (R.15). Don't log obvious spec applications."*
 
 ## R.8 — Escalation Protocol
 
@@ -508,7 +524,7 @@ O3 is NOT a single subagent invocation. You manage a per-module loop:
       - **Progress**: "Module M/N completed"
       This summary is informational — no user gate per module.
 5. Invoke Builder for cumulative report `logs/builder-cumulative-report-<N>.md`
-6. Invoke Builder for codebase digest generation (`docs/codebase-digest.md`, per R.13 — mechanical file system extraction)
+6. Invoke Builder for codebase digest generation (`docs/codebase-digest.md`, per R.13 — mechanical file system extraction; if `docs/decision-log.md` exists, include a summary line with total decision count and most recent stage per R.15)
 7. Final commit: `[O3] [Orchestrator] All N modules completed`
 8. Manifest → `O3_MODULES_GENERATED`
 
@@ -807,6 +823,7 @@ any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scr
 - On R.5 re-entry at operational stages: verify digest exists; if not, dispatch Builder to generate it before proceeding to re-entry target
 - On R.5 re-entry at cognitive stages (C2–C9): include `docs/codebase-digest.md` path in agent invocations when the file exists, so cognitive agents have implementation awareness
 - After C-ADO1 completion: if Auditor generated `docs/codebase-digest.md` (preliminary digest from existing code), include it in subsequent agent invocations during conformance plan execution and re-entry (R.13)
+- ALWAYS instruct dispatched agents to log genuine alternative choices to `docs/decision-log.md` (R.15)
 - ALWAYS present the R.10 Re-Entry Guide when the user selects Iteration at O10
 - After R.5 re-entry, ALWAYS delegate the target stage to its assigned agent (per final delegation step in R.5)
 - After R.7 re-traversal (O4→O5→O6), ALWAYS delegate each stage to its assigned agent — never execute them yourself

@@ -263,6 +263,20 @@ When O4, O5, or O6 identifies issues and the user chooses correction (option a o
 - O5→O3 correction: O3 → O4 → O5
 - O6→O3 correction: O3 → O4 → O5 → O6
 
+### R.15 — Decision Log
+
+A committed artifact (`docs/decision-log.md`) that captures key decisions with rationale across pipeline runs. Any agent appends a row when making a choice between genuine alternatives — not for straightforward spec applications.
+
+**Format**: Markdown table with columns: `#`, `Stage`, `Decision`, `Rationale`, `Alternatives considered`.
+
+**File creation**: the first agent that needs to log a decision creates the file with the table header (typically during O1 or O2).
+
+**Reading**: on-demand only — during R.5 re-entry (compaction), R.7 correction loops (context), O10 closure (compaction), B1/C-ADO1 audit (consistency), or user request.
+
+**Compaction**: at R.5 re-entry (step 3, after archival) and O10 (before final report), compact the log: merge superseded entries, remove transient decisions, retain permanent choices. Target: ~15-25 permanent entries.
+
+**Instruct agents**: when dispatching any agent (Builder, Validator, Debugger, Auditor), include in the context brief: *"If you make a choice between genuine alternatives, append it to `docs/decision-log.md` (R.15). Don't log obvious spec applications."*
+
 ### R.9 — Progress Metrics
 
 - **Pipeline-level**: manifest records `progress.current_stage`, `progress.current_stage_index` (1-based), `progress.total_stages`
@@ -358,7 +372,7 @@ You manage the O3 iteration loop. The Builder is invoked once per module.
    e. Update manifest (`progress.modules_completed` += 1) and commit artifacts + manifest together: `[O3] [Builder] Module <module-name> implemented (M/N)`
    f. Executive summary to user (no user gate per module)
 5. Invoke Builder for cumulative report (`logs/builder-cumulative-report-1.md`)
-6. Invoke Builder for codebase digest generation (`docs/codebase-digest.md`, per R.13 — mechanical file system extraction)
+6. Invoke Builder for codebase digest generation (`docs/codebase-digest.md`, per R.13 — mechanical file system extraction; if `docs/decision-log.md` exists, include a summary line with total decision count and most recent stage per R.15)
 7. Final commit: `[O3] [Orchestrator] All N modules completed`
 8. Manifest → `O3_MODULES_GENERATED`
 
@@ -426,6 +440,7 @@ Pass raw CI failure log + `docs/cicd-configuration.md` + `docs/environment.md` +
 - **Purpose**: verify repository integrity, consolidate pipeline state, merge to `main`, tag release, provide final report
 - **Input**: all pipeline artifacts, `pipeline-state/manifest.json`
 - **Output**: `docs/final-report.md`, manifest updated to `COMPLETED`, Git tag with version from O9
+- **Pre-report**: if `docs/decision-log.md` exists, compact it per R.15 compaction rules before producing the final report
 - **Validation**: every artifact in manifest is present, no untracked files outside manifest, manifest has final state + timestamp
 - **User gate** (normal mode): user chooses:
   - **Iteration**: re-entry at a specific pipeline point (C2–O9) — load `pipeline-orchestrator-advanced` skill for R.5 + R.10
@@ -649,6 +664,7 @@ any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scr
 - On R.5 re-entry at operational stages: verify digest exists; if not, dispatch Builder to generate it before proceeding to re-entry target
 - On R.5 re-entry at cognitive stages (C2–C9): include `docs/codebase-digest.md` path in agent invocations when the file exists, so cognitive agents have implementation awareness
 - After C-ADO1 completion: if Auditor generated `docs/codebase-digest.md` (preliminary digest from existing code), include it in subsequent agent invocations during conformance plan execution and re-entry (R.13)
+- ALWAYS instruct dispatched agents to log genuine alternative choices to `docs/decision-log.md` (R.15)
 - In automode (R.11): ALWAYS choose "full correction" when issues are found
 - In automode (R.11): NEVER auto-proceed C2 — intent clarification is always user-confirmed
 - In automode (R.11): if an O3 module fails, perform ONE automatic retry before halting as R.8 Level 3; NEVER auto-skip failing modules

@@ -131,6 +131,7 @@ docs/repository-structure.md    -> O2
 src/                            -> O3
 tests/                          -> O3
 docs/codebase-digest.md         -> O3 / C-ADO1 (R.13)
+docs/decision-log.md            -> cross-cutting (R.15, optional — may not exist on first run)
 docs/validator-report.md        -> O4
 docs/security-audit-report.md   -> O5
 docs/debugger-report.md         -> O6
