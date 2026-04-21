@@ -177,11 +177,12 @@ When a user requests to resume an existing project:
    - If no match or multiple candidates → ask the user to specify the branch.
    - Verify the resolved branch exists. If not, flag as inconsistency in the audit.
 3. If yes: switch to the branch, set state to `B1_AUDITING`, invoke **Auditor** (`subagent_type: "auditor"`)
-4. Auditor reads `manifest.json` (HEAD) and verifies declared artifacts exist on disk. HISTORY is read only on escalation (if HEAD shows anomalies). Produces `docs/audit-report.md` with: artifact verification, pipeline state, interruption point, recommendation (resume or adoption)
+4. Auditor reads `manifest.json` (HEAD) and verifies declared artifacts exist on disk. Checks `schema_version` and `pipeline_version`. HISTORY is read only on escalation (if HEAD shows anomalies). Produces `docs/audit-report.md` with: artifact verification, pipeline state, interruption point, recommendation (resume, conformance upgrade, or adoption)
 5. Run R.0 Entry Preflight before executing audit recommendation (resume/adoption transition). If preflight is `BLOCKED`, halt and request user intervention.
 6. **User gate**: confirm audit result
 7. If **resumable**: re-enter main flow at the identified point (orchestrator reconstructs context from manifest + artifacts + logs)
-8. If **not resumable**: recommend adoption → transition to C-ADO1
+8. If **conformance upgrade**: update `pipeline_version` in manifest to `"4.2"`, execute targeted gap-filling actions from audit report (invoke agents for missing artifacts), then re-enter at the identified point
+9. If **not resumable**: recommend adoption → transition to C-ADO1
 
 **Key**: if manifest `current_state` ends with `_IN_PROGRESS`, the stage was interrupted — re-execute from scratch.
 

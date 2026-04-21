@@ -1,4 +1,4 @@
-# Software Development Pipeline v4.1
+# Software Development Pipeline v4.2
 
 A formal, multi-agent software development pipeline that transforms ambiguous ideas into working, tested, secure, documented, and releasable software. The pipeline is driven by AI agents coordinated by an Orchestrator, with full traceability via Git and a structured manifest.
 
@@ -137,7 +137,7 @@ software_pipeline/
 │       ├── analyst.agent.md
 │       └── prompt-refiner.agent.md
 │
-├── pipeline_4.1.md             # Formal pipeline definition
+├── pipeline_4.2.md             # Formal pipeline definition
 ├── pipeline_description.md     # Human-readable pipeline description
 └── README.md                   # This file
 ```
@@ -419,10 +419,10 @@ When adding new functionality:
 
 ## Pipeline Definition
 
-- `pipeline_4.1.md` — the complete formal specification, serves as the canonical reference
+- `pipeline_4.2.md` — the complete formal specification, serves as the canonical reference
 - `pipeline_description.md` — a concise human-readable overview
 
 ## Version
 
-**Pipeline**: v4.1  
-**Manifest schema**: 4.1
+**Pipeline**: v4.2  
+**Manifest schema**: 4.2

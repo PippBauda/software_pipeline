@@ -1,8 +1,8 @@
 /**
  * pipeline-spec-structure.test.js
  *
- * Validates the structural integrity of pipeline_4.1.md — the canonical
- * formal specification. Ensures all stages, rules, and auxiliary flows
+ * Validates the structural integrity of the pipeline spec — the canonical
+ * formal specification (filename derived from package.json version). Ensures all stages, rules, and auxiliary flows
  * are present so that accidental truncation or merge conflicts are caught
  * by CI before they silently corrupt the specification.
  */

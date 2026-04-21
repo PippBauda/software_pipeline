@@ -7,7 +7,7 @@ argument-hint: "Describe what you need: 'start' for new project, 'resume' for ex
 
 # Pipeline Orchestrator
 
-You are the **Orchestrator** of a formal software development pipeline (v4.1). You coordinate the entire pipeline lifecycle, invoke specialized subagents for each stage, manage the pipeline state, and communicate progress to the user.
+You are the **Orchestrator** of a formal software development pipeline (v4.2). You coordinate the entire pipeline lifecycle, invoke specialized subagents for each stage, manage the pipeline state, and communicate progress to the user.
 
 ## Your Identity
 
@@ -472,11 +472,12 @@ When a user requests to resume an existing project:
    - If no match or multiple candidates → ask the user to specify the branch.
    - Verify the resolved branch exists. If not, flag as inconsistency in the audit.
 3. If yes: switch to the branch, set state to `B1_AUDITING`, invoke **Auditor**
-4. Auditor reads `manifest.json` (HEAD) and verifies declared artifacts exist on disk. HISTORY is read only on escalation (if HEAD shows anomalies). Produces `docs/audit-report.md` with: artifact verification, pipeline state, interruption point, recommendation (resume or adoption)
+4. Auditor reads `manifest.json` (HEAD) and verifies declared artifacts exist on disk. Checks `schema_version` and `pipeline_version`. HISTORY is read only on escalation (if HEAD shows anomalies). Produces `docs/audit-report.md` with: artifact verification, pipeline state, interruption point, recommendation (resume, conformance upgrade, or adoption)
 5. Run R.0 Entry Preflight before executing audit recommendation (resume/adoption transition). If preflight is `BLOCKED`, halt and request user intervention.
 6. **User gate**: confirm audit result
 7. If **resumable**: re-enter main flow at the identified point (orchestrator reconstructs context from manifest + artifacts + logs)
-8. If **not resumable**: recommend adoption → transition to C-ADO1
+8. If **conformance upgrade**: update `pipeline_version` in manifest to `"4.2"`, execute targeted gap-filling actions from audit report (invoke agents for missing artifacts), then re-enter at the identified point
+9. If **not resumable**: recommend adoption → transition to C-ADO1
 
 **Key**: if manifest `current_state` ends with `_IN_PROGRESS`, the stage was interrupted — re-execute from scratch.
 
@@ -607,8 +608,9 @@ Read at every stage transition (R.CONTEXT). Must stay small (<5 KB).
 
 ```json
 {
-  "schema_version": "4.1",
+  "schema_version": "4.2",
   "pipeline_id": "<unique-id>",
+  "pipeline_version": "4.2",
   "project_name": "<name>",
   "branch": "pipeline/<project-name>",
   "default_branch": "<repository-default-branch>",
@@ -649,7 +651,7 @@ Append-only log. **Never read during normal pipeline flow.** Read only by R.5 (R
 
 ```json
 {
-  "schema_version": "4.1",
+  "schema_version": "4.2",
   "pipeline_id": "<unique-id>",
   "stages_completed": [{
     "stage_id": "<id>",
@@ -719,7 +721,7 @@ O9_RELEASED, COMPLETED
 **System states**:
 
 ```text
-STOPPED, B1_AUDITING, C_ADO1_AUDITING
+STOPPED, B1_AUDITING, B1_CONFORMANCE_UPGRADE, C_ADO1_AUDITING
 ```
 
 **In-progress states** (set at dispatch, before agent invocation):
@@ -789,6 +791,7 @@ STOPPED                  → B1_AUDITING                   # resume request
 STOPPED                  → C_ADO1_AUDITING               # adoption request
 C1_INITIALIZED           → C_ADO1_AUDITING               # adoption mode
 B1_AUDITING              → any C1–O9 state               # resumable
+B1_AUDITING              → B1_CONFORMANCE_UPGRADE         # pipeline_version outdated — targeted gap-filling
 B1_AUDITING              → C_ADO1_AUDITING               # not resumable
 C_ADO1_AUDITING          → any C1–O9 state               # plan complete
 any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scratch

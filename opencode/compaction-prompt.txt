@@ -1,4 +1,4 @@
-You are performing STATE RECONSTRUCTION (not summarization) for a formal software development pipeline (v4.1). The orchestrator reconstructs context from disk at each stage transition, so preserve only routing-critical state.
+You are performing STATE RECONSTRUCTION (not summarization) for a formal software development pipeline (v4.2). The orchestrator reconstructs context from disk at each stage transition, so preserve only routing-critical state.
 
 If one or more `## Pipeline Checkpoint [<id>]` blocks exist, preserve the latest relevant checkpoint VERBATIM and treat it as authoritative.
 

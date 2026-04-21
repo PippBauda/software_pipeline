@@ -1,4 +1,4 @@
-# Software Development Pipeline Formal Model — v4.1
+# Software Development Pipeline Formal Model — v4.2
 
 ---
 
@@ -749,11 +749,12 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
   - `pipeline-state/manifest.json` (HEAD — current state, if present)
 - **Audit methodology** (manifest-guided, not exhaustive):
   1. **Read HEAD**: parse `manifest.json`. If absent or invalid JSON → ADOPTION (skip remaining steps).
-  2. **Schema check**: verify `schema_version` is `"4.1"`. If not → ADOPTION.
-  3. **Artifact verification**: for each entry in `latest_stages`, verify that the declared `artifacts[]` paths exist on disk. For each artifact, confirm it is not empty and its first lines are consistent with the expected type (e.g., a `.md` has a heading matching the artifact kind). Do NOT read full artifact content — a lightweight header check is sufficient.
-  4. **State determination**: from `current_state` and `latest_stages`, identify the last completed stage and any `_IN_PROGRESS` interruption.
-  5. **Assess**: apply RESUME/ADOPTION threshold (see below).
-  6. **Escalation to HISTORY** (conditional): read `pipeline-state/manifest-history.json` ONLY if the HEAD-based analysis reveals an anomaly that requires historical context to diagnose (e.g., `latest_stages` references artifacts that don't exist but may have been archived in a prior re-entry, or `execution_index` values suggest re-executions that need verification). If no anomaly is found, the HISTORY is never read.
+  2. **Schema check**: verify `schema_version` is `"4.2"`. If not → ADOPTION.
+  3. **Pipeline version check**: read `pipeline_version` from the manifest. If absent or less than the current pipeline version (`"4.2"`) → **CONFORMANCE UPGRADE** (see below). If equal → continue to step 4.
+  4. **Artifact verification**: for each entry in `latest_stages`, verify that the declared `artifacts[]` paths exist on disk. For each artifact, confirm it is not empty and its first lines are consistent with the expected type (e.g., a `.md` has a heading matching the artifact kind). Do NOT read full artifact content — a lightweight header check is sufficient.
+  5. **State determination**: from `current_state` and `latest_stages`, identify the last completed stage and any `_IN_PROGRESS` interruption.
+  6. **Assess**: apply RESUME/ADOPTION threshold (see below).
+  7. **Escalation to HISTORY** (conditional): read `pipeline-state/manifest-history.json` ONLY if the HEAD-based analysis reveals an anomaly that requires historical context to diagnose (e.g., `latest_stages` references artifacts that don't exist but may have been archived in a prior re-entry, or `execution_index` values suggest re-executions that need verification). If no anomaly is found, the HISTORY is never read.
 - **Output**:
   - `docs/audit-report.md` — audit report with sub-sections:
     - **Artifact verification**: for each stage in `latest_stages`, whether its declared artifacts are present and structurally valid
@@ -761,22 +762,26 @@ Goal: execute the implementation plan and produce working, tested, secure, docum
     - **Interruption point**: stage at which the project stopped (if `_IN_PROGRESS`)
     - **IN_PROGRESS detection**: if the manifest `current_state` ends with `_IN_PROGRESS`, the stage was started but never completed — this indicates an interrupted invocation. The audit MUST note this and recommend re-executing that stage from scratch.
     - **HISTORY consulted**: whether the HISTORY file was read during the audit, and if so, why
-    - **Recommendation**: resume (with re-entry point) or adoption (with justification)
+    - **Conformance upgrade**: if `pipeline_version` is absent or outdated, the report includes a targeted gap list of artifacts/features introduced after the manifest's `pipeline_version`
+    - **Recommendation**: resume (with re-entry point), conformance upgrade (with targeted gap list), or adoption (with justification)
   - `logs/auditor-analysis-1.md` — analysis log
 - **Transformation**: artifacts declared in `latest_stages` are verified for existence and structural validity to confirm manifest consistency.
 - **Validation criteria**:
   - every artifact declared in `latest_stages` has been verified for existence
   - the interruption point has been uniquely identified
-  - the report contains an explicit recommendation (resume or adoption)
+  - the report contains an explicit recommendation (resume, conformance upgrade, or adoption)
   - `schema_version` is verified for compatibility
+  - `pipeline_version` is compared against the current pipeline version
   - if `current_state` is `_IN_PROGRESS`, this is documented as an interrupted invocation
 - **RESUME/ADOPTION threshold criteria**:
-  - **RESUMABLE** if: `manifest.json` exists AND is valid AND its `schema_version` is compatible AND all artifacts declared in `latest_stages` are present on disk AND the last completed stage is uniquely identifiable
+  - **RESUMABLE** if: `manifest.json` exists AND is valid AND its `schema_version` is compatible AND `pipeline_version` matches the current pipeline version AND all artifacts declared in `latest_stages` are present on disk AND the last completed stage is uniquely identifiable
+  - **CONFORMANCE UPGRADE** if: all RESUMABLE conditions are met EXCEPT `pipeline_version` is absent or less than the current version. The auditor produces a targeted gap list of missing artifacts/features introduced between the manifest's `pipeline_version` and the current version.
   - **ADOPTION** if: `manifest.json` is absent OR corrupted OR schema version incompatible OR declared artifacts are missing from disk OR the last completed stage cannot be uniquely determined
 - **User gate**: the user confirms the audit result
 - **Preflight**: before executing the audit recommendation (resume/adoption transition), run R.0 Entry Preflight. If `BLOCKED`, halt and request user intervention.
 - **Outcome**:
   - **Resumable**: re-entry into the main flow (C/O) at the identified point. The orchestrator reconstructs context by reading: manifest, artifacts from the last completed stage, conversation logs.
+  - **Conformance upgrade**: the orchestrator updates `pipeline_version` in the manifest to the current version, then executes the targeted gap-filling actions identified by the auditor (invoking agents as needed for each missing artifact). Once complete, re-entry at the identified point. This is lighter than full C-ADO1 adoption — only the delta between pipeline versions is addressed.
   - **Not resumable**: recommendation to switch to Flow C (Adoption)
 - **Resulting state**: state of the last completed stage (as determined by audit)
 
@@ -1295,8 +1300,9 @@ Read at every stage transition (R.CONTEXT). Must stay small (<5 KB).
 
 ```json
 {
-  "schema_version": "4.1",
+  "schema_version": "4.2",
   "pipeline_id": "<unique-pipeline-identifier>",
+  "pipeline_version": "4.2",
   "project_name": "<project-name>",
   "branch": "pipeline/<project-name>",
   "default_branch": "<repository-default-branch>",
@@ -1337,7 +1343,7 @@ Append-only log. **Never read during normal pipeline flow.** Read only by R.5 (R
 
 ```json
 {
-  "schema_version": "4.1",
+  "schema_version": "4.2",
   "pipeline_id": "<unique-pipeline-identifier>",
   "stages_completed": [
     {
@@ -1373,8 +1379,9 @@ Append-only log. **Never read during normal pipeline flow.** Read only by R.5 (R
 
 ## Field descriptions
 
-- `schema_version`: manifest schema version (`4.1`), verified by B1 for compatibility. Both HEAD and HISTORY share the same version.
+- `schema_version`: manifest schema version (`4.2`), verified by B1 for structural compatibility. Both HEAD and HISTORY share the same version.
 - `pipeline_id`: unique identifier for this pipeline execution. Same value in both files. **Format**: `<project-name>-<ISO-8601-compact-timestamp>` in UTC (e.g., `my-project-20260420T120000Z`). Generated at C1 initialization. Spaces in the project name are replaced with hyphens.
+- `pipeline_version`: version of the pipeline specification used to initialize this project (e.g., `"4.2"`). Set at C1 initialization. B1 compares this against the current pipeline version to detect projects needing conformance upgrade. Absent in manifests created before this field was introduced — B1 treats absence as "older than 4.2".
 - `project_name`: human-readable project name, used in branch naming (R.6)
 - `branch`: the Git branch where pipeline execution occurs (R.6). Set at C1, used by B1 to locate the working branch on resume.
 - `default_branch`: the repository's default branch at pipeline start (e.g., `main`, `master`, `develop`). Detected by the orchestrator at C1 via `git symbolic-ref --short HEAD` before creating the pipeline branch. Used by O10 as the merge target. Stored here so O10 does not need to re-detect it.
@@ -1404,9 +1411,10 @@ At every stage completion, the manifest updates are committed **together with** 
 
 ## Schema Version Compatibility and Migration
 
-- B1 (Continuity Audit) checks `schema_version` against `"4.1"`. A mismatch triggers ADOPTION (C-ADO1 conformance audit), not an automatic upgrade.
+- B1 (Continuity Audit) checks `schema_version` against `"4.2"`. A mismatch triggers ADOPTION (C-ADO1 conformance audit), not an automatic upgrade.
+- B1 also checks `pipeline_version` against the current pipeline version (`"4.2"`). If `pipeline_version` is absent or less than the current version, B1 triggers a **CONFORMANCE UPGRADE** — a targeted gap-filling flow lighter than full adoption. The auditor identifies only the artifacts/features introduced between the manifest's `pipeline_version` and the current one.
 - **No automatic migration**: there is no in-place migration between schema versions. When upgrading to a future pipeline version with a different `schema_version`, run the new pipeline's C-ADO1 adoption flow against the existing repository. The existing codebase and cognitive artifacts are preserved; only the pipeline state infrastructure (`pipeline-state/`) is rebuilt under the new schema.
-- **Minor version bumps** (e.g., v4.1 → v4.2): schema additions and deprecations are documented in `CHANGELOG.md`. Additive changes (new optional fields) are backward-compatible and do not change `schema_version`. Structural changes increment `schema_version`.
+- **Minor version bumps** (e.g., v4.2 → v4.3): schema additions and deprecations are documented in `CHANGELOG.md`. Additive changes (new optional fields) are backward-compatible and do not change `schema_version`. Structural changes increment `schema_version`. The `pipeline_version` field always reflects the spec version, enabling B1 to detect feature gaps even when `schema_version` is unchanged.
 - **Major version bumps** (e.g., v4.x → v5.0): always include a migration guide in `CHANGELOG.md` describing which cognitive and operational artifacts can be preserved and which must be regenerated.
 
 ---
@@ -1470,6 +1478,7 @@ O10_IN_PROGRESS
 ```text
 STOPPED
 B1_AUDITING
+B1_CONFORMANCE_UPGRADE
 C_ADO1_AUDITING
 ```
 
@@ -1532,6 +1541,8 @@ STOPPED                  → B1_AUDITING                     [resume request]
 STOPPED                  → C_ADO1_AUDITING                 [adoption request]
 C1_INITIALIZED           → C_ADO1_AUDITING                 [adoption mode from C1]
 B1_AUDITING              → any state C1–O9                 [resumable — audit result]
+B1_AUDITING              → B1_CONFORMANCE_UPGRADE          [pipeline_version outdated — targeted gap-filling]
+B1_CONFORMANCE_UPGRADE   → any state C1–O9                 [conformance upgrade complete — resume]
 B1_AUDITING              → C_ADO1_AUDITING                 [not resumable — adoption]
 C_ADO1_AUDITING          → any state C1–O9                 [conformance plan complete]
 
@@ -1609,4 +1620,4 @@ C-ADO1  Conformance Audit            (Auditor)          [Adoption]
 
 ---
 
-*End of formal pipeline model v4.1.*
+*End of formal pipeline model v4.2.*

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Software Development Pipeline v4.1 — Install Script
+# Software Development Pipeline v4.2 — Install Script
 #
 # Usage (interactive):
 #   ./install.sh
@@ -36,7 +36,7 @@ done
 # Interactive prompts (only when value not already set via flags)
 # --------------------------------------------------------------------------
 echo ""
-echo "Software Development Pipeline v4.1 — Installer"
+echo "Software Development Pipeline v4.2 — Installer"
 echo "================================================"
 echo ""
 

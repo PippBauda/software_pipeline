@@ -49,15 +49,15 @@ describe("loadSchema", () => {
   it("should load the HEAD schema and extract schema_version", () => {
     const { schema, schemaVersion } = loadSchema(SCHEMA_PATH)
     assert.equal(typeof schema, "object")
-    assert.equal(schemaVersion, "4.1")
+    assert.equal(schemaVersion, "4.2")
   })
 
   it("should return null version for a schema without const", () => {
-    // Use the history schema which also has const "4.1", so just verify it loads
+    // Use the history schema which also has const "4.2", so just verify it loads
     const historyPath = resolve(import.meta.dirname, "../schemas/manifest-history.schema.json")
     const { schema, schemaVersion } = loadSchema(historyPath)
     assert.equal(typeof schema, "object")
-    assert.equal(schemaVersion, "4.1")
+    assert.equal(schemaVersion, "4.2")
   })
 })
 
@@ -70,7 +70,7 @@ describe("validateManifest", () => {
     const { schema } = loadSchema(SCHEMA_PATH)
     const manifest = JSON.parse(
       `{
-        "schema_version": "4.1",
+        "schema_version": "4.2",
         "pipeline_id": "p1",
         "project_name": "proj",
         "branch": "pipeline/proj",
@@ -87,7 +87,7 @@ describe("validateManifest", () => {
 
   it("should fail a manifest with missing required fields", () => {
     const { schema } = loadSchema(SCHEMA_PATH)
-    const manifest = { schema_version: "4.1" }
+    const manifest = { schema_version: "4.2" }
     const result = validateManifest(manifest, schema)
     assert.equal(result.valid, false)
     assert.ok(result.errors.length > 0)
@@ -113,7 +113,7 @@ describe("validateManifest", () => {
   it("should fail if current_stage_index is 0 (must be >= 1)", () => {
     const { schema } = loadSchema(SCHEMA_PATH)
     const manifest = {
-      schema_version: "4.1",
+      schema_version: "4.2",
       pipeline_id: "p1",
       project_name: "proj",
       branch: "pipeline/proj",
@@ -130,7 +130,7 @@ describe("validateManifest", () => {
   it("should reject additional properties at top level", () => {
     const { schema } = loadSchema(SCHEMA_PATH)
     const manifest = {
-      schema_version: "4.1",
+      schema_version: "4.2",
       pipeline_id: "p1",
       project_name: "proj",
       branch: "pipeline/proj",

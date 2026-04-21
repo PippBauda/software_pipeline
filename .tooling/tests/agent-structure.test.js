@@ -77,8 +77,8 @@ for (const platform of PLATFORMS) {
           assert.ok(h1, "Missing H1 (# Title) heading");
         });
 
-        it("should reference pipeline version (v4.1)", () => {
-          assert.match(content, /v4\.1/, "Must reference pipeline version v4.1");
+        it("should reference pipeline version (v4.2)", () => {
+          assert.match(content, /v4\.2/, "Must reference pipeline version v4.2");
         });
 
         const sectionsToCheck = isOrchestrator ? ORCHESTRATOR_REQUIRED_H2 : REQUIRED_H2;

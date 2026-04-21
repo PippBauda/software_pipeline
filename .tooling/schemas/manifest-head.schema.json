@@ -18,13 +18,18 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "const": "4.1",
-      "description": "Manifest schema version, verified by B1 for compatibility."
+      "const": "4.2",
+      "description": "Manifest schema version, verified by B1 for structural compatibility."
     },
     "pipeline_id": {
       "type": "string",
       "minLength": 1,
       "description": "Unique identifier for this pipeline execution."
+    },
+    "pipeline_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$",
+      "description": "Pipeline specification version used to initialize this project (e.g. '4.2'). Compared by B1 against the current pipeline version to detect conformance gaps. Absent in manifests created before v4.2."
     },
     "project_name": {
       "type": "string",
@@ -46,6 +51,7 @@
       "enum": [
         "C1_INITIALIZED",
         "C_ADO1_AUDITING",
+        "B1_CONFORMANCE_UPGRADE",
         "C2_IN_PROGRESS",
         "C2_INTENT_CLARIFIED",
         "C3_IN_PROGRESS",

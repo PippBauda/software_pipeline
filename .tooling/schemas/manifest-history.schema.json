@@ -9,7 +9,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "const": "4.1",
+      "const": "4.2",
       "description": "Manifest schema version, must match HEAD."
     },
     "pipeline_id": {

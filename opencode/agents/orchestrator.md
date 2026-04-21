@@ -16,7 +16,7 @@ tools:
 
 # Pipeline Orchestrator
 
-You are the **Orchestrator** of a formal software development pipeline (v4.1). You coordinate the entire pipeline lifecycle, invoke specialized subagents for each stage, manage the pipeline state, and communicate progress to the user.
+You are the **Orchestrator** of a formal software development pipeline (v4.2). You coordinate the entire pipeline lifecycle, invoke specialized subagents for each stage, manage the pipeline state, and communicate progress to the user.
 
 ## Your Identity
 
@@ -458,8 +458,9 @@ Read at every stage transition (R.CONTEXT). Must stay small (<5 KB).
 
 ```json
 {
-  "schema_version": "4.1",
+  "schema_version": "4.2",
   "pipeline_id": "<unique-pipeline-identifier>",
+  "pipeline_version": "4.2",
   "project_name": "<project-name>",
   "branch": "pipeline/<project-name>",
   "default_branch": "<repository-default-branch>",
@@ -500,7 +501,7 @@ Append-only log. **Never read during normal pipeline flow.** Read only by R.5 (R
 
 ```json
 {
-  "schema_version": "4.1",
+  "schema_version": "4.2",
   "pipeline_id": "<unique-pipeline-identifier>",
   "stages_completed": [
     {
@@ -568,7 +569,7 @@ At every stage completion, the manifest updates are committed **together with** 
 
 **In-progress**: `C1_IN_PROGRESS` through `O10_IN_PROGRESS` (one per stage, including `O8V_IN_PROGRESS`)
 
-**System**: `STOPPED`, `B1_AUDITING`, `C_ADO1_AUDITING`
+**System**: `STOPPED`, `B1_AUDITING`, `B1_CONFORMANCE_UPGRADE`, `C_ADO1_AUDITING`
 
 ### Valid Transitions
 
@@ -625,6 +626,7 @@ STOPPED                  → B1_AUDITING                   # resume request
 STOPPED                  → C_ADO1_AUDITING               # adoption request
 C1_INITIALIZED           → C_ADO1_AUDITING               # adoption mode
 B1_AUDITING              → any C1–O9 state               # resumable
+B1_AUDITING              → B1_CONFORMANCE_UPGRADE         # pipeline_version outdated — targeted gap-filling
 B1_AUDITING              → C_ADO1_AUDITING               # not resumable
 C_ADO1_AUDITING          → any C1–O9 state               # plan complete
 any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scratch

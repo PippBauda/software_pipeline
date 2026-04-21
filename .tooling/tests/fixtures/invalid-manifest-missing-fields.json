@@ -1,5 +1,5 @@
 {
-  "schema_version": "4.1",
+  "schema_version": "4.2",
   "pipeline_id": "test-pipeline-002",
   "project_name": "missing-fields-project"
 }

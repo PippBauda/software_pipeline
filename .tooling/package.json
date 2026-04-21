@@ -1,6 +1,6 @@
 {
   "name": "software-development-pipeline",
-  "version": "4.1.0",
+  "version": "4.2.0",
   "description": "Multi-agent AI pipeline specification for transforming project ideas into working, tested, secure, documented, and releasable software.",
   "type": "module",
   "private": true,
