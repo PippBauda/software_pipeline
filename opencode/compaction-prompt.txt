@@ -1,8 +1,34 @@
-You are performing STATE RECONSTRUCTION (not summarization) for a formal software development pipeline (v4.2). The orchestrator reconstructs context from disk at each stage transition, so preserve only routing-critical state.
+You are performing STATE RECONSTRUCTION (not summarization) for a software development pipeline (v4.2). Multiple specialized agents share this compaction prompt. Detect which agent is active from the system instructions in the conversation context, then apply the matching role-specific rules below.
 
-If one or more `## Pipeline Checkpoint [<id>]` blocks exist, preserve the latest relevant checkpoint VERBATIM and treat it as authoritative.
+UNIVERSAL RULES (apply to ALL agents)
 
-If NO checkpoint block exists (for example during interactive C2 clarification), preserve this fallback minimum set:
+- If a `## Pipeline Checkpoint [<id>]` block exists, preserve the latest one VERBATIM.
+- Never summarize a summary repeatedly. Preserve structured fields and update only deltas.
+- Prefer artifact paths over artifact content.
+- Preserve the latest structured return summary (Stage/Status/Key findings/Artifacts/Blocking issues).
+- Preserve any active user correction notes, escalation context, or blocking issues verbatim.
+- Drop: completed tool output that has already been processed, old search/grep results, redundant file reads.
+
+ROLE DETECTION
+
+Identify the active agent from its system prompt header:
+- "# Pipeline Orchestrator" → ORCHESTRATOR
+- "# Builder" → BUILDER
+- "# Validator" → VALIDATOR
+- "# Debugger" → DEBUGGER
+- "# Architect" → ARCHITECT
+- "# Prompt Refiner" → PROMPT_REFINER
+- "# Analyst" → ANALYST
+- "# Auditor" → AUDITOR
+- If none match → GENERIC (use universal rules only)
+
+────────────────────────────────────────────
+ORCHESTRATOR — routing and coordination state
+────────────────────────────────────────────
+
+The orchestrator reconstructs context from disk at each stage transition, so preserve only routing-critical state.
+
+If NO checkpoint block exists (e.g. during interactive C2 clarification), preserve this fallback minimum set:
 - latest unresolved user questions
 - latest user answers relevant to those questions
 - current pending gate decision (if any)
@@ -62,7 +88,129 @@ Drop: stale findings from prior loops no longer active.
 Keep: CI/release/closure status and pending gate.
 Drop: old stage chatter not needed for next transition.
 
-CRITICAL
-- Never summarize a summary repeatedly. Preserve structured fields and update only deltas.
-- Prefer artifact paths over artifact content.
-- Preserve the latest Pipeline Checkpoint block exactly when present.
+────────────────────────────────────────────
+BUILDER — implementation context
+────────────────────────────────────────────
+
+Keep:
+- Current stage assignment (O1/O2/O3/O7/O8/O8.V fix)
+- Module name and index (M/N) if in O3
+- Active implementation plan: what is being built, acceptance criteria for current module
+- Test execution results (pass/fail, coverage numbers) for the current module
+- Type-check results if applicable
+- Correction notes from orchestrator (R.7 context)
+- List of artifacts produced so far (paths only)
+- Blocking issues or errors encountered
+- CI failure log and classification (if O8.V fix)
+
+Drop:
+- Completed file write tool outputs (the files are on disk)
+- Previous module implementation details (already committed)
+- Full source code that has been written to disk
+- Old test output from prior runs that have been superseded
+- Grep/glob/read results already processed
+
+────────────────────────────────────────────
+VALIDATOR — verification context
+────────────────────────────────────────────
+
+Keep:
+- Current stage assignment (C8/O4/O5)
+- Findings inventory: each finding with verdict (PASS/FAIL), severity, location
+- Test execution summary (pass/fail counts, coverage percentage)
+- Static analysis summary (linting, complexity, type-check results)
+- Security findings with severity classification (O5)
+- Correction scope received from orchestrator (R.7)
+- Modules receiving full vs. light validation
+- Blocking issues
+
+Drop:
+- Raw test output already summarized into findings
+- Full file contents read for inspection (findings extracted)
+- Grep/glob/read/LSP results already processed into findings
+- Intermediate analysis reasoning superseded by final verdicts
+
+────────────────────────────────────────────
+DEBUGGER — runtime testing context
+────────────────────────────────────────────
+
+Keep:
+- Smoke test plan: scenarios defined and their status (pending/pass/fail)
+- Bugs found: reproduction steps, severity, component, log excerpts
+- Current execution state: which scenario is running
+- Correction scope from orchestrator (R.7)
+- Blocking issues
+
+Drop:
+- Raw runtime logs already analyzed and summarized into findings
+- Full file contents read for test design (scenarios already defined)
+- Completed scenario execution output already captured in findings
+- Grep/glob/read results already processed
+
+────────────────────────────────────────────
+ARCHITECT — design context
+────────────────────────────────────────────
+
+Keep:
+- Current stage assignment (C6/C7/C9)
+- Design decisions made and their rationale
+- Active constraints and requirements being addressed
+- Revision notes from C8 validation or user feedback
+- Traceability mappings (requirement → component → task)
+- Codebase digest awareness (if re-entry with existing code)
+- Blocking issues
+
+Drop:
+- Full artifact content already written to disk
+- Intermediate reasoning superseded by final design decisions
+- Grep/glob/read results already processed into design artifacts
+
+────────────────────────────────────────────
+PROMPT_REFINER — requirements engineering context
+────────────────────────────────────────────
+
+Keep:
+- Current stage assignment (C2/C3/C4)
+- Unresolved gaps, open questions, and assumptions (numbered lists)
+- User answers to previous questions (verbatim)
+- Current intent version / status (NEEDS_CLARIFICATION / READY_FOR_CONFIRMATION)
+- Revision notes from user or orchestrator
+- Codebase digest awareness (if re-entry with existing code)
+- Blocking issues
+
+Drop:
+- Completed conversation turns where questions have been answered and incorporated
+- Full artifact content already written to disk
+- Intermediate drafts superseded by current version
+
+────────────────────────────────────────────
+ANALYST — external source analysis context
+────────────────────────────────────────────
+
+Keep:
+- Sources being analyzed: URL, status (analyzed/pending/inaccessible)
+- Extracted findings per source: patterns, licenses, architectural insights
+- Access errors with details
+- Blocking issues
+
+Drop:
+- Raw cloned repository file listings already processed
+- Full file contents from external sources already summarized
+- Grep/read results already incorporated into analysis
+
+────────────────────────────────────────────
+AUDITOR — audit context
+────────────────────────────────────────────
+
+Keep:
+- Current stage assignment (B1/C-ADO1)
+- Audit findings: artifact verification results, state determination
+- Recommendation (RESUME/CONFORMANCE UPGRADE/ADOPTION) with justification
+- Gap analysis (C-ADO1): missing artifacts per stage
+- Conformance plan actions (C-ADO1)
+- Blocking issues
+
+Drop:
+- Raw manifest content already analyzed into findings
+- File existence checks already recorded in findings
+- Full file contents read for verification already processed
