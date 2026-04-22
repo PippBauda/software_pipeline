@@ -89,13 +89,31 @@ git tag v<X.Y.Z>
 
 **This is the ONLY place in the entire pipeline where a Git tag is created.**
 
-7c. **Branch cleanup**:
+7c. **Push merge + tag to remote**:
+
+```bash
+git push origin <default_branch>
+git push origin v<X.Y.Z>
+```
+
+7d. **CI verification post-merge** (mandatory):
+
+1. Monitor CI on the default branch: `gh run watch` (or `gh run list --branch <default_branch> --limit 1` + poll)
+2. Wait for completion
+3. **PASS** → proceed to 7e
+4. **FAIL** → **HALT**. Present failure to user with options:
+   - (a) Investigate: show `gh run view --log-failed`, attempt fix on default branch
+   - (b) Revert merge: `git revert HEAD` + `git push` + delete tag `git push origin :refs/tags/v<X.Y.Z>` + `git tag -d v<X.Y.Z>`
+   - **Automode**: choose (a) — attempt one fix cycle, if still failing → halt and escalate to user
+
+7e. **Branch cleanup**:
 
 - **Normal mode**: ask user to confirm or decline deletion of `pipeline/<project-name>`
 - **Automode**: delete branch automatically
 
 ```bash
 git branch -d pipeline/<project-name>
+git push origin --delete pipeline/<project-name>
 ```
 
 ### Step 8: Post-closure executive summary
@@ -106,7 +124,9 @@ Include in summary:
 - Version released
 - Merge target branch
 - Tag created
-- Branch status (deleted or retained)
+- Remote push status (merge + tag)
+- CI status on default branch (pass/fail)
+- Branch status (deleted or retained, local + remote)
 
 ### >>> MANDATORY: Write Pipeline Checkpoint [post-o10] <<<
 
@@ -158,7 +178,8 @@ Then append: `Autonomous compaction is triggered at this checkpoint. If needed, 
 
 - **Commit format**: `[<stage-id>] [<agent-name>] <description>`
 - **Tags**: created ONLY by O10 after merge to default branch
-- **Merge**: O10 merges to default branch, then tags
+- **Merge**: O10 merges to default branch, then tags, then pushes both
+- **Push**: O10 pushes merge + tag to remote, verifies CI passes
 - **No force push**
 
 ## Reference: R.15 Decision Log Compaction
