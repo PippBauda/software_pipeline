@@ -4,6 +4,5 @@
     "compaction": {
       "prompt": "{file:compaction-prompt.txt}"
     }
-  },
-  "lsp": {}
+  }
 }

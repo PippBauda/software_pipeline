@@ -4,10 +4,14 @@ A formal, multi-agent software development pipeline that transforms ambiguous id
 
 ## Quick Start
 
-1. **Install** — run `./install.sh` and follow the prompts (choose platform and deployment scope):
+1. **Install** — run `./install.sh` and follow the prompts (two steps for OpenCode):
 
    ```bash
-   ./install.sh
+   # Step 1: agents, skills, plugins (global — safe for all workspaces)
+   ./install.sh --platform opencode --scope global
+
+   # Step 2: activate compaction in your project
+   ./install.sh --platform opencode --scope workspace --target /path/to/project
    ```
 
 2. **Open** — start an OpenCode (or Copilot Chat) session in any project directory.
@@ -131,8 +135,9 @@ software_pipeline/
 │   │       └── SKILL.md        # R.5, R.8, R.10, R.11, R.12, B1/C-ADO1
 │   ├── plugins/
 │   │   └── pipeline-compaction-controller.js  # Required autonomous compaction trigger
-│   ├── compaction-prompt.txt   # Externalized compaction prompt
-│   └── opencode.json           # Project-level config (compaction prompt reference)
+│   ├── compaction-prompt.txt   # Pipeline-aware compaction rules (workspace-local)
+│   ├── opencode-global.json    # Global config (no compaction override)
+│   └── opencode-workspace.json # Workspace config (compaction prompt reference)
 │
 ├── copilot/                    # GitHub Copilot platform files (deployment source)
 │   └── agents/
@@ -173,61 +178,77 @@ The pipeline is implemented for two AI coding platforms:
 
 ## Deployment
 
-The pipeline agents can be deployed **globally** (available in all sessions) or **per-project** (available only when working in a specific project).
+The pipeline uses a **two-step deployment model** for OpenCode:
+
+1. **Global install** — agents, skills, and plugins to `~/.config/opencode/`. Safe for all workspaces; does not alter compaction behavior.
+2. **Workspace activation** — compaction prompt override to a specific project root. Only affects that workspace.
 
 ### OpenCode
 
-#### Global deployment
+#### Step 1: Global deployment
 
-Copy the files from `opencode/` to the system-wide OpenCode config directory (`~/.config/opencode/`):
+Copy agents, skills, and plugins to the system-wide OpenCode config directory (`~/.config/opencode/`):
 
 ```bash
 # Agents
 cp opencode/agents/*.md ~/.config/opencode/agents/
 
-# Skill
-mkdir -p ~/.config/opencode/skills/pipeline-orchestrator-advanced/
-mkdir -p ~/.config/opencode/skills/pipeline-orchestrator-startup/
-mkdir -p ~/.config/opencode/skills/pipeline-orchestrator-o3/
-mkdir -p ~/.config/opencode/skills/pipeline-orchestrator-validation/
-mkdir -p ~/.config/opencode/skills/pipeline-orchestrator-finalization/
-cp opencode/skills/pipeline-orchestrator-advanced/SKILL.md \
-   ~/.config/opencode/skills/pipeline-orchestrator-advanced/
-cp opencode/skills/pipeline-orchestrator-startup/SKILL.md \
-   ~/.config/opencode/skills/pipeline-orchestrator-startup/
-cp opencode/skills/pipeline-orchestrator-o3/SKILL.md \
-   ~/.config/opencode/skills/pipeline-orchestrator-o3/
-cp opencode/skills/pipeline-orchestrator-validation/SKILL.md \
-   ~/.config/opencode/skills/pipeline-orchestrator-validation/
-cp opencode/skills/pipeline-orchestrator-finalization/SKILL.md \
-   ~/.config/opencode/skills/pipeline-orchestrator-finalization/
+# Skills
+for skill in pipeline-orchestrator-advanced pipeline-orchestrator-startup \
+  pipeline-orchestrator-o3 pipeline-orchestrator-validation \
+  pipeline-orchestrator-finalization; do
+  mkdir -p ~/.config/opencode/skills/$skill/
+  cp opencode/skills/$skill/SKILL.md ~/.config/opencode/skills/$skill/
+done
 
 # Required plugin for autonomous compaction at pipeline checkpoints
 mkdir -p ~/.config/opencode/plugins/
 cp opencode/plugins/pipeline-compaction-controller.js \
    ~/.config/opencode/plugins/
 
-# Compaction prompt file referenced by opencode.json
-cp opencode/compaction-prompt.txt ~/.config/opencode/compaction-prompt.txt
-
-# Config (compaction prompt reference)
-cp opencode/opencode.json ~/.config/opencode/opencode.json
+# Global config (no compaction prompt override — safe for all workspaces)
+cp opencode/opencode-global.json ~/.config/opencode/opencode.json
 ```
 
 After deployment, agents are available globally in all OpenCode sessions.
+Compaction behavior is unchanged until you activate a workspace.
 
-#### Per-project deployment
+#### Step 2: Workspace activation
 
-Copy the files into the target project. OpenCode auto-detects `.opencode/` at the workspace root and `opencode.json` in the project root:
+Copy the compaction prompt override to the project where you will run the pipeline.
+This only affects compaction in that specific workspace:
+
+```bash
+cd /path/to/your/project
+cp /path/to/software_pipeline/opencode/opencode-workspace.json opencode.json
+cp /path/to/software_pipeline/opencode/compaction-prompt.txt   compaction-prompt.txt
+```
+
+After activation, the pipeline-aware compaction prompt is active only in that project.
+
+#### Full project isolation (alternative)
+
+Copy everything local to a single project. OpenCode auto-detects `.opencode/` at the workspace root:
 
 ```bash
 cd /path/to/your/project
 
-# Agents, skills, plugins, compaction prompt
-cp -r /path/to/software_pipeline/opencode .opencode
+# Agents, skills, plugins
+mkdir -p .opencode/agents/ .opencode/plugins/
+cp /path/to/software_pipeline/opencode/agents/*.md .opencode/agents/
+for skill in pipeline-orchestrator-advanced pipeline-orchestrator-startup \
+  pipeline-orchestrator-o3 pipeline-orchestrator-validation \
+  pipeline-orchestrator-finalization; do
+  mkdir -p .opencode/skills/$skill/
+  cp /path/to/software_pipeline/opencode/skills/$skill/SKILL.md \
+     .opencode/skills/$skill/
+done
+cp /path/to/software_pipeline/opencode/plugins/pipeline-compaction-controller.js \
+   .opencode/plugins/
 
-# Config (must be at project root, not inside .opencode/)
-mv .opencode/opencode.json opencode.json
+# Workspace config + compaction prompt (project root)
+cp /path/to/software_pipeline/opencode/opencode-workspace.json opencode.json
+cp /path/to/software_pipeline/opencode/compaction-prompt.txt   compaction-prompt.txt
 ```
 
 After deployment, agents are available only when working in that project.

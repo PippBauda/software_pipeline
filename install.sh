@@ -6,9 +6,15 @@
 #
 # Usage (non-interactive):
 #   ./install.sh --platform opencode  --scope global
-#   ./install.sh --platform opencode  --scope project --target /path/to/project
+#   ./install.sh --platform opencode  --scope workspace --target /path/to/project
+#   ./install.sh --platform opencode  --scope project   --target /path/to/project
 #   ./install.sh --platform copilot   --scope global
-#   ./install.sh --platform copilot   --scope project --target /path/to/project
+#   ./install.sh --platform copilot   --scope project   --target /path/to/project
+#
+# Scopes (OpenCode):
+#   global    — agents, skills, plugins to ~/.config/opencode/ (safe, no behavior change)
+#   workspace — compaction prompt + config to project root (activates pipeline compaction)
+#   project   — everything local to the project (full isolation)
 
 set -euo pipefail
 
@@ -55,17 +61,19 @@ fi
 if [[ -z "$SCOPE" ]]; then
   echo ""
   echo "Choose deployment scope:"
-  echo "  1) Global   — available in all sessions (recommended)"
-  echo "  2) Project  — available only in one specific project directory"
+  echo "  1) Global    — agents, skills, plugins to ~/.config/opencode (recommended)"
+  echo "  2) Workspace — activate pipeline compaction in a specific project"
+  echo "  3) Project   — everything local to one project (full isolation)"
   read -rp "Scope [1]: " _choice
   case "${_choice:-1}" in
-    1|global)  SCOPE="global"  ;;
-    2|project) SCOPE="project" ;;
+    1|global)    SCOPE="global"    ;;
+    2|workspace) SCOPE="workspace" ;;
+    3|project)   SCOPE="project"   ;;
     *) echo "Invalid choice; defaulting to global."; SCOPE="global" ;;
   esac
 fi
 
-if [[ "$SCOPE" == "project" && -z "$TARGET" ]]; then
+if [[ "$SCOPE" == "project" && -z "$TARGET" ]] || [[ "$SCOPE" == "workspace" && -z "$TARGET" ]]; then
   echo ""
   read -rp "Path to your project directory: " TARGET
   TARGET="${TARGET/#\~/$HOME}"   # expand leading ~
@@ -74,9 +82,9 @@ fi
 # --------------------------------------------------------------------------
 # Validate target directory (project scope)
 # --------------------------------------------------------------------------
-if [[ "$SCOPE" == "project" ]]; then
+if [[ "$SCOPE" == "project" || "$SCOPE" == "workspace" ]]; then
   if [[ -z "$TARGET" ]]; then
-    echo "Error: --target is required for project scope."
+    echo "Error: --target is required for $SCOPE scope."
     exit 1
   fi
   if [[ ! -d "$TARGET" ]]; then
@@ -89,7 +97,7 @@ echo ""
 echo "Installing:"
 echo "  Platform : $PLATFORM"
 echo "  Scope    : $SCOPE"
-[[ "$SCOPE" == "project" ]] && echo "  Target   : $TARGET"
+[[ "$SCOPE" == "project" || "$SCOPE" == "workspace" ]] && echo "  Target   : $TARGET"
 echo ""
 
 # --------------------------------------------------------------------------
@@ -111,10 +119,24 @@ install_opencode_global() {
   cp "$PIPELINE_DIR/opencode/plugins/pipeline-compaction-controller.js" \
      "$dest/plugins/"
 
-  cp "$PIPELINE_DIR/opencode/compaction-prompt.txt" "$dest/compaction-prompt.txt"
-  cp "$PIPELINE_DIR/opencode/opencode.json"         "$dest/opencode.json"
+  # Global config without compaction prompt override — safe for all workspaces
+  cp "$PIPELINE_DIR/opencode/opencode-global.json" "$dest/opencode.json"
 
   echo "Installed to $dest/"
+  echo ""
+  echo "  Note: to activate pipeline-aware compaction in a specific project,"
+  echo "  run again with --scope workspace --target /path/to/project"
+}
+
+install_opencode_workspace() {
+  # Only the compaction prompt override — activates pipeline compaction
+  # for this workspace without affecting other workspaces
+  cp "$PIPELINE_DIR/opencode/opencode-workspace.json" "$TARGET/opencode.json"
+  cp "$PIPELINE_DIR/opencode/compaction-prompt.txt"    "$TARGET/compaction-prompt.txt"
+
+  echo "Installed workspace config to $TARGET/"
+  echo "  - opencode.json         (compaction prompt override)"
+  echo "  - compaction-prompt.txt (pipeline-aware compaction rules)"
 }
 
 install_opencode_project() {
@@ -132,10 +154,10 @@ install_opencode_project() {
   cp "$PIPELINE_DIR/opencode/plugins/pipeline-compaction-controller.js" \
      "$dest/plugins/"
 
-  cp "$PIPELINE_DIR/opencode/compaction-prompt.txt" "$dest/compaction-prompt.txt"
+  cp "$PIPELINE_DIR/opencode/compaction-prompt.txt" "$TARGET/compaction-prompt.txt"
 
-  # opencode.json must live at the project root, not inside .opencode/
-  cp "$PIPELINE_DIR/opencode/opencode.json" "$TARGET/opencode.json"
+  # Project-level config with compaction prompt override
+  cp "$PIPELINE_DIR/opencode/opencode-workspace.json" "$TARGET/opencode.json"
 
   echo "Installed to $dest/ (config: $TARGET/opencode.json)"
 }
@@ -162,10 +184,11 @@ install_copilot_project() {
 # Dispatch
 # --------------------------------------------------------------------------
 case "$PLATFORM-$SCOPE" in
-  opencode-global)  install_opencode_global  ;;
-  opencode-project) install_opencode_project ;;
-  copilot-global)   install_copilot_global   ;;
-  copilot-project)  install_copilot_project  ;;
+  opencode-global)    install_opencode_global    ;;
+  opencode-workspace) install_opencode_workspace ;;
+  opencode-project)   install_opencode_project   ;;
+  copilot-global)     install_copilot_global     ;;
+  copilot-project)    install_copilot_project    ;;
   *) echo "Unknown platform/scope combination: $PLATFORM/$SCOPE"; exit 1 ;;
 esac
 
@@ -178,8 +201,17 @@ echo ""
 
 if [[ "$PLATFORM" == "opencode" ]]; then
   echo "Next steps:"
-  echo "  1. (Re)start OpenCode to load the new agents."
-  echo "  2. Open any project directory in OpenCode."
+  if [[ "$SCOPE" == "global" ]]; then
+    echo "  1. Activate pipeline compaction in your project:"
+    echo "       ./install.sh --platform opencode --scope workspace --target /path/to/project"
+    echo "  2. (Re)start OpenCode to load the new agents."
+  elif [[ "$SCOPE" == "workspace" ]]; then
+    echo "  1. Run global install first (if not done already):"
+    echo "       ./install.sh --platform opencode --scope global"
+    echo "  2. (Re)start OpenCode in $TARGET"
+  else
+    echo "  1. (Re)start OpenCode to load the new agents."
+  fi
   echo "  3. Describe your project idea to the Orchestrator:"
   echo '       "I want to build a web app that manages tasks with user authentication."'
   echo "  4. The pipeline starts automatically — follow the Orchestrator's prompts."
