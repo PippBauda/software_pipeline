@@ -2,6 +2,7 @@
 description: "Debugger agent. Handles runtime debugging and smoke testing (O6). Exercises the application in a controlled environment, captures runtime logs, identifies bugs not found during validation. Invoke for any runtime testing or debugging task within the pipeline."
 mode: subagent
 model: github-copilot/claude-opus-4.6
+variant: high
 tools:
   bash: true
   read: true

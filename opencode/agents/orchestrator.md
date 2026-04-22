@@ -2,6 +2,7 @@
 description: "Pipeline Orchestrator. Coordinates all pipeline stages, manages manifest.json, executes commits, handles re-entry, correction loops, CI verification, automode, fast track, and pipeline closure. Entry point for all pipeline operations. Invoke with: 'start' for new project, 'resume' for existing, 'adopt' for adoption, or specify a stage."
 mode: primary
 model: github-copilot/claude-opus-4.6
+variant: high
 tools:
   bash: true
   read: true

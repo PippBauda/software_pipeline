@@ -2,6 +2,7 @@
 description: "Auditor agent. Handles continuity audit for pipeline resumption (B1) and conformance audit for project adoption (C-ADO1). Analyzes existing repositories to determine project state, produces gap analyses and conformance plans. Invoke for resume or adoption assessment."
 mode: subagent
 model: github-copilot/claude-opus-4.6
+variant: high
 tools:
   bash: true
   read: true

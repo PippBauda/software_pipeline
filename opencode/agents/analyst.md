@@ -2,6 +2,7 @@
 description: "Analyst agent. Handles external code source analysis (C5). Extracts architectural patterns from upstream repositories, audits licenses, clones and inspects reference implementations. Invoke when project-spec references external code sources."
 mode: subagent
 model: github-copilot/claude-opus-4.6
+variant: high
 tools:
   bash: true
   read: true

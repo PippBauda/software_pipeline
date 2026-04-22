@@ -2,6 +2,7 @@
 description: "Prompt Refiner agent. Handles intent clarification (C2), problem formalization (C3), and requirements extraction (C4). Transforms ambiguous user ideas into structured specifications through progressive refinement. Invoke for any requirements engineering task within the pipeline."
 mode: subagent
 model: github-copilot/claude-opus-4.6
+variant: high
 tools:
   bash: true
   read: true
