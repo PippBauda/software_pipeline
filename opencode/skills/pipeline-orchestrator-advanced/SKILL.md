@@ -23,7 +23,7 @@ When the user chooses to re-enter the pipeline at a previous point (from O10/COM
 
    Write this block EXACTLY in the conversation:
 
-   ```
+   ```text
    ## Pipeline Checkpoint [post-reentry]
    - **State**: <current_state from manifest>
    - **Progress**: stage <X>/<Y>

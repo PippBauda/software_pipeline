@@ -49,6 +49,7 @@ When O4, O5, or O6 identifies issues and user chooses correction:
 1. **Return to O3**: construct correction notes from originating stage findings → invoke Builder for affected modules only
 2. **Digest regeneration**: after O3 corrections, invoke Builder to regenerate `docs/codebase-digest.md`
 3. **Construct correction scope**:
+
    ```yaml
    correction_scope:
      corrected_modules: [<module-names>]
@@ -56,6 +57,7 @@ When O4, O5, or O6 identifies issues and user chooses correction:
      change_summary: "<brief description>"
      originating_stage: "<O4|O5|O6>"
    ```
+
 4. **Re-execute from O4** sequentially through all stages until reaching the originating stage:
    - O4→O3 correction chain: O3 → O4
    - O5→O3 correction chain: O3 → O4 → O5

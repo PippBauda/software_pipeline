@@ -37,24 +37,30 @@ Load this skill after O8.V CI verification passes.
 **You execute O10 directly. Follow every step — do not skip any.**
 
 ### Step 1: Stage start
+
 - Set manifest: `current_state` → `O10_IN_PROGRESS`. Commit: `[O10] [Orchestrator] Stage started`
 
 ### Step 2: Pre-report tasks
+
 - If `docs/decision-log.md` exists → compact it per R.15 rules (merge superseded entries, remove transient, target ~15-25 permanent entries)
 
 ### Step 3: Validation
+
 - Verify every artifact declared in manifest `latest_stages` is present on disk
 - Verify no untracked pipeline files outside manifest
 - Verify manifest has final state + timestamp
 
 ### Step 4: Produce final report
+
 - Write `docs/final-report.md` — consolidate pipeline state, summary of all stages, final status
 
 ### Step 5: Update manifest
+
 - Set `current_state` → `COMPLETED`, add final timestamp
 - Commit artifacts + manifest: `[O10] [Orchestrator] Pipeline completed`
 
 ### Step 6: User gate
+
 Present options to user:
 
 - **(a) Iteration**: re-enter pipeline at a specific point (C2-O9)
@@ -69,27 +75,33 @@ Present options to user:
 ### Step 7: Closure Sequence (execute ALL sub-steps in order)
 
 7a. **Merge**: merge `pipeline/<project-name>` to the default branch (`manifest.json` → `default_branch`)
-   ```
-   git checkout <default_branch>
-   git merge pipeline/<project-name>
-   ```
+
+```bash
+git checkout <default_branch>
+git merge pipeline/<project-name>
+```
 
 7b. **Tag**: create Git tag on the merge result with version from O9 (`latest_stages[O9].version`)
-   ```
-   git tag v<X.Y.Z>
-   ```
-   **This is the ONLY place in the entire pipeline where a Git tag is created.**
+
+```bash
+git tag v<X.Y.Z>
+```
+
+**This is the ONLY place in the entire pipeline where a Git tag is created.**
 
 7c. **Branch cleanup**:
-   - **Normal mode**: ask user to confirm or decline deletion of `pipeline/<project-name>`
-   - **Automode**: delete branch automatically
-   ```
-   git branch -d pipeline/<project-name>
-   ```
+
+- **Normal mode**: ask user to confirm or decline deletion of `pipeline/<project-name>`
+- **Automode**: delete branch automatically
+
+```bash
+git branch -d pipeline/<project-name>
+```
 
 ### Step 8: Post-closure executive summary
 
 Include in summary:
+
 - Final project status
 - Version released
 - Merge target branch
@@ -100,7 +112,7 @@ Include in summary:
 
 Write this block EXACTLY in the conversation:
 
-```
+```text
 ## Pipeline Checkpoint [post-o10]
 - **State**: COMPLETED
 - **Progress**: stage <Y>/<Y>

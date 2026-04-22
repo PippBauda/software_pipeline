@@ -54,7 +54,7 @@ You manage the O3 iteration loop. The Builder is invoked once per module.
 
 After step 8 above, if more than 5 modules were generated, write this block EXACTLY:
 
-```
+```text
 ## Pipeline Checkpoint [post-o3]
 - **State**: O3_MODULES_GENERATED
 - **Progress**: stage <X>/<Y> | modules <N>/<N>

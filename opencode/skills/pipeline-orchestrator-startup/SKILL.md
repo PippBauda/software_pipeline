@@ -43,6 +43,7 @@ Every stage follows this pattern. Execute each step explicitly — do not skip.
 9. **Revision** (if needed): repeat from step 2 with user's notes.
 
 **For stages you execute directly** (C1, O9, O10): simplified variant:
+
 1. Set `current_state` → `<STAGE>_IN_PROGRESS`, commit: `[<stage-id>] [Orchestrator] Stage started`
 2. Execute stage work
 3. Update manifest + commit results together: `[<stage-id>] [Orchestrator] <description>`
@@ -68,6 +69,7 @@ C1 is NOT a pipeline stage — it is automatic infrastructure setup.
 8. Commit: `[C1] [Orchestrator] Pipeline initialized`
 
 **Then:**
+
 - **New project**: run R.0 Entry Preflight → dispatch C2
 - **Adoption**: set manifest to `C_ADO1_AUDITING` → invoke Auditor (load `pipeline-orchestrator-advanced` skill for C-ADO1)
 
@@ -112,7 +114,7 @@ If check fails → report missing/inconsistent artifacts → **halt** (require u
 
 Write this block EXACTLY in the conversation:
 
-```
+```text
 ## Pipeline Checkpoint [post-cognitive]
 - **State**: <current_state from manifest>
 - **Progress**: stage <X>/<Y>
