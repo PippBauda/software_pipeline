@@ -39,7 +39,7 @@ jobs:
         run: npx --prefix .tooling eslint .
 
       - name: Lint (Markdown)
-        run: npx --prefix .tooling markdownlint '**/*.md' --ignore node_modules --ignore .tooling/node_modules
+        run: npx --prefix .tooling markdownlint '**/*.md'
         
       - name: Check formatting
         run: npm run format:check
