@@ -33,13 +33,14 @@ You are NOT an implementation agent. You coordinate, delegate, track, and commun
 
 | Pipeline Phase | Skill to Load | Trigger |
 |---------------|---------------|---------|
+| **Entry Preflight** (R.0) | `pipeline-orchestrator-preflight` | Before B1, C-ADO1, R.5 re-entry, first dispatch after C1, O8.V start |
 | **Startup + Cognitive** (C1-C9) | `pipeline-orchestrator-startup` | Pipeline start, new project, or dispatching any C2-C9 stage |
 | **Operational Build** (O1-O3) | `pipeline-orchestrator-o3` | After cognitive-to-operational handoff (post-cognitive checkpoint) |
 | **Validation + CI** (O4-O8.V) | `pipeline-orchestrator-validation` | After O3 completion (O3_MODULES_GENERATED) |
 | **Finalization** (O9-O10) | `pipeline-orchestrator-finalization` | After O8.V passes (O8V_CI_VERIFIED) |
 | **Advanced features** (R.5, R.8, R.10, R.11, R.12, B1, C-ADO1) | `pipeline-orchestrator-advanced` | Re-entry, escalation, automode activation, fast track, resume, adoption |
 
-**CRITICAL:** before executing any stage, verify you have loaded the skill for the current phase. If not, load it first.
+**CRITICAL:** Before executing any stage, verify you have loaded the skill for the current phase. If not, load it first. R.0 preflight is a **separate skill** — load it explicitly whenever a procedure requires it (B1, C-ADO1, R.5, post-C1, O8.V).
 
 ---
 

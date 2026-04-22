@@ -123,8 +123,10 @@ software_pipeline/
 │   │   ├── analyst.md          # Subagent
 │   │   └── prompt-refiner.md   # Subagent
 │   ├── skills/
+│   │   ├── pipeline-orchestrator-preflight/
+│   │   │   └── SKILL.md        # R.0 entry preflight (environment, LSP setup)
 │   │   ├── pipeline-orchestrator-startup/
-│   │   │   └── SKILL.md        # C1, R.0, R.1, cognitive dispatch, handoff
+│   │   │   └── SKILL.md        # C1, R.1, cognitive dispatch, handoff
 │   │   ├── pipeline-orchestrator-o3/
 │   │   │   └── SKILL.md        # O1-O3 module loop, R.13 digest
 │   │   ├── pipeline-orchestrator-validation/

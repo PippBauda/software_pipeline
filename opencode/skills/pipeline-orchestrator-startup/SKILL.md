@@ -1,6 +1,6 @@
 ---
 name: pipeline-orchestrator-startup
-description: "Orchestrator procedures for pipeline startup: C1 initialization, R.0 entry preflight, R.1 standard interaction pattern, cognitive phase dispatch (C2-C9), C2 mandatory interactive loop, and cognitive-to-operational handoff with post-cognitive checkpoint. Load at pipeline start."
+description: "Orchestrator procedures for pipeline startup: C1 initialization, R.1 standard interaction pattern, cognitive phase dispatch (C2-C9), C2 mandatory interactive loop, and cognitive-to-operational handoff with post-cognitive checkpoint. Load at pipeline start."
 ---
 
 # Pipeline Orchestrator — Startup & Cognitive Phase
@@ -9,31 +9,9 @@ Load this skill when starting a new pipeline (C1), or when dispatching cognitive
 
 ---
 
-## R.0 — Entry Preflight (Mandatory)
+## R.0 Reference
 
-Execute before first dispatch after C1, before B1, before C-ADO1, before R.5 re-entry, and before O8.V start.
-
-**Steps:**
-
-1. Verify `git` CLI available and repository writable
-2. `git rev-parse --is-inside-work-tree` succeeds
-3. `git status` succeeds
-4. If O8.V is in path: verify `gh` CLI available, `gh auth status` valid, `origin` remote configured
-5. If `docs/environment.md` exists (O1+): verify declared runtime/package manager CLIs are available
-6. **LSP infrastructure setup** (every session): invoke **Builder** (`subagent_type: "builder"`) with this task:
-
-   *"Set up all available OpenCode LSP language servers on this system. Steps:*
-   *1. Fetch the LSP server table from `https://opencode.ai/docs/lsp` — extract the full list of supported servers with their file extensions, requirements, and whether they auto-install.*
-   *2. If the URL is unreachable: search the web for 'OpenCode LSP servers documentation site:opencode.ai' to find the current URL and fetch that instead.*
-   *3. If web search also fails: fall back to this built-in list — auto-install: astro, bash, clangd, lua-ls, kotlin-ls, php-intelephense, svelte, terraform, tinymist, vue, yaml-ls; tool-dependent: gopls (go), rust-analyzer (rustc), pyright (python3), typescript (node+npm), dart, sourcekit-lsp (swift), csharp (dotnet), jdtls (java), ruby-lsp (ruby), zls (zig), elixir-ls (elixir), gleam, clojure-lsp, hls (haskell-language-server-wrapper), ocaml-lsp (ocamllsp), nixd, deno.*
-   *4. For each server in the list: check if its requirement is met on this system. If yes and the server needs installation, install it. If the requirement is not met, skip silently.*
-   *5. Return a structured summary: installed (name + version), already present (name + version), skipped (name + reason: CLI not found), failed (name + error)."*
-
-   Record the Builder's summary in `docs/runtime-preflight.md` under an `## LSP Servers` section. This runs once per session — do not repeat on subsequent stages.
-
-**Outputs:** `docs/runtime-preflight.md` (snapshot), `logs/orchestrator-preflight-<N>.md` (detailed log)
-
-**Decision:** PASS → continue | WARN → continue with warning in executive summary | BLOCKED → halt, request user intervention (not bypassable by automode)
+R.0 (Entry Preflight) is a **separate skill**: `pipeline-orchestrator-preflight`. Load and execute it whenever a procedure requires preflight (before B1, C-ADO1, R.5 re-entry, first dispatch after C1, O8.V start). See the Skill Trigger Table in orchestrator.md.
 
 ---
 
@@ -41,7 +19,7 @@ Execute before first dispatch after C1, before B1, before C-ADO1, before R.5 re-
 
 Every stage follows this pattern. Execute each step explicitly — do not skip.
 
-1. **Preflight** (conditional per R.0): if this is an entry flow or O8.V start, run Entry Preflight first.
+1. **Preflight** (conditional): if this is an entry flow or O8.V start, load skill `pipeline-orchestrator-preflight` and execute R.0 first.
 2. **Context reconstruction**: re-read `pipeline-state/manifest.json` from disk. Consult the Stage Routing Table (in orchestrator.md) for the next stage's entry conditions and required input artifact paths. Do NOT load full artifact content.
 3. **Dispatch commit**: update `manifest.json` → `current_state` = `<STAGE>_IN_PROGRESS`. Commit: `[<stage-id>] [Orchestrator] Dispatching to <agent-name>`
 4. **Invocation**: invoke the subagent per Agent-to-Stage Mapping. Transmit: stage assignment, input artifact **paths** (not content), context brief (project name, state, 1-2 sentences), user feedback/correction notes. Include: *"If you make a choice between genuine alternatives, append it to `docs/decision-log.md` (R.15). Don't log obvious spec applications."*
@@ -80,7 +58,7 @@ C1 is NOT a pipeline stage — it is automatic infrastructure setup.
 
 **Then:**
 
-- **New project**: run R.0 Entry Preflight → dispatch C2
+- **New project**: load skill `pipeline-orchestrator-preflight`, execute R.0 Entry Preflight → dispatch C2
 - **Adoption**: set manifest to `C_ADO1_AUDITING` → invoke Auditor (load `pipeline-orchestrator-advanced` skill for C-ADO1)
 
 ---

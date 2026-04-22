@@ -45,7 +45,7 @@ When the user chooses to re-enter the pipeline at a previous point (from O10/COM
 
 8. **Context compaction**: autonomous compaction is triggered by the plugin after the checkpoint block is detected.
 9. **Resumption**: execution resumes from the indicated stage with artifacts from preceding stages intact
-10. **Preflight**: run R.0 Entry Preflight before first post-reentry dispatch. If preflight is `BLOCKED`, halt and request user intervention.
+10. **Preflight**: load skill `pipeline-orchestrator-preflight` and execute R.0 Entry Preflight before first post-reentry dispatch. If `BLOCKED`, halt and request user intervention.
 11. **Delegation**: identify the agent responsible for the target stage from the Agent-to-Stage Mapping and delegate following R.1 (starting from step 2, dispatch commit). You MUST NOT execute stages assigned to other agents.
 
 **Scope**: R.5 applies ONLY to user-initiated re-entry (from COMPLETED or from auxiliary flows B1/C-ADO1). Correction loops (O4→O3, O5→O3, O6→O3) are governed by R.7 and do NOT trigger archival.
@@ -193,16 +193,16 @@ For every skipped stage, record in `manifest.json` under `fast_track.skipped_sta
 
 When a user requests to resume an existing project:
 
-1. Check if `pipeline-state/manifest.json` exists — use `ls` or `glob` ONLY. **Do NOT read the manifest content.** The Auditor will read and analyze it.
-2. Resolve the working branch:
+1. **Load skill `pipeline-orchestrator-preflight`** and execute R.0 Entry Preflight. If `BLOCKED`, halt immediately — do not proceed to audit.
+2. Check if `pipeline-state/manifest.json` exists — use `ls` or `glob` ONLY. **Do NOT read the manifest content.** The Auditor will read and analyze it.
+3. Resolve the working branch:
    - If you already know the branch from a prior read → use that value.
    - Otherwise: `git branch --list 'pipeline/*'` to find candidates. If exactly one → use it. If multiple → ask user.
    - Verify the resolved branch exists. If not, flag as inconsistency for the Auditor.
-3. Switch to the branch. Set manifest state to `B1_AUDITING` (write only the `current_state` field — do NOT read the full manifest). Commit: `[B1] [Orchestrator] Audit started`
-4. **Invoke Auditor** (`subagent_type: "auditor"`). Transmit: branch name, project directory path, and brief context. **Do NOT read or transmit manifest content — the Auditor reads it directly from disk.**
-5. **On return**: use ONLY the `<task_result>` structured summary. **CRITICAL:** Do NOT read `docs/audit-report.md` — the summary contains all routing information you need (recommendation, interruption point, resumability).
-6. Stage completion commit: update manifest `current_state` based on Auditor recommendation. Commit: `[B1] [Auditor] Audit completed — <recommendation>`
-7. Run R.0 Entry Preflight before executing audit recommendation (resume/adoption transition). If preflight is `BLOCKED`, halt and request user intervention.
+4. Switch to the branch. Set manifest state to `B1_AUDITING` (write only the `current_state` field — do NOT read the full manifest). Commit: `[B1] [Orchestrator] Audit started`
+5. **Invoke Auditor** (`subagent_type: "auditor"`). Transmit: branch name, project directory path, and brief context. **Do NOT read or transmit manifest content — the Auditor reads it directly from disk.**
+6. **On return**: use ONLY the `<task_result>` structured summary. **CRITICAL:** Do NOT read `docs/audit-report.md` — the summary contains all routing information you need (recommendation, interruption point, resumability).
+7. Stage completion commit: update manifest `current_state` based on Auditor recommendation. Commit: `[B1] [Auditor] Audit completed — <recommendation>`
 8. **User gate** (mandatory, even in automode): present executive summary from task_result, then ask user to confirm audit result before proceeding. Options:
    - (a) Accept recommendation and proceed
    - (b) Override recommendation
@@ -219,9 +219,9 @@ When a user requests to resume an existing project:
 
 When adopting a non-conforming repository:
 
-1. Set state to `C_ADO1_AUDITING`, invoke **Auditor** (`subagent_type: "auditor"`)
-2. Auditor produces `docs/adoption-report.md` with: inventory, gap analysis, conformance plan, entry point. If `src/` exists, Auditor also generates `docs/codebase-digest.md` (preliminary digest — R.13)
-3. Run R.0 Entry Preflight before plan execution. If preflight is `BLOCKED`, halt and request user intervention.
+1. **Load skill `pipeline-orchestrator-preflight`** and execute R.0 Entry Preflight. If `BLOCKED`, halt immediately.
+2. Set state to `C_ADO1_AUDITING`, invoke **Auditor** (`subagent_type: "auditor"`)
+3. Auditor produces `docs/adoption-report.md` with: inventory, gap analysis, conformance plan, entry point. If `src/` exists, Auditor also generates `docs/codebase-digest.md` (preliminary digest — R.13)
 4. **User gate**: confirm adoption plan
 5. Execute the conformance plan: invoke appropriate agents for each missing artifact, in order specified by the plan. If a preliminary digest was generated, include it as input for agents that operate on code.
 6. Once complete: re-enter main flow at the identified point

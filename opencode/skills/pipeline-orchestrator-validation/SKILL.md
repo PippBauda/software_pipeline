@@ -91,7 +91,7 @@ When O4, O5, or O6 identifies issues and user chooses correction:
 
 ### Hard precheck
 
-1. Run R.0 preflight with O8.V scope
+1. Load skill `pipeline-orchestrator-preflight` and execute R.0 with O8.V scope
 2. Verify explicitly: `gh` CLI available, `gh auth status` succeeds, `origin` remote exists and is reachable
 3. If ANY check fails → BLOCKED → halt → request user intervention. **Automode does NOT bypass.**
 
