@@ -285,14 +285,15 @@ At every stage completion, commit manifest updates **together with** produced ar
 - **Format**: Markdown table: `#`, `Stage`, `Decision`, `Rationale`, `Alternatives considered`
 - **Instruct agents**: when dispatching, include: *"If you make a choice between genuine alternatives, append it to `docs/decision-log.md` (R.15)."*
 
-## LSP Tool Activation (Optional)
+## LSP Tool Usage
 
-Set `OPENCODE_EXPERIMENTAL_LSP_TOOL=true` to enable LSP-based semantic navigation for code-operating agents. Fallback to `grep`/`glob` when unavailable.
+LSP is natively integrated in OpenCode and activates automatically based on file extensions and installed language servers. No environment variables are needed.
 
-**Context-safe LSP usage**: LSP operations like `documentSymbol` can return enormous output on large files (thousands of symbols). To avoid context bloat:
+**You (the orchestrator) do NOT have `lsp` in your tool list — this is intentional.** LSP operations are delegated to subagents (Builder, Validator, Debugger, Auditor) which have `lsp: true`. Their instructions already contain "if the `lsp` tool is available" conditionals.
 
-- Use `hover` or `goToDefinition` on specific symbols — these return focused results
-- Use `documentSymbol` ONLY on files under ~100 lines
-- For large files, use `grep`/`glob` instead of LSP bulk operations
-- NEVER run LSP bulk operations (documentSymbol, findReferences) on files you haven't checked the size of first
-- Delegate LSP verification to subagents when possible — they have their own context budget
+**Context-safe LSP rules** (for reference when reviewing subagent behavior):
+
+- `hover` and `goToDefinition` on specific symbols — focused, safe output
+- `documentSymbol` ONLY on files under ~100 lines — can produce enormous output on large files
+- NEVER run bulk LSP operations (documentSymbol, findReferences) without checking file size first
+- For large files, subagents should use `grep`/`glob` instead of LSP bulk operations
