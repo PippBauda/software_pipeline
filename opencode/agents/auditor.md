@@ -172,6 +172,18 @@ When you complete a stage, follow this return sequence:
 - **Artifacts produced**: [list of file paths written to disk]
 - **Blocking issues**: none | [brief description]
 
+**B1-specific fields** (include when stage is B1):
+
+- **Recommendation**: RESUME | CONFORMANCE_UPGRADE | ADOPTION
+- **Current state**: [current `current_state` value from manifest]
+- **Recommendation state**: [the manifest state the orchestrator should set, e.g. `C7_ARCHITECTURE_SYNTHESIZED`]
+- **Interruption point**: [stage where project stopped]
+- **Re-entry stage**: [stage to resume from]
+- **Schema version**: [manifest `schema_version`]
+- **Pipeline version**: [manifest `pipeline_version` or "absent"]
+
+**Note:** The orchestrator uses `recommendation_state` to update the manifest via `edit` without re-reading the file. Always include it for B1.
+
 Do NOT include full artifact content in your return message. The orchestrator references disk artifacts for details.
 
 ---

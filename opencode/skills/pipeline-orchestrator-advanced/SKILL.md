@@ -199,10 +199,13 @@ When a user requests to resume an existing project:
    - If you already know the branch from a prior read → use that value.
    - Otherwise: `git branch --list 'pipeline/*'` to find candidates. If exactly one → use it. If multiple → ask user.
    - Verify the resolved branch exists. If not, flag as inconsistency for the Auditor.
-4. Switch to the branch. Set manifest state to `B1_AUDITING` (write only the `current_state` field — do NOT read the full manifest). Commit: `[B1] [Orchestrator] Audit started`
+4. Switch to the branch. Update manifest `current_state` to `B1_AUDITING`:
+   - **Read only the first 15 lines** of `pipeline-state/manifest.json` (use `read` with `limit: 15`) to locate the current `current_state` value. Pre-4.2 manifests can be very large — reading the full file would flood context.
+   - Use `edit` to replace the old `current_state` value with `"B1_AUDITING"`.
+   - Commit: `[B1] [Orchestrator] Audit started`
 5. **Invoke Auditor** (`subagent_type: "auditor"`). Transmit: branch name, project directory path, and brief context. **Do NOT read or transmit manifest content — the Auditor reads it directly from disk.**
-6. **On return**: use ONLY the `<task_result>` structured summary. **CRITICAL:** Do NOT read `docs/audit-report.md` — the summary contains all routing information you need (recommendation, interruption point, resumability).
-7. Stage completion commit: update manifest `current_state` based on Auditor recommendation. Commit: `[B1] [Auditor] Audit completed — <recommendation>`
+6. **On return**: use ONLY the `<task_result>` structured summary. **CRITICAL:** Do NOT read `docs/audit-report.md` — the summary contains all routing information you need (recommendation, interruption point, resumability, current_state for manifest update).
+7. Stage completion commit: use the `recommendation_state` from the Auditor's task_result to update manifest `current_state` via `edit` (no need to re-read — you have the value from step 4's edit and the target from task_result). Commit: `[B1] [Auditor] Audit completed — <recommendation>`
 8. **User gate** (mandatory, even in automode): present executive summary from task_result, then ask user to confirm audit result before proceeding. Options:
    - (a) Accept recommendation and proceed
    - (b) Override recommendation
@@ -220,8 +223,8 @@ When a user requests to resume an existing project:
 When adopting a non-conforming repository:
 
 1. **Load skill `pipeline-orchestrator-preflight`** and execute R.0 Entry Preflight. If `BLOCKED`, halt immediately.
-2. Set state to `C_ADO1_AUDITING`, invoke **Auditor** (`subagent_type: "auditor"`)
-3. Auditor produces `docs/adoption-report.md` with: inventory, gap analysis, conformance plan, entry point. If `src/` exists, Auditor also generates `docs/codebase-digest.md` (preliminary digest — R.13)
+2. Update manifest `current_state` to `C_ADO1_AUDITING`: read only the first 15 lines of `pipeline-state/manifest.json` (use `read` with `limit: 15`) to locate `current_state`, then use `edit` to replace it. Commit: `[C-ADO1] [Orchestrator] Adoption audit started`
+3. Invoke **Auditor** (`subagent_type: "auditor"`). Auditor produces `docs/adoption-report.md` with: inventory, gap analysis, conformance plan, entry point. If `src/` exists, Auditor also generates `docs/codebase-digest.md` (preliminary digest — R.13)
 4. **User gate**: confirm adoption plan
 5. Execute the conformance plan: invoke appropriate agents for each missing artifact, in order specified by the plan. If a preliminary digest was generated, include it as input for agents that operate on code.
 6. Once complete: re-enter main flow at the identified point

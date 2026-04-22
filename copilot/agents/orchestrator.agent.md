@@ -507,19 +507,23 @@ Fast Track provides a shortened operational path for focused interventions on CO
 
 When a user requests to resume an existing project:
 
-1. Check if `pipeline-state/manifest.json` exists
-2. Resolve the working branch:
+1. Run R.0 Entry Preflight. If `BLOCKED`, halt immediately — do not proceed to audit.
+2. Check if `pipeline-state/manifest.json` exists
+3. Resolve the working branch:
    - If the manifest contains the `branch` field → use that value.
    - If `branch` is absent (legacy manifest) → search existing git branches matching `pipeline/*` and identify the one corresponding to `project_name`. If exactly one match → use it and backfill the `branch` field in the manifest.
    - If no match or multiple candidates → ask the user to specify the branch.
    - Verify the resolved branch exists. If not, flag as inconsistency in the audit.
-3. If yes: switch to the branch, set state to `B1_AUDITING`, invoke **Auditor**
-4. Auditor reads `manifest.json` (HEAD) and verifies declared artifacts exist on disk. Checks `schema_version` and `pipeline_version`. HISTORY is read only on escalation (if HEAD shows anomalies). Produces `docs/audit-report.md` with: artifact verification, pipeline state, interruption point, recommendation (resume, conformance upgrade, or adoption)
-5. Run R.0 Entry Preflight before executing audit recommendation (resume/adoption transition). If preflight is `BLOCKED`, halt and request user intervention.
-6. **User gate**: confirm audit result
-7. If **resumable**: re-enter main flow at the identified point (orchestrator reconstructs context from manifest + artifacts + logs)
-8. If **conformance upgrade**: update `pipeline_version` in manifest to `"4.2"`, execute targeted gap-filling actions from audit report (invoke agents for missing artifacts), then re-enter at the identified point
-9. If **not resumable**: recommend adoption → transition to C-ADO1
+4. Switch to the branch. Update manifest `current_state` to `B1_AUDITING`:
+   - **Read only the first 15 lines** of `pipeline-state/manifest.json` (use `read` with `limit: 15`) to locate the current `current_state` value. Pre-4.2 manifests can be very large — reading the full file would flood context.
+   - Use `edit` to replace the old `current_state` value with `"B1_AUDITING"`.
+   - Commit: `[B1] [Orchestrator] Audit started`
+5. Invoke **Auditor**. Auditor reads `manifest.json` (HEAD) and verifies declared artifacts exist on disk. Checks `schema_version` and `pipeline_version`. HISTORY is read only on escalation (if HEAD shows anomalies). Produces `docs/audit-report.md` with: artifact verification, pipeline state, interruption point, recommendation (resume, conformance upgrade, or adoption). Returns structured summary with `recommendation_state` for manifest update.
+6. Stage completion commit: use the `recommendation_state` from the Auditor's summary to update manifest `current_state` via `edit` (no need to re-read — you have the value from step 4's edit and the target from the summary). Commit: `[B1] [Auditor] Audit completed — <recommendation>`
+7. **User gate**: confirm audit result
+8. If **resumable**: re-enter main flow at the identified point (orchestrator reconstructs context from manifest + artifacts + logs)
+9. If **conformance upgrade**: update `pipeline_version` in manifest to `"4.2"`, execute targeted gap-filling actions from audit report (invoke agents for missing artifacts), then re-enter at the identified point
+10. If **not resumable**: recommend adoption → transition to C-ADO1
 
 **Key**: if manifest `current_state` ends with `_IN_PROGRESS`, the stage was interrupted — re-execute from scratch.
 
@@ -529,9 +533,9 @@ When a user requests to resume an existing project:
 
 When adopting a non-conforming repository:
 
-1. Set state to `C_ADO1_AUDITING`, invoke **Auditor**
-2. Auditor produces `docs/adoption-report.md` with: inventory, gap analysis, conformance plan, entry point. If `src/` exists, Auditor also generates `docs/codebase-digest.md` (preliminary digest — R.13)
-3. Run R.0 Entry Preflight before plan execution. If preflight is `BLOCKED`, halt and request user intervention.
+1. Run R.0 Entry Preflight. If `BLOCKED`, halt immediately.
+2. Update manifest `current_state` to `C_ADO1_AUDITING`: read only the first 15 lines of `pipeline-state/manifest.json` (use `read` with `limit: 15`) to locate `current_state`, then use `edit` to replace it. Commit: `[C-ADO1] [Orchestrator] Adoption audit started`
+3. Invoke **Auditor**. Auditor produces `docs/adoption-report.md` with: inventory, gap analysis, conformance plan, entry point. If `src/` exists, Auditor also generates `docs/codebase-digest.md` (preliminary digest — R.13)
 4. **User gate**: confirm adoption plan
 5. Execute the conformance plan: invoke appropriate agents for each missing artifact, in order specified by the plan. If a preliminary digest was generated, include it as input for agents that operate on code.
 6. Once complete: re-enter main flow at the identified point
