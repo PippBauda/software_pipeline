@@ -24,6 +24,8 @@ Before dispatching O4, verify `docs/codebase-digest.md` exists. If missing → i
 5. **User gate**: (a) full correction → R.7; (b) selective correction → R.7; (c) proceed to O5.
 6. **Automode**: always choose full correction if issues found.
 
+---
+
 ## O5 — Security Audit
 
 1. **Dispatch commit**: `[O5] [Orchestrator] Dispatching to Validator`
@@ -31,6 +33,8 @@ Before dispatching O4, verify `docs/codebase-digest.md` exists. If missing → i
 3. **On return**: stage completion commit. Executive summary.
 4. **User gate**: (a) full correction → R.7; (b) selective → R.7; (c) proceed to O6.
 5. **Automode**: always choose full correction if issues found.
+
+---
 
 ## O6 — Debug and Smoke Test
 
@@ -73,6 +77,8 @@ When O4, O5, or O6 identifies issues and user chooses correction:
 2. **Invoke Builder** (`subagent_type: "builder"`) with paths: `docs/codebase-digest.md`, `src/`, `docs/project-spec.md`, `docs/architecture.md`, `docs/api.md`, `docs/configuration.md`, `docs/environment.md`. Include R.15 decision log instruction.
 3. **On return**: stage completion commit. Executive summary. **Auto-proceed** to O8.
 
+---
+
 ## O8 — CI/CD Configuration
 
 1. **Dispatch commit**: `[O8] [Orchestrator] Dispatching to Builder`
@@ -83,13 +89,13 @@ When O4, O5, or O6 identifies issues and user chooses correction:
 
 ## O8.V — CI Verification (Orchestrator-Executed)
 
-**Hard precheck (mandatory before loop start):**
+### Hard precheck
 
 1. Run R.0 preflight with O8.V scope
 2. Verify explicitly: `gh` CLI available, `gh auth status` succeeds, `origin` remote exists and is reachable
 3. If ANY check fails → BLOCKED → halt → request user intervention. **Automode does NOT bypass.**
 
-**Execution flow:**
+### Execution flow
 
 1. Set manifest: `current_state` → `O8V_IN_PROGRESS`. Commit: `[O8V] [Orchestrator] CI verification started`
 2. Commit all pending changes and push to remote
@@ -99,7 +105,7 @@ When O4, O5, or O6 identifies issues and user chooses correction:
    - **PASS** → produce `docs/ci-verification-report.md` → commit → manifest → `O8V_CI_VERIFIED` → executive summary → **load `pipeline-orchestrator-finalization` skill** → proceed to O9
    - **FAIL** → collect raw log (`gh run view --log-failed`) → invoke Builder for fix (see below)
 
-**CI failure correction loop:**
+### CI failure correction loop
 
 1. Pass to Builder (`subagent_type: "builder"`): raw CI failure log + `docs/cicd-configuration.md` + `docs/environment.md` + affected source files
 2. Builder returns: `classification`, `root_cause`, `fix_applied`, `confidence`, `escalation_needed`, `files_modified`
@@ -111,13 +117,17 @@ When O4, O5, or O6 identifies issues and user chooses correction:
 
 ---
 
-## Reference: R.6 Commit Format
+## Reference: R.6 — Git Conventions
 
 `[<stage-id>] [<agent-name>] <description>`
 
-## Reference: R.9 Progress Metrics
+---
+
+## Reference: R.9 — Progress Metrics
 
 Executive summary: include "Stage X/Y" progress.
+
+---
 
 ## Reference: ALWAYS Rules for This Phase
 

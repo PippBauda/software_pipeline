@@ -19,7 +19,7 @@ When the user chooses to re-enter the pipeline at a previous point (from O10/COM
 4. **Manifest update**: `manifest.json` is updated to reflect the new state (the re-entry stage state), with reference to the archive for traceability
 5. **Automode safety**: if re-entry target is `C2`, set `automode: false` in `manifest.json` before resuming. Commit this change as part of re-entry so C2 remains fully interactive.
 6. **Commit**: `[RE-ENTRY] [Orchestrator] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
-7. **>>> MANDATORY: Write Pipeline Checkpoint [post-reentry] <<<**
+7. **CRITICAL: Write Pipeline Checkpoint [post-reentry]**
 
    Write this block EXACTLY in the conversation:
 
@@ -129,7 +129,7 @@ Automode allows the user to delegate all decisions to the pipeline, bypassing us
 - **R.0 preflight `BLOCKED`**: ALWAYS halts progression until user intervention
 - **O3 module failure (after automatic retry)**: in automode, a module failure triggers an automatic single retry. If the retry also fails, the pipeline halts as R.8 Level 3. The user must intervene to retry, skip, or stop.
 
-**Note**: R.8 Level 1 and Level 2 are NOT exempt from automode — you handle them autonomously (see R.8).
+**Note:** R.8 Level 1 and Level 2 are NOT exempt from automode — you handle them autonomously (see R.8).
 
 ### Deactivation
 
@@ -200,7 +200,7 @@ When a user requests to resume an existing project:
    - Verify the resolved branch exists. If not, flag as inconsistency for the Auditor.
 3. Switch to the branch. Set manifest state to `B1_AUDITING` (write only the `current_state` field — do NOT read the full manifest). Commit: `[B1] [Orchestrator] Audit started`
 4. **Invoke Auditor** (`subagent_type: "auditor"`). Transmit: branch name, project directory path, and brief context. **Do NOT read or transmit manifest content — the Auditor reads it directly from disk.**
-5. **On return**: use ONLY the `<task_result>` structured summary. **>>> Do NOT read `docs/audit-report.md` <<<** — the summary contains all routing information you need (recommendation, interruption point, resumability).
+5. **On return**: use ONLY the `<task_result>` structured summary. **CRITICAL:** Do NOT read `docs/audit-report.md` — the summary contains all routing information you need (recommendation, interruption point, resumability).
 6. Stage completion commit: update manifest `current_state` based on Auditor recommendation. Commit: `[B1] [Auditor] Audit completed — <recommendation>`
 7. Run R.0 Entry Preflight before executing audit recommendation (resume/adoption transition). If preflight is `BLOCKED`, halt and request user intervention.
 8. **User gate** (mandatory, even in automode): present executive summary from task_result, then ask user to confirm audit result before proceeding. Options:
@@ -227,3 +227,10 @@ When adopting a non-conforming repository:
 6. Once complete: re-enter main flow at the identified point
 
 **Entry points**: from C1 in adoption mode, from B1 when not resumable, or from STOPPED state on user request.
+
+---
+
+## Reference: R.6 — Git Conventions
+
+- **Commit format**: `[<stage-id>] [<agent-name>] <description>`
+- **No force push**

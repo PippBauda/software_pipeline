@@ -30,12 +30,19 @@ You manage the O3 iteration loop. The Builder is invoked once per module.
 2. Set manifest: `current_state` → `O3_IN_PROGRESS`, `progress.modules_total` = N, `progress.modules_completed` = 0
 3. Commit: `[O3] [Orchestrator] Module generation started (N modules planned)`
 4. **For each module** (in dependency order from task-graph):
-   - a. Set `progress.current_module` = `<module-name>`
-   - b. Dispatch commit: `[O3] [Orchestrator] Dispatching Builder for module <module-name> (M/N)`
-   - c. Invoke Builder (`subagent_type: "builder"`) with: module assignment (name, index M/N), **paths** to: `implementation-plan.md`, `module-map.md`, `task-graph.md`, `architecture.md`, `api.md`, `interface-contracts.md`, `test-strategy.md`, `environment.md`, list of previously committed module paths in `src/`. Include R.15 decision log instruction.
-   - d. Builder implements code + tests, runs tests, writes per-module report, returns structured summary
-   - e. Update manifest (`progress.modules_completed` += 1), commit artifacts + manifest: `[O3] [Builder] Module <module-name> implemented (M/N)`
-   - f. Executive summary with progress: "Stage X/Y — Module M/N completed" (no user gate per module)
+
+   **a.** Set `progress.current_module` = `<module-name>`
+
+   **b.** Dispatch commit: `[O3] [Orchestrator] Dispatching Builder for module <module-name> (M/N)`
+
+   **c.** Invoke Builder (`subagent_type: "builder"`) with: module assignment (name, index M/N), **paths** to: `implementation-plan.md`, `module-map.md`, `task-graph.md`, `architecture.md`, `api.md`, `interface-contracts.md`, `test-strategy.md`, `environment.md`, list of previously committed module paths in `src/`. Include R.15 decision log instruction.
+
+   **d.** Builder implements code + tests, runs tests, writes per-module report, returns structured summary
+
+   **e.** Update manifest (`progress.modules_completed` += 1), commit artifacts + manifest: `[O3] [Builder] Module <module-name> implemented (M/N)`
+
+   **f.** Executive summary with progress: "Stage X/Y — Module M/N completed" (no user gate per module)
+
 5. Invoke Builder for cumulative report (`logs/builder-cumulative-report-1.md`)
 6. Invoke Builder for codebase digest generation (`docs/codebase-digest.md` — R.13). If `docs/decision-log.md` exists, instruct Builder to include summary line with total count and most recent stage.
 7. Final commit: `[O3] [Orchestrator] All N modules completed`
@@ -48,9 +55,7 @@ You manage the O3 iteration loop. The Builder is invoked once per module.
 
 **Correction loops (R.7):** Invoke Builder only for affected modules. Unaffected modules retain existing code. After corrections: invoke Builder to regenerate `docs/codebase-digest.md` (R.13), then construct correction scope for downstream validation agents.
 
----
-
-### >>> MANDATORY: Write Pipeline Checkpoint [post-o3] (if >5 modules) <<<
+**CRITICAL: Write Pipeline Checkpoint [post-o3] (if >5 modules)**
 
 After step 8 above, if more than 5 modules were generated, write this block EXACTLY:
 
@@ -83,21 +88,17 @@ Then append: `Autonomous compaction is triggered at this checkpoint. If needed, 
 - `docs/codebase-digest.md` MUST exist before dispatching O4+ stages
 - If missing, invoke Builder to generate it first
 - On correction loops: regenerate after corrections
-- Correction scope format:
+- Correction scope format: defined in R.7 (see `pipeline-orchestrator-validation` skill)
 
-```yaml
-correction_scope:
-  corrected_modules: [<module-names>]
-  changed_files: [<file-paths>]
-  change_summary: "<brief description>"
-  originating_stage: "<O4|O5|O6>"
-```
+---
 
-## Reference: R.6 Commit Format
+## Reference: R.6 — Git Conventions
 
 `[<stage-id>] [<agent-name>] <description>`
 
-## Reference: R.9 Progress Metrics
+---
+
+## Reference: R.9 — Progress Metrics
 
 - Pipeline: `progress.current_stage`, `current_stage_index`, `total_stages`
 - O3 sub-progress: `modules_completed`, `modules_total`, `current_module`

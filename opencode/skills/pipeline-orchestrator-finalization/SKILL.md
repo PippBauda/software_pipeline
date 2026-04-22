@@ -20,7 +20,7 @@ Load this skill after O8.V CI verification passes.
    - Re-entry from COMPLETED at cognitive stage (C2-C9): minor bump
    - Re-entry from COMPLETED at operational stage (O1-O9): patch bump
    - Fast Track (R.12): patch bump
-4. **>>> DO NOT CREATE A GIT TAG <<<** — O10 creates the tag after merge to default branch
+4. **CRITICAL: DO NOT create a Git tag here — O10 creates the tag after merge.**
 5. Produce `CHANGELOG.md` — complete changelog for determined version
 6. Produce `docs/release-notes.md` — include determined version number
 7. Record version in `manifest.json` → `latest_stages[O9].version`
@@ -36,145 +36,123 @@ Load this skill after O8.V CI verification passes.
 
 **You execute O10 directly. Follow every step — do not skip any.**
 
-### Step 1: Stage start
+1. **Stage start**: Set manifest: `current_state` → `O10_IN_PROGRESS`. Commit: `[O10] [Orchestrator] Stage started`
+2. **Pre-report tasks**: If `docs/decision-log.md` exists → compact it per R.15 rules (merge superseded entries, remove transient, target ~15-25 permanent entries)
+3. **Validation**:
+   - Verify every artifact declared in manifest `latest_stages` is present on disk
+   - Verify no untracked pipeline files outside manifest
+   - Verify manifest has final state + timestamp
+4. **Produce final report**: Write `docs/final-report.md` — consolidate pipeline state, summary of all stages, final status
+5. **Update manifest**:
+   - Set `current_state` → `COMPLETED`, add final timestamp
+   - Commit artifacts + manifest: `[O10] [Orchestrator] Pipeline completed`
+6. **User gate**: Present options to user:
+   - **(a) Iteration**: re-enter pipeline at a specific point (C2-O9)
+     - Load `pipeline-orchestrator-advanced` skill for R.5 + R.10
+     - Present Re-Entry Guide (R.10) to user
+     - Execute R.5 re-entry protocol
+   - **(b) Closure**: execute the full closure sequence (step 7 below)
 
-- Set manifest: `current_state` → `O10_IN_PROGRESS`. Commit: `[O10] [Orchestrator] Stage started`
+   **Automode behavior**: auto-proceed to Closure (option b). Execute full closure sequence automatically.
 
-### Step 2: Pre-report tasks
+7. **Closure Sequence** (execute ALL sub-steps in order):
 
-- If `docs/decision-log.md` exists → compact it per R.15 rules (merge superseded entries, remove transient, target ~15-25 permanent entries)
+   **a.** **Merge**: merge `pipeline/<project-name>` to the default branch (`manifest.json` → `default_branch`)
 
-### Step 3: Validation
+   ```bash
+   git checkout <default_branch>
+   git merge pipeline/<project-name>
+   ```
 
-- Verify every artifact declared in manifest `latest_stages` is present on disk
-- Verify no untracked pipeline files outside manifest
-- Verify manifest has final state + timestamp
+   **b.** **Tag**: create Git tag on the merge result with version from O9 (`latest_stages[O9].version`)
 
-### Step 4: Produce final report
+   ```bash
+   git tag v<X.Y.Z>
+   ```
 
-- Write `docs/final-report.md` — consolidate pipeline state, summary of all stages, final status
+   **This is the ONLY place in the entire pipeline where a Git tag is created.**
 
-### Step 5: Update manifest
+   **c.** **Push merge + tag to remote**:
 
-- Set `current_state` → `COMPLETED`, add final timestamp
-- Commit artifacts + manifest: `[O10] [Orchestrator] Pipeline completed`
+   ```bash
+   git push origin <default_branch>
+   git push origin v<X.Y.Z>
+   ```
 
-### Step 6: User gate
+   **d.** **CI verification post-merge** (mandatory):
 
-Present options to user:
+   1. Monitor CI on the default branch: `gh run watch` (or `gh run list --branch <default_branch> --limit 1` + poll)
+   2. Wait for completion
+   3. **PASS** → proceed to **e.**
+   4. **FAIL** → **HALT**. Present failure to user with options:
+      - (a) Investigate: show `gh run view --log-failed`, attempt fix on default branch
+      - (b) Revert merge: `git revert HEAD` + `git push` + delete tag `git push origin :refs/tags/v<X.Y.Z>` + `git tag -d v<X.Y.Z>`
+      - **Automode**: choose (a) — attempt one fix cycle, if still failing → halt and escalate to user
 
-- **(a) Iteration**: re-enter pipeline at a specific point (C2-O9)
-  - Load `pipeline-orchestrator-advanced` skill for R.5 + R.10
-  - Present Re-Entry Guide (R.10) to user
-  - Execute R.5 re-entry protocol
+   **e.** **Branch cleanup**:
 
-- **(b) Closure**: execute the full closure sequence (Step 7 below)
+   - **Normal mode**: ask user to confirm or decline deletion of `pipeline/<project-name>`
+   - **Automode**: delete branch automatically
 
-**Automode behavior**: auto-proceed to Closure (option b). Execute full closure sequence automatically.
+   ```bash
+   git branch -d pipeline/<project-name>
+   git push origin --delete pipeline/<project-name>
+   ```
 
-### Step 7: Closure Sequence (execute ALL sub-steps in order)
+8. **Post-closure executive summary**: Include in summary:
+   - Final project status
+   - Version released
+   - Merge target branch
+   - Tag created
+   - Remote push status (merge + tag)
+   - CI status on default branch (pass/fail)
+   - Branch status (deleted or retained, local + remote)
 
-7a. **Merge**: merge `pipeline/<project-name>` to the default branch (`manifest.json` → `default_branch`)
+   **CRITICAL: Write Pipeline Checkpoint [post-o10]**
 
-```bash
-git checkout <default_branch>
-git merge pipeline/<project-name>
-```
+   Write this block EXACTLY in the conversation:
 
-7b. **Tag**: create Git tag on the merge result with version from O9 (`latest_stages[O9].version`)
+   ```text
+   ## Pipeline Checkpoint [post-o10]
+   - **State**: COMPLETED
+   - **Progress**: stage <Y>/<Y>
+   - **Automode**: <true/false>
+   - **Fast Track**: <true/false>
+   - **Handoff verified**: yes
+   - **Modules generated**: <N>
+   - **Completion state**: COMPLETED
+   - **Re-entry path**: n/a
+   - **Archive reference**: n/a
+   - **Known issues**: <brief list or "none">
+   - **Active user instructions**: <verbatim or "none">
+   - **Next stage**: n/a (pipeline complete)
+   - **Required input artifacts**: n/a
+   - **Pending gate**: no
+   ```
 
-```bash
-git tag v<X.Y.Z>
-```
+   Then append: `Autonomous compaction is triggered at this checkpoint. If needed, /compact remains available as manual fallback.`
 
-**This is the ONLY place in the entire pipeline where a Git tag is created.**
+9. **Re-Entry Guide** (ALWAYS present after closure): **In both normal mode and automode**, after the checkpoint, present the Re-Entry Guide so the user knows their options for future work on this project. Load `pipeline-orchestrator-advanced` skill and present R.10 table:
 
-7c. **Push merge + tag to remote**:
-
-```bash
-git push origin <default_branch>
-git push origin v<X.Y.Z>
-```
-
-7d. **CI verification post-merge** (mandatory):
-
-1. Monitor CI on the default branch: `gh run watch` (or `gh run list --branch <default_branch> --limit 1` + poll)
-2. Wait for completion
-3. **PASS** → proceed to 7e
-4. **FAIL** → **HALT**. Present failure to user with options:
-   - (a) Investigate: show `gh run view --log-failed`, attempt fix on default branch
-   - (b) Revert merge: `git revert HEAD` + `git push` + delete tag `git push origin :refs/tags/v<X.Y.Z>` + `git tag -d v<X.Y.Z>`
-   - **Automode**: choose (a) — attempt one fix cycle, if still failing → halt and escalate to user
-
-7e. **Branch cleanup**:
-
-- **Normal mode**: ask user to confirm or decline deletion of `pipeline/<project-name>`
-- **Automode**: delete branch automatically
-
-```bash
-git branch -d pipeline/<project-name>
-git push origin --delete pipeline/<project-name>
-```
-
-### Step 8: Post-closure executive summary
-
-Include in summary:
-
-- Final project status
-- Version released
-- Merge target branch
-- Tag created
-- Remote push status (merge + tag)
-- CI status on default branch (pass/fail)
-- Branch status (deleted or retained, local + remote)
-
-### >>> MANDATORY: Write Pipeline Checkpoint [post-o10] <<<
-
-Write this block EXACTLY in the conversation:
-
-```text
-## Pipeline Checkpoint [post-o10]
-- **State**: COMPLETED
-- **Progress**: stage <Y>/<Y>
-- **Automode**: <true/false>
-- **Fast Track**: <true/false>
-- **Handoff verified**: yes
-- **Modules generated**: <N>
-- **Completion state**: COMPLETED
-- **Re-entry path**: n/a
-- **Archive reference**: n/a
-- **Known issues**: <brief list or "none">
-- **Active user instructions**: <verbatim or "none">
-- **Next stage**: n/a (pipeline complete)
-- **Required input artifacts**: n/a
-- **Pending gate**: no
-```
-
-Then append: `Autonomous compaction is triggered at this checkpoint. If needed, /compact remains available as manual fallback.`
-
-### Step 9: Re-Entry Guide (ALWAYS present after closure)
-
-**In both normal mode and automode**, after the checkpoint, present the Re-Entry Guide so the user knows their options for future work on this project. Load `pipeline-orchestrator-advanced` skill and present R.10 table:
-
-> To make further changes to this project, you can re-enter the pipeline. Use one of these recommended entry points:
->
-> | Scenario | Re-Entry | Agent |
-> |----------|----------|-------|
-> | New feature (ambiguous) | C2 | Prompt Refiner |
-> | New feature (clear spec) | C3/C4 | Prompt Refiner |
-> | Architecture redesign | C7 | Architect |
-> | Bug fix (diagnosis needed) | O6 | Debugger |
-> | Bug fix (known cause) | O3 | Builder |
-> | Security vulnerability | O5 | Validator |
-> | Documentation update | O7 | Builder |
-> | CI/CD reconfiguration | O8 | Builder |
-> | New release version | O9 | Orchestrator |
+   > To make further changes to this project, you can re-enter the pipeline. Use one of these recommended entry points:
+   >
+   > | Scenario | Re-Entry | Agent |
+   > |----------|----------|-------|
+   > | New feature (ambiguous) | C2 | Prompt Refiner |
+   > | New feature (clear spec) | C3/C4 | Prompt Refiner |
+   > | Architecture redesign | C7 | Architect |
+   > | Bug fix (diagnosis needed) | O6 | Debugger |
+   > | Bug fix (known cause) | O3 | Builder |
+   > | Security vulnerability | O5 | Validator |
+   > | Documentation update | O7 | Builder |
+   > | CI/CD reconfiguration | O8 | Builder |
+   > | New release version | O9 | Orchestrator |
 
 **Resulting state**: `COMPLETED`
 
 ---
 
-## Reference: R.6 Git Conventions
+## Reference: R.6 — Git Conventions
 
 - **Commit format**: `[<stage-id>] [<agent-name>] <description>`
 - **Tags**: created ONLY by O10 after merge to default branch
@@ -182,6 +160,8 @@ Then append: `Autonomous compaction is triggered at this checkpoint. If needed, 
 - **Push**: O10 pushes merge + tag to remote, verifies CI passes
 - **No force push**
 
-## Reference: R.15 Decision Log Compaction
+---
+
+## Reference: R.15 — Decision Log
 
 At O10 (before final report): compact `docs/decision-log.md` — merge superseded entries, remove transient decisions, retain permanent choices. Target: ~15-25 permanent entries.

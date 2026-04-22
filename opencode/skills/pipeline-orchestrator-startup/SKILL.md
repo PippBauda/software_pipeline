@@ -41,16 +41,16 @@ Execute before first dispatch after C1, before B1, before C-ADO1, before R.5 re-
 
 Every stage follows this pattern. Execute each step explicitly — do not skip.
 
-0. **Preflight** (conditional per R.0): if this is an entry flow or O8.V start, run Entry Preflight first.
-1. **Context reconstruction**: re-read `pipeline-state/manifest.json` from disk. Consult the Stage Routing Table (in orchestrator.md) for the next stage's entry conditions and required input artifact paths. Do NOT load full artifact content.
-2. **Dispatch commit**: update `manifest.json` → `current_state` = `<STAGE>_IN_PROGRESS`. Commit: `[<stage-id>] [Orchestrator] Dispatching to <agent-name>`
-3. **Invocation**: invoke the subagent per Agent-to-Stage Mapping. Transmit: stage assignment, input artifact **paths** (not content), context brief (project name, state, 1-2 sentences), user feedback/correction notes. Include: *"If you make a choice between genuine alternatives, append it to `docs/decision-log.md` (R.15). Don't log obvious spec applications."*
-4. **Agent work**: agent writes artifacts to disk, returns structured summary only. **>>> CRITICAL: after the Task tool returns, use ONLY the `<task_result>` content. Do NOT read artifact files produced by the subagent (e.g. `docs/*-report.md`). The structured summary contains all information needed for routing and executive summary. <<<** For C2: require `status` + `blocking_gaps` + `open_questions` + `assumptions` + `intent_version`.
-5. **Stage completion commit** (atomic): update `manifest.json` (HEAD): set `current_state`, `progress`, upsert `latest_stages[<stage-id>]`. Append to `manifest-history.json` (HISTORY): add entry to `stages_completed`. Include: resulting state, timestamp, produced artifacts, commit hash, agent, progress metrics (R.9). Commit artifacts + manifest together: `[<stage-id>] [<agent-name>] <description>`. **C2 exception**: intermediate rounds keep `C2_IN_PROGRESS`, don't append `stages_completed` until user confirmation.
-6. **Executive summary**: brief summary for user based on agent's returned summary. Reference full report on disk. **>>> Do NOT read full reports into context — this is a hard rule, not a suggestion. Doing so causes context overflow and step skipping. <<<**
-7. **Checkpoint** (conditional): if at a compaction breakpoint, write the Pipeline Checkpoint block (see Checkpoint Format below). This is a **mandatory step, not optional**.
-8. **User gate** (if required by Routing Table): await confirmation. C2 is a hard gate — NEVER auto-proceed even in automode.
-9. **Revision** (if needed): repeat from step 2 with user's notes.
+1. **Preflight** (conditional per R.0): if this is an entry flow or O8.V start, run Entry Preflight first.
+2. **Context reconstruction**: re-read `pipeline-state/manifest.json` from disk. Consult the Stage Routing Table (in orchestrator.md) for the next stage's entry conditions and required input artifact paths. Do NOT load full artifact content.
+3. **Dispatch commit**: update `manifest.json` → `current_state` = `<STAGE>_IN_PROGRESS`. Commit: `[<stage-id>] [Orchestrator] Dispatching to <agent-name>`
+4. **Invocation**: invoke the subagent per Agent-to-Stage Mapping. Transmit: stage assignment, input artifact **paths** (not content), context brief (project name, state, 1-2 sentences), user feedback/correction notes. Include: *"If you make a choice between genuine alternatives, append it to `docs/decision-log.md` (R.15). Don't log obvious spec applications."*
+5. **Agent work**: agent writes artifacts to disk, returns structured summary only. **CRITICAL:** After the Task tool returns, use ONLY the `<task_result>` content. Do NOT read artifact files produced by the subagent (e.g. `docs/*-report.md`). The structured summary contains all information needed for routing and executive summary. For C2: require `status` + `blocking_gaps` + `open_questions` + `assumptions` + `intent_version`.
+6. **Stage completion commit** (atomic): update `manifest.json` (HEAD): set `current_state`, `progress`, upsert `latest_stages[<stage-id>]`. Append to `manifest-history.json` (HISTORY): add entry to `stages_completed`. Include: resulting state, timestamp, produced artifacts, commit hash, agent, progress metrics (R.9). Commit artifacts + manifest together: `[<stage-id>] [<agent-name>] <description>`. **C2 exception**: intermediate rounds keep `C2_IN_PROGRESS`, don't append `stages_completed` until user confirmation.
+7. **Executive summary**: brief summary for user based on agent's returned summary. Reference full report on disk. **CRITICAL:** Do NOT read full reports into context — this is a hard rule, not a suggestion. Doing so causes context overflow and step skipping.
+8. **Checkpoint** (conditional): if at a compaction breakpoint, write the Pipeline Checkpoint block (see Checkpoint Format below). This is a **mandatory step, not optional**.
+9. **User gate** (if required by Routing Table): await confirmation. C2 is a hard gate — NEVER auto-proceed even in automode.
+10. **Revision** (if needed): repeat from step 3 with user's notes.
 
 **For stages you execute directly** (C1, O9, O10): simplified variant:
 
@@ -120,7 +120,7 @@ If check fails → report missing/inconsistent artifacts → **halt** (require u
 
 **After handoff verification, execute this checkpoint:**
 
-### >>> MANDATORY: Write Pipeline Checkpoint [post-cognitive] <<<
+**CRITICAL: Write Pipeline Checkpoint [post-cognitive]**
 
 Write this block EXACTLY in the conversation:
 
@@ -148,19 +148,23 @@ Then append: `Autonomous compaction is triggered at this checkpoint. If needed, 
 
 ---
 
-## Reference: R.6 Git Conventions (Compact)
+## Reference: R.6 — Git Conventions
 
 - **Branch**: `pipeline/<project-name>`, created at C1 only
 - **Commit format**: `[<stage-id>] [<agent-name>] <description>`
 - **No force push**
 
-## Reference: R.3 Traceability
+---
+
+## Reference: R.3 — Traceability
 
 - Every invocation → log in `logs/`
 - **Log naming**: `logs/<agent>-<stage-id>-<description>-<N>.md`
 - Manifest updated at every commit
 
-## Reference: R.9 Progress Metrics
+---
+
+## Reference: R.9 — Progress Metrics
 
 - Pipeline-level: `progress.current_stage`, `current_stage_index` (1-based), `total_stages`
 - Executive summary: include progress (e.g., "Stage 5/19")
