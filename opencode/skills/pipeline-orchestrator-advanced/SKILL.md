@@ -193,19 +193,23 @@ For every skipped stage, record in `manifest.json` under `fast_track.skipped_sta
 
 When a user requests to resume an existing project:
 
-1. Check if `pipeline-state/manifest.json` exists
+1. Check if `pipeline-state/manifest.json` exists — use `ls` or `glob` ONLY. **Do NOT read the manifest content.** The Auditor will read and analyze it.
 2. Resolve the working branch:
-   - If the manifest contains the `branch` field → use that value.
-   - If `branch` is absent (legacy manifest) → search existing git branches matching `pipeline/*` and identify the one corresponding to `project_name`. If exactly one match → use it and backfill the `branch` field in the manifest.
-   - If no match or multiple candidates → ask the user to specify the branch.
-   - Verify the resolved branch exists. If not, flag as inconsistency in the audit.
-3. If yes: switch to the branch, set state to `B1_AUDITING`, invoke **Auditor** (`subagent_type: "auditor"`)
-4. Auditor reads `manifest.json` (HEAD) and verifies declared artifacts exist on disk. Checks `schema_version` and `pipeline_version`. HISTORY is read only on escalation (if HEAD shows anomalies). Produces `docs/audit-report.md` with: artifact verification, pipeline state, interruption point, recommendation (resume, conformance upgrade, or adoption)
-5. Run R.0 Entry Preflight before executing audit recommendation (resume/adoption transition). If preflight is `BLOCKED`, halt and request user intervention.
-6. **User gate**: confirm audit result
-7. If **resumable**: re-enter main flow at the identified point (orchestrator reconstructs context from manifest + artifacts + logs)
-8. If **conformance upgrade**: update `pipeline_version` in manifest to `"4.2"`, execute targeted gap-filling actions from audit report (invoke agents for missing artifacts), then re-enter at the identified point
-9. If **not resumable**: recommend adoption → transition to C-ADO1
+   - If you already know the branch from a prior read → use that value.
+   - Otherwise: `git branch --list 'pipeline/*'` to find candidates. If exactly one → use it. If multiple → ask user.
+   - Verify the resolved branch exists. If not, flag as inconsistency for the Auditor.
+3. Switch to the branch. Set manifest state to `B1_AUDITING` (write only the `current_state` field — do NOT read the full manifest). Commit: `[B1] [Orchestrator] Audit started`
+4. **Invoke Auditor** (`subagent_type: "auditor"`). Transmit: branch name, project directory path, and brief context. **Do NOT read or transmit manifest content — the Auditor reads it directly from disk.**
+5. **On return**: use ONLY the `<task_result>` structured summary. **>>> Do NOT read `docs/audit-report.md` <<<** — the summary contains all routing information you need (recommendation, interruption point, resumability).
+6. Stage completion commit: update manifest `current_state` based on Auditor recommendation. Commit: `[B1] [Auditor] Audit completed — <recommendation>`
+7. Run R.0 Entry Preflight before executing audit recommendation (resume/adoption transition). If preflight is `BLOCKED`, halt and request user intervention.
+8. **User gate** (mandatory, even in automode): present executive summary from task_result, then ask user to confirm audit result before proceeding. Options:
+   - (a) Accept recommendation and proceed
+   - (b) Override recommendation
+   - (c) Stop
+9. If **resumable**: re-enter main flow at the identified point (orchestrator reconstructs context from manifest + artifacts + logs)
+10. If **conformance upgrade**: update `pipeline_version` in manifest to `"4.2"`, execute targeted gap-filling actions from audit report (invoke agents for missing artifacts), then re-enter at the identified point
+11. If **not resumable**: recommend adoption → transition to C-ADO1
 
 **Key**: if manifest `current_state` ends with `_IN_PROGRESS`, the stage was interrupted — re-execute from scratch.
 

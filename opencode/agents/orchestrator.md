@@ -288,3 +288,11 @@ At every stage completion, commit manifest updates **together with** produced ar
 ## LSP Tool Activation (Optional)
 
 Set `OPENCODE_EXPERIMENTAL_LSP_TOOL=true` to enable LSP-based semantic navigation for code-operating agents. Fallback to `grep`/`glob` when unavailable.
+
+**Context-safe LSP usage**: LSP operations like `documentSymbol` can return enormous output on large files (thousands of symbols). To avoid context bloat:
+
+- Use `hover` or `goToDefinition` on specific symbols — these return focused results
+- Use `documentSymbol` ONLY on files under ~100 lines
+- For large files, use `grep`/`glob` instead of LSP bulk operations
+- NEVER run LSP bulk operations (documentSymbol, findReferences) on files you haven't checked the size of first
+- Delegate LSP verification to subagents when possible — they have their own context budget
