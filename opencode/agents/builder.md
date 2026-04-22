@@ -117,7 +117,7 @@ You are an implementation engineer. You translate architectural plans into worki
 - **Cumulative report**: after all modules are completed, the orchestrator invokes you once more to produce `logs/builder-cumulative-report-<N>.md` — a summary of all modules: status, test results, issues encountered, overall assessment
 - **Codebase digest generation** (R.13): after the cumulative report (or after correction loop completions), the orchestrator invokes you to generate `docs/codebase-digest.md`. This is a mechanical extraction — do NOT read source files into your context to produce it. Instead, use `glob`, `grep`, `bash`, `lsp`, and file system inspection:
   1. **File tree**: run `find src/ tests/ -type f` (or glob equivalent) to list all files with sizes
-  2. **Module signatures**: if the `lsp` tool is available, use `documentSymbol` on each source file to extract precise exported signatures (functions, classes, types with parameters and return types). Otherwise, grep for exported functions/classes/types using language-appropriate patterns (e.g., `export function`, `export class`, `def`, `pub fn`).
+  2. **Module signatures**: use `documentSymbol` on each source file under ~200 lines to extract precise exported signatures (functions, classes, types with parameters and return types). For files over ~200 lines, grep for exported functions/classes/types using language-appropriate patterns (e.g., `export function`, `export class`, `def`, `pub fn`).
   3. **Dependency graph**: grep for import/require statements across modules to map inter-module dependencies
   4. **Test coverage map**: extract from per-module reports in `logs/builder-report-module-*` — test file listing, test count, pass/fail status
   - The digest must be factual and standardized (~3-5 KB). No commentary or recommendations.
@@ -218,6 +218,23 @@ When you complete a stage, follow this return sequence:
 **Exception**: For O8.V CI fix corrections, use the specific 6-field return format defined in that section instead of the generic summary.
 
 Do NOT include full artifact content in your return message. The orchestrator references disk artifacts for details.
+
+## LSP Usage Rules
+
+LSP servers are installed system-wide by R.0 preflight. You SHOULD use LSP when available — it provides more precise results than grep for signatures, references, and call graphs.
+
+**Context-safe operations** (safe on any file size):
+
+- `hover` — type info / docs for a specific symbol
+- `goToDefinition` / `goToImplementation` — jump to source
+- `prepareCallHierarchy` + `incomingCalls` / `outgoingCalls` — call graph for one symbol
+
+**Size-sensitive operations** (check file size FIRST):
+
+- `documentSymbol` — returns ALL symbols in a file. **Use ONLY on files under ~200 lines.** For larger files, use `grep` for exported symbols instead.
+- `findReferences` / `workspaceSymbol` — can return hundreds of results. Limit scope: use on specific symbols, not broad patterns.
+
+**Hard rule**: before running `documentSymbol` on a file, check its line count (`wc -l` or read metadata). If >200 lines, use `grep` instead.
 
 ## Constraints
 

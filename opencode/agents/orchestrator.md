@@ -285,15 +285,6 @@ At every stage completion, commit manifest updates **together with** produced ar
 - **Format**: Markdown table: `#`, `Stage`, `Decision`, `Rationale`, `Alternatives considered`
 - **Instruct agents**: when dispatching, include: *"If you make a choice between genuine alternatives, append it to `docs/decision-log.md` (R.15)."*
 
-## LSP Tool Usage
+## LSP Infrastructure
 
-LSP is natively integrated in OpenCode and activates automatically based on file extensions and installed language servers. No environment variables are needed.
-
-**You (the orchestrator) do NOT have `lsp` in your tool list — this is intentional.** LSP operations are delegated to subagents (Builder, Validator, Debugger, Auditor) which have `lsp: true`. Their instructions already contain "if the `lsp` tool is available" conditionals.
-
-**Context-safe LSP rules** (for reference when reviewing subagent behavior):
-
-- `hover` and `goToDefinition` on specific symbols — focused, safe output
-- `documentSymbol` ONLY on files under ~100 lines — can produce enormous output on large files
-- NEVER run bulk LSP operations (documentSymbol, findReferences) without checking file size first
-- For large files, subagents should use `grep`/`glob` instead of LSP bulk operations
+LSP is a critical tool for subagents (Builder, Validator, Debugger, Auditor). The orchestrator ensures LSP availability through R.0 preflight step 6, which installs all available language servers at session start. **You do not use LSP directly** — it is not in your tool list. Subagents have `lsp: true` and their own context-safe usage rules.

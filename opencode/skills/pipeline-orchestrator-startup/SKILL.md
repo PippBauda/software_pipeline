@@ -20,6 +20,12 @@ Execute before first dispatch after C1, before B1, before C-ADO1, before R.5 re-
 3. `git status` succeeds
 4. If O8.V is in path: verify `gh` CLI available, `gh auth status` valid, `origin` remote configured
 5. If `docs/environment.md` exists (O1+): verify declared runtime/package manager CLIs are available
+6. **LSP infrastructure check** (every session): invoke **Builder** (`subagent_type: "builder"`) with task: *"Verify and install all available OpenCode LSP language servers system-wide."* The Builder must execute:
+   - **Auto-installable servers**: create temp files for each auto-install extension (`touch /tmp/lsp-check.sh /tmp/lsp-check.lua /tmp/lsp-check.yaml`), use `lsp` tool (`hover`) on each to trigger server download, then clean up temp files. Covers: astro, bash, clangd, lua, kotlin, php, svelte, terraform, tinymist, vue, yaml.
+   - **Tool-dependent servers**: for each, check if the CLI exists — `go version` (gopls), `rustc --version` (rust-analyzer), `python3 --version` (pyright), `node --version` (typescript), `dart --version`, `swift --version`, `dotnet --version` (csharp/fsharp), `java -version` (jdtls), `ruby --version` (ruby-lsp), `zig version` (zls), `elixir --version` (elixir-ls), `gleam --version`, `clojure-lsp --version`, `haskell-language-server-wrapper --version` (hls), `ocamllsp --version`, `nixd --version`, `deno --version`. For each available CLI: install the LSP server if a package manager command exists (e.g. `go install golang.org/x/tools/gopls@latest`, `pip install pyright`, `npm i -g typescript typescript-language-server`). For unavailable CLIs: skip silently.
+   - **Return**: structured summary — installed servers (name + version), skipped (name + reason), failures.
+
+   Record the Builder's summary in `docs/runtime-preflight.md` under an `## LSP Servers` section. This runs once per session — do not repeat on subsequent stages.
 
 **Outputs:** `docs/runtime-preflight.md` (snapshot), `logs/orchestrator-preflight-<N>.md` (detailed log)
 

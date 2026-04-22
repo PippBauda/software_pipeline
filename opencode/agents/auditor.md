@@ -105,7 +105,7 @@ C-ADO1 operates without a valid manifest. The full scan methodology applies:
 7. **Report**: produce structured report with gap analysis and conformance plan
 8. **Generate preliminary digest** (R.13): if `src/` exists, generate `docs/codebase-digest.md` using the same mechanical extraction process as the Builder:
    - File tree: `src/` and `tests/` directory listing with file sizes (via `glob`/`bash`)
-   - Module signatures: if the `lsp` tool is available, use `documentSymbol`/`workspaceSymbol` to extract precise exported signatures. Otherwise, grep for exported functions/classes/types with parameter signatures (via `grep` for export/def/class patterns)
+   - Module signatures: use `documentSymbol`/`workspaceSymbol` to extract precise exported signatures (respect the ~200 line limit per file — use grep for larger files). Otherwise, grep for exported functions/classes/types with parameter signatures (via `grep` for export/def/class patterns)
    - Dependency graph: inter-module import/dependency relationships (via `grep` for import/require/from patterns)
    - Test coverage map: per-module test file listing and test count (via `glob`/`grep`)
    This preliminary digest gives downstream agents (cognitive stages on re-entry, conformance plan agents) immediate codebase awareness. The Builder will regenerate a definitive version at the end of O3.
@@ -165,6 +165,23 @@ When you complete a stage, follow this return sequence:
 - **Blocking issues**: none | [brief description]
 
 Do NOT include full artifact content in your return message. The orchestrator references disk artifacts for details.
+
+## LSP Usage Rules
+
+LSP servers are installed system-wide by R.0 preflight. You SHOULD use LSP when available — it provides more precise signature extraction than grep for codebase digest generation (C-ADO1).
+
+**Context-safe operations** (safe on any file size):
+
+- `hover` — type info / docs for a specific symbol
+- `goToDefinition` / `goToImplementation` — jump to source
+- `workspaceSymbol` — search for a specific symbol name across the workspace (targeted queries only)
+
+**Size-sensitive operations** (check file size FIRST):
+
+- `documentSymbol` — returns ALL symbols in a file. **Use ONLY on files under ~200 lines.** For larger files, use `grep` for exported symbols instead.
+- `findReferences` — can return hundreds of results. Use on specific symbols only.
+
+**Hard rule**: before running `documentSymbol` on a file, check its line count (`wc -l` or read metadata). If >200 lines, use `grep` instead.
 
 ## Constraints
 

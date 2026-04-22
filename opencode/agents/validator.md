@@ -32,7 +32,7 @@ For stages that operate on existing code (O4, O5), you MUST follow the tiered in
 
 1. **Read `docs/codebase-digest.md` first** — this gives you the structural map of the codebase (file tree, module signatures, dependency graph, test coverage)
 2. **Plan your inspection scope** — based on the digest and your stage's task, identify which modules/files need deep inspection
-3. **Navigate selectively** — use `lsp`/`glob`/`grep`/`read` to inspect targeted code sections (not entire files when only a function signature is needed). For O4, if the `lsp` tool is available, use `findReferences` to verify that interface contracts are respected at all usage points across the codebase.
+3. **Navigate selectively** — use `lsp`/`glob`/`grep`/`read` to inspect targeted code sections (not entire files when only a function signature is needed). For O4, use `findReferences` to verify that interface contracts are respected at all usage points across the codebase.
 4. **Full source read only when necessary** — read complete files only when selective navigation is insufficient; document the reason in your conversation log
 
 **Correction scope** (R.7): when invoked during a correction loop, you receive a correction scope from the orchestrator listing corrected modules, changed files, and a change summary. You MUST:
@@ -146,6 +146,23 @@ When you complete a stage, follow this return sequence:
 - **Blocking issues**: none | [brief description]
 
 Do NOT include full artifact content in your return message. The orchestrator references disk artifacts for details.
+
+## LSP Usage Rules
+
+LSP servers are installed system-wide by R.0 preflight. You SHOULD use LSP when available — it provides more precise results than grep for references, type checking, and interface verification.
+
+**Context-safe operations** (safe on any file size):
+
+- `hover` — type info / docs for a specific symbol
+- `goToDefinition` / `goToImplementation` — jump to source
+- `prepareCallHierarchy` + `incomingCalls` / `outgoingCalls` — call graph for one symbol
+
+**Size-sensitive operations** (check file size FIRST):
+
+- `documentSymbol` — returns ALL symbols in a file. **Use ONLY on files under ~200 lines.** For larger files, use `grep` for exported symbols instead.
+- `findReferences` — can return hundreds of results. Use on specific symbols to verify interface contracts, not for broad searches.
+
+**Hard rule**: before running `documentSymbol` on a file, check its line count (`wc -l` or read metadata). If >200 lines, use `grep` instead.
 
 ## Constraints
 

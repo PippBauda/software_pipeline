@@ -32,7 +32,7 @@ For O6 (which operates on existing code), you MUST follow the tiered inspection 
 
 1. **Read `docs/codebase-digest.md` first** — this gives you the structural map of the codebase (file tree, module signatures, dependency graph, test coverage)
 2. **Plan your smoke test scope** — based on the digest, architecture, and validator/security reports, identify which modules need runtime testing and which entry points to exercise
-3. **Navigate selectively** — use `lsp`/`glob`/`grep`/`read` to inspect specific code sections relevant to your test scenarios (not entire source files). When designing smoke tests, if the `lsp` tool is available, use `outgoingCalls` to trace the call graph of entry points and identify the execution paths to exercise.
+3. **Navigate selectively** — use `lsp`/`glob`/`grep`/`read` to inspect specific code sections relevant to your test scenarios (not entire source files). When designing smoke tests, use `outgoingCalls` to trace the call graph of entry points and identify the execution paths to exercise.
 4. **Full source read only when necessary** — read complete files only when understanding complex control flow for test scenario design; document the reason in your conversation log
 
 **Correction scope** (R.7): when invoked during a correction loop, you receive a correction scope from the orchestrator listing corrected modules and changes. Focus smoke tests primarily on corrected modules and their integration points, while running lighter regression checks on unchanged modules.
@@ -93,6 +93,23 @@ When you complete a stage, follow this return sequence:
 - **Blocking issues**: none | [brief description]
 
 Do NOT include full artifact content in your return message. The orchestrator references disk artifacts for details.
+
+## LSP Usage Rules
+
+LSP servers are installed system-wide by R.0 preflight. You SHOULD use LSP when available — it provides more precise call graph tracing than grep for smoke test design.
+
+**Context-safe operations** (safe on any file size):
+
+- `hover` — type info / docs for a specific symbol
+- `goToDefinition` / `goToImplementation` — jump to source
+- `prepareCallHierarchy` + `incomingCalls` / `outgoingCalls` — trace execution paths from entry points
+
+**Size-sensitive operations** (check file size FIRST):
+
+- `documentSymbol` — returns ALL symbols in a file. **Use ONLY on files under ~200 lines.** For larger files, use `grep` for exported symbols instead.
+- `findReferences` — can return hundreds of results. Use on specific symbols only.
+
+**Hard rule**: before running `documentSymbol` on a file, check its line count (`wc -l` or read metadata). If >200 lines, use `grep` instead.
 
 ## Constraints
 
