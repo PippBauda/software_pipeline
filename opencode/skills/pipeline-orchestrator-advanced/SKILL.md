@@ -5,7 +5,7 @@ description: "Advanced pipeline features for the Orchestrator: re-entry protocol
 
 # Pipeline Orchestrator — Advanced Features
 
-These features are loaded on-demand by the orchestrator when a specific trigger condition is met. They complement the core rules (R.0, R.1, R.2, R.3, R.4, R.6, R.7, R.9) which are always available inline.
+These features are loaded on-demand by the orchestrator when a specific trigger condition is met. They complement the core orchestrator definition (orchestrator.md) and the phase-specific skills (startup, o3, validation, finalization).
 
 ---
 
@@ -19,8 +19,31 @@ When the user chooses to re-enter the pipeline at a previous point (from O10/COM
 4. **Manifest update**: `manifest.json` is updated to reflect the new state (the re-entry stage state), with reference to the archive for traceability
 5. **Automode safety**: if re-entry target is `C2`, set `automode: false` in `manifest.json` before resuming. Commit this change as part of re-entry so C2 remains fully interactive.
 6. **Commit**: `[RE-ENTRY] [Orchestrator] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
-7. **Post-reentry checkpoint**: write `## Pipeline Checkpoint [post-reentry]` in the conversation with: resulting state, `from_state -> target_stage`, archive path, scope impact, next stage/agent, required input artifacts, pending gate
-8. **Context compaction**: trigger autonomous compaction immediately after the checkpoint (OpenCode plugin `pipeline-compaction-controller.js` is required).
+7. **>>> MANDATORY: Write Pipeline Checkpoint [post-reentry] <<<**
+
+   Write this block EXACTLY in the conversation:
+
+   ```
+   ## Pipeline Checkpoint [post-reentry]
+   - **State**: <current_state from manifest>
+   - **Progress**: stage <X>/<Y>
+   - **Automode**: <true/false>
+   - **Fast Track**: <true/false>
+   - **Handoff verified**: n/a
+   - **Modules generated**: n/a
+   - **Completion state**: n/a
+   - **Re-entry path**: <from_state> -> <target_stage>
+   - **Archive reference**: archive/<timestamp>/
+   - **Known issues**: <brief list or "none">
+   - **Active user instructions**: <verbatim or "none">
+   - **Next stage**: <stage-id> → <agent-name>
+   - **Required input artifacts**: <list of paths>
+   - **Pending gate**: <yes/no, details>
+   ```
+
+   Then append: `Autonomous compaction is triggered at this checkpoint. If needed, /compact remains available as manual fallback.`
+
+8. **Context compaction**: autonomous compaction is triggered by the plugin after the checkpoint block is detected.
 9. **Resumption**: execution resumes from the indicated stage with artifacts from preceding stages intact
 10. **Preflight**: run R.0 Entry Preflight before first post-reentry dispatch. If preflight is `BLOCKED`, halt and request user intervention.
 11. **Delegation**: identify the agent responsible for the target stage from the Agent-to-Stage Mapping and delegate following R.1 (starting from step 2, dispatch commit). You MUST NOT execute stages assigned to other agents.

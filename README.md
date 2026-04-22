@@ -119,8 +119,16 @@ software_pipeline/
 │   │   ├── analyst.md          # Subagent
 │   │   └── prompt-refiner.md   # Subagent
 │   ├── skills/
+│   │   ├── pipeline-orchestrator-startup/
+│   │   │   └── SKILL.md        # C1, R.0, R.1, cognitive dispatch, handoff
+│   │   ├── pipeline-orchestrator-o3/
+│   │   │   └── SKILL.md        # O1-O3 module loop, R.13 digest
+│   │   ├── pipeline-orchestrator-validation/
+│   │   │   └── SKILL.md        # O4-O8.V, R.7 correction loops
+│   │   ├── pipeline-orchestrator-finalization/
+│   │   │   └── SKILL.md        # O9, O10 closure sequence
 │   │   └── pipeline-orchestrator-advanced/
-│   │       └── SKILL.md        # Tier 2 rules
+│   │       └── SKILL.md        # R.5, R.8, R.10, R.11, R.12, B1/C-ADO1
 │   ├── plugins/
 │   │   └── pipeline-compaction-controller.js  # Required autonomous compaction trigger
 │   ├── compaction-prompt.txt   # Externalized compaction prompt
@@ -150,9 +158,10 @@ The pipeline is implemented for two AI coding platforms:
 
 ### OpenCode (primary)
 
-- **Architecture**: 2-tier rule system
-  - **Tier 1** (inline in `orchestrator.md`): core rules always available (R.0-R.4, R.6, R.7, R.9, R.CONTEXT, State Machine, Manifest Schema)
-  - **Tier 2** (on-demand skill `pipeline-orchestrator-advanced`): advanced features loaded only when needed (R.5, R.8, R.10, R.11, R.12, B1/C-ADO1)
+- **Architecture**: modular skill-based system
+  - **Core** (inline in `orchestrator.md`): lean routing layer — identity, constraints, agent mapping, stage routing table, state machine, manifest schema, skill trigger table
+  - **Phase skills** (loaded on-demand): `pipeline-orchestrator-startup` (C1-C9), `pipeline-orchestrator-o3` (O1-O3), `pipeline-orchestrator-validation` (O4-O8.V), `pipeline-orchestrator-finalization` (O9-O10)
+  - **Advanced skill** (loaded on-demand): `pipeline-orchestrator-advanced` (R.5, R.8, R.10, R.11, R.12, B1/C-ADO1)
 - **Subagent invocation**: via `Task` tool with `subagent_type` parameter
 - **Model**: `github-copilot/claude-opus-4.6`
 
@@ -178,8 +187,20 @@ cp opencode/agents/*.md ~/.config/opencode/agents/
 
 # Skill
 mkdir -p ~/.config/opencode/skills/pipeline-orchestrator-advanced/
+mkdir -p ~/.config/opencode/skills/pipeline-orchestrator-startup/
+mkdir -p ~/.config/opencode/skills/pipeline-orchestrator-o3/
+mkdir -p ~/.config/opencode/skills/pipeline-orchestrator-validation/
+mkdir -p ~/.config/opencode/skills/pipeline-orchestrator-finalization/
 cp opencode/skills/pipeline-orchestrator-advanced/SKILL.md \
    ~/.config/opencode/skills/pipeline-orchestrator-advanced/
+cp opencode/skills/pipeline-orchestrator-startup/SKILL.md \
+   ~/.config/opencode/skills/pipeline-orchestrator-startup/
+cp opencode/skills/pipeline-orchestrator-o3/SKILL.md \
+   ~/.config/opencode/skills/pipeline-orchestrator-o3/
+cp opencode/skills/pipeline-orchestrator-validation/SKILL.md \
+   ~/.config/opencode/skills/pipeline-orchestrator-validation/
+cp opencode/skills/pipeline-orchestrator-finalization/SKILL.md \
+   ~/.config/opencode/skills/pipeline-orchestrator-finalization/
 
 # Required plugin for autonomous compaction at pipeline checkpoints
 mkdir -p ~/.config/opencode/plugins/

@@ -102,9 +102,10 @@ install_opencode_global() {
   mkdir -p "$dest/agents/"
   cp "$PIPELINE_DIR/opencode/agents/"*.md "$dest/agents/"
 
-  mkdir -p "$dest/skills/pipeline-orchestrator-advanced/"
-  cp "$PIPELINE_DIR/opencode/skills/pipeline-orchestrator-advanced/SKILL.md" \
-     "$dest/skills/pipeline-orchestrator-advanced/"
+  for skill in pipeline-orchestrator-advanced pipeline-orchestrator-startup pipeline-orchestrator-o3 pipeline-orchestrator-validation pipeline-orchestrator-finalization; do
+    mkdir -p "$dest/skills/$skill/"
+    cp "$PIPELINE_DIR/opencode/skills/$skill/SKILL.md" "$dest/skills/$skill/"
+  done
 
   mkdir -p "$dest/plugins/"
   cp "$PIPELINE_DIR/opencode/plugins/pipeline-compaction-controller.js" \
@@ -122,9 +123,10 @@ install_opencode_project() {
   mkdir -p "$dest/agents/"
   cp "$PIPELINE_DIR/opencode/agents/"*.md "$dest/agents/"
 
-  mkdir -p "$dest/skills/pipeline-orchestrator-advanced/"
-  cp "$PIPELINE_DIR/opencode/skills/pipeline-orchestrator-advanced/SKILL.md" \
-     "$dest/skills/pipeline-orchestrator-advanced/"
+  for skill in pipeline-orchestrator-advanced pipeline-orchestrator-startup pipeline-orchestrator-o3 pipeline-orchestrator-validation pipeline-orchestrator-finalization; do
+    mkdir -p "$dest/skills/$skill/"
+    cp "$PIPELINE_DIR/opencode/skills/$skill/SKILL.md" "$dest/skills/$skill/"
+  done
 
   mkdir -p "$dest/plugins/"
   cp "$PIPELINE_DIR/opencode/plugins/pipeline-compaction-controller.js" \
