@@ -162,9 +162,33 @@ function makeRealMessageUpdatedEvent(sessionId = "sess-123") {
   }
 }
 
+/**
+ * Helper: build a session.idle event to flush deferred compaction.
+ * @param {string} [sessionId]
+ */
+function makeIdleEvent(sessionId = "sess-123") {
+  return {
+    type: "session.idle",
+    properties: {
+      sessionID: sessionId,
+    },
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  Tests                                                             */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Helper: send checkpoint event + session.idle to flush deferred compaction.
+ * @param {any} plugin
+ * @param {any} event
+ * @param {string} [sessionId]
+ */
+async function sendAndFlush(plugin, event, sessionId = "sess-123") {
+  await plugin.event({ event })
+  await plugin.event({ event: makeIdleEvent(sessionId) })
+}
 
 describe("PipelineCompactionController", () => {
   beforeEach(() => {
@@ -181,8 +205,7 @@ describe("PipelineCompactionController", () => {
       const { client, summarizeCalls } = createMockClient()
       const plugin = await PipelineCompactionController({ client })
 
-      const event = makeMessageEvent("post-cognitive")
-      await plugin.event({ event })
+      await sendAndFlush(plugin, makeMessageEvent("post-cognitive"))
 
       assert.equal(summarizeCalls.length, 1)
       assert.equal((/** @type {any} */ (summarizeCalls[0])).path.id, "sess-123")
@@ -195,7 +218,7 @@ describe("PipelineCompactionController", () => {
       for (const cp of targets) {
         const { client, summarizeCalls } = createMockClient()
         const plugin = await PipelineCompactionController({ client })
-        await plugin.event({ event: makeMessageEvent(cp, `sess-${cp}`) })
+        await sendAndFlush(plugin, makeMessageEvent(cp, `sess-${cp}`), `sess-${cp}`)
         assert.equal(summarizeCalls.length, 1, `Expected compaction for ${cp}`)
       }
     })
@@ -256,7 +279,7 @@ describe("PipelineCompactionController", () => {
       const { client, summarizeCalls } = createMockClient()
       const plugin = await PipelineCompactionController({ client })
 
-      await plugin.event({ event: makeMessageEvent("post-cognitive", "my-session") })
+      await sendAndFlush(plugin, makeMessageEvent("post-cognitive", "my-session"), "my-session")
       assert.equal((/** @type {any} */ (summarizeCalls[0])).path.id, "my-session")
     })
 
@@ -271,6 +294,7 @@ describe("PipelineCompactionController", () => {
         properties: { role: "assistant", content: text },
       }
       await plugin.event({ event })
+      await plugin.event({ event: makeIdleEvent("fallback-session") })
       assert.equal((/** @type {any} */ (summarizeCalls[0])).path.id, "fallback-session")
     })
 
@@ -296,11 +320,11 @@ describe("PipelineCompactionController", () => {
       const plugin = await PipelineCompactionController({ client })
 
       // First call should succeed
-      await plugin.event({ event: makeMessageEvent("post-cognitive") })
+      await sendAndFlush(plugin, makeMessageEvent("post-cognitive"))
       assert.equal(summarizeCalls.length, 1)
 
       // Second call with different checkpoint but same session - should be blocked by cooldown
-      await plugin.event({ event: makeMessageEvent("post-o3") })
+      await sendAndFlush(plugin, makeMessageEvent("post-o3"))
       assert.equal(summarizeCalls.length, 1)
     })
 
@@ -309,8 +333,8 @@ describe("PipelineCompactionController", () => {
       const { client, summarizeCalls } = createMockClient()
       const plugin = await PipelineCompactionController({ client })
 
-      await plugin.event({ event: makeMessageEvent("post-cognitive") })
-      await plugin.event({ event: makeMessageEvent("post-o3") })
+      await sendAndFlush(plugin, makeMessageEvent("post-cognitive"))
+      await sendAndFlush(plugin, makeMessageEvent("post-o3"))
       assert.equal(summarizeCalls.length, 2)
     })
   })
@@ -322,8 +346,8 @@ describe("PipelineCompactionController", () => {
       const plugin = await PipelineCompactionController({ client })
 
       const event = makeMessageEvent("post-cognitive")
-      await plugin.event({ event })
-      await plugin.event({ event })
+      await sendAndFlush(plugin, event)
+      await sendAndFlush(plugin, event)
       assert.equal(summarizeCalls.length, 1)
     })
 
@@ -333,7 +357,7 @@ describe("PipelineCompactionController", () => {
       const plugin = await PipelineCompactionController({ client })
 
       const event1 = makeMessageEvent("post-cognitive")
-      await plugin.event({ event: event1 })
+      await sendAndFlush(plugin, event1)
 
       // Same content but with extra whitespace
       const text2 = [
@@ -343,7 +367,7 @@ describe("PipelineCompactionController", () => {
         `- **Required input artifacts**:   docs/architecture.md`,
       ].join("\n")
       const event2 = makeTextEvent(text2)
-      await plugin.event({ event: event2 })
+      await sendAndFlush(plugin, event2)
 
       assert.equal(summarizeCalls.length, 1, "Whitespace-only difference should be deduped")
     })
@@ -355,7 +379,7 @@ describe("PipelineCompactionController", () => {
       const { client, summarizeCalls, logs } = createMockClient()
       const plugin = await PipelineCompactionController({ client })
 
-      await plugin.event({ event: makeMessageEvent("post-cognitive") })
+      await sendAndFlush(plugin, makeMessageEvent("post-cognitive"))
 
       assert.equal(summarizeCalls.length, 0)
       const dryRunLog = logs.find((l) => l.message.includes("Dry-run"))
@@ -368,7 +392,7 @@ describe("PipelineCompactionController", () => {
         const { client, summarizeCalls } = createMockClient()
         const plugin = await PipelineCompactionController({ client })
 
-        await plugin.event({ event: makeMessageEvent("post-cognitive") })
+        await sendAndFlush(plugin, makeMessageEvent("post-cognitive"))
         assert.equal(summarizeCalls.length, 0)
       })
     }
@@ -384,7 +408,7 @@ describe("PipelineCompactionController", () => {
       const plugin = await PipelineCompactionController({ client })
 
       // Should not throw
-      await plugin.event({ event: makeMessageEvent("post-cognitive") })
+      await sendAndFlush(plugin, makeMessageEvent("post-cognitive"))
     })
 
     it("should emit a visible warning when summarize fails (not just debug)", async () => {
@@ -395,7 +419,7 @@ describe("PipelineCompactionController", () => {
       })
       const plugin = await PipelineCompactionController({ client })
 
-      await plugin.event({ event: makeMessageEvent("post-cognitive") })
+      await sendAndFlush(plugin, makeMessageEvent("post-cognitive"))
 
       const warnLog = logs.find((l) => l.level === "warn" && l.message.includes("fail-open"))
       assert.ok(warnLog, "Expected a warn-level log on compaction failure")
@@ -406,7 +430,7 @@ describe("PipelineCompactionController", () => {
       const { client } = createMockClient({ hasSummarize: false })
       const plugin = await PipelineCompactionController({ client })
 
-      await plugin.event({ event: makeMessageEvent("post-cognitive") })
+      await sendAndFlush(plugin, makeMessageEvent("post-cognitive"))
     })
 
     it("should not throw when client.app.log is missing", async () => {
@@ -511,7 +535,7 @@ describe("PipelineCompactionController", () => {
       const { client, summarizeCalls } = createMockClient()
       const plugin = await PipelineCompactionController({ client })
 
-      await plugin.event({ event: makeMessageEvent("post-cognitive") })
+      await sendAndFlush(plugin, makeMessageEvent("post-cognitive"))
       assert.equal(summarizeCalls.length, 1)
     })
   })
@@ -531,6 +555,7 @@ describe("PipelineCompactionController", () => {
         },
       }
       await plugin.event({ event })
+      await plugin.event({ event: makeIdleEvent("sess-456") })
       assert.equal(summarizeCalls.length, 1)
     })
   })
@@ -560,7 +585,7 @@ describe("PipelineCompactionController", () => {
           content: checkpointText,
         },
       }
-      await plugin.event({ event })
+      await sendAndFlush(plugin, event, "sess-content")
       assert.equal(summarizeCalls.length, 1, "Should extract checkpoint from content property")
     })
 
@@ -584,7 +609,7 @@ describe("PipelineCompactionController", () => {
           body: checkpointText, // not content or text
         },
       }
-      await plugin.event({ event })
+      await sendAndFlush(plugin, event, "sess-fallback")
       // Falls back to JSON.stringify which embeds the text — checkpoint should be found
       assert.equal(summarizeCalls.length, 1, "Should fall back to JSON.stringify for extraction")
     })
@@ -613,43 +638,33 @@ describe("PipelineCompactionController", () => {
   /* ---------------------------------------------------------------- */
 
   describe("concurrent event handling (in-flight guard)", () => {
-    it("should not double-trigger when two events arrive for the same session simultaneously", async () => {
+    it("should not double-trigger when two checkpoints arrive before idle", async () => {
       process.env.OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS = "0"
       const { client, summarizeCalls } = createMockClient()
-
-      // Make summarize slow to create a window for concurrent events
-      // @ts-ignore -- session is guaranteed non-null when hasSummarize=true
-      client.session.summarize = mock.fn(
-        () => new Promise((resolve) => setTimeout(() => { summarizeCalls.push({}); resolve(); }, 50)),
-      )
-
       const plugin = await PipelineCompactionController({ client })
 
       const event1 = makeMessageEvent("post-cognitive", "sess-concurrent")
       const event2 = makeMessageEvent("post-o3", "sess-concurrent")
 
-      // Fire both in parallel
-      const [r1, r2] = await Promise.allSettled([
-        plugin.event({ event: event1 }),
-        plugin.event({ event: event2 }),
-      ])
+      // Fire both checkpoint events (both store to pendingCompaction, last wins)
+      await plugin.event({ event: event1 })
+      await plugin.event({ event: event2 })
 
-      assert.equal(r1.status, "fulfilled")
-      assert.equal(r2.status, "fulfilled")
+      // Flush with idle — only one compaction should fire
+      await plugin.event({ event: makeIdleEvent("sess-concurrent") })
 
-      // At most one should have triggered (the in-flight guard blocks the second)
-      assert.ok(summarizeCalls.length <= 1, `Expected at most 1 call, got ${summarizeCalls.length}`)
+      assert.equal(summarizeCalls.length, 1, `Expected exactly 1 call, got ${summarizeCalls.length}`)
     })
 
-    it("should allow sequential events for same session after in-flight clears", async () => {
+    it("should allow sequential idle flushes for same session", async () => {
       process.env.OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS = "0"
       const { client, summarizeCalls } = createMockClient()
       const plugin = await PipelineCompactionController({ client })
 
-      await plugin.event({ event: makeMessageEvent("post-cognitive", "sess-seq") })
-      await plugin.event({ event: makeMessageEvent("post-o3", "sess-seq") })
+      await sendAndFlush(plugin, makeMessageEvent("post-cognitive", "sess-seq"), "sess-seq")
+      await sendAndFlush(plugin, makeMessageEvent("post-o3", "sess-seq"), "sess-seq")
 
-      assert.equal(summarizeCalls.length, 2, "Sequential events should both succeed")
+      assert.equal(summarizeCalls.length, 2, "Sequential checkpoint+idle pairs should both succeed")
     })
   })
 
@@ -665,8 +680,10 @@ describe("PipelineCompactionController", () => {
 
       // Simulate 600 distinct sessions (MAX_TRACKED_SESSIONS is 500)
       for (let i = 0; i < 600; i++) {
-        const event = makeMessageEvent("post-cognitive", `sess-evict-${i}`)
+        const sid = `sess-evict-${i}`
+        const event = makeMessageEvent("post-cognitive", sid)
         await plugin.event({ event })
+        await plugin.event({ event: makeIdleEvent(sid) })
       }
 
       // The plugin should have evicted oldest sessions.
@@ -686,7 +703,7 @@ describe("PipelineCompactionController", () => {
       const plugin = await PipelineCompactionController({ client })
 
       const event = makePartUpdatedEvent("post-cognitive")
-      await plugin.event({ event })
+      await sendAndFlush(plugin, event)
 
       assert.equal(summarizeCalls.length, 1, "Should trigger compaction from TextPart")
       assert.equal((/** @type {any} */ (summarizeCalls[0])).path.id, "sess-123")
@@ -699,7 +716,7 @@ describe("PipelineCompactionController", () => {
       for (const cp of targets) {
         const { client, summarizeCalls } = createMockClient()
         const plugin = await PipelineCompactionController({ client })
-        await plugin.event({ event: makePartUpdatedEvent(cp, `sess-${cp}`) })
+        await sendAndFlush(plugin, makePartUpdatedEvent(cp, `sess-${cp}`), `sess-${cp}`)
         assert.equal(summarizeCalls.length, 1, `Expected compaction for ${cp} via TextPart`)
       }
     })
@@ -742,7 +759,7 @@ describe("PipelineCompactionController", () => {
       const plugin = await PipelineCompactionController({ client })
 
       const event = makePartUpdatedEvent("post-cognitive", "my-real-session")
-      await plugin.event({ event })
+      await sendAndFlush(plugin, event, "my-real-session")
 
       assert.equal(summarizeCalls.length, 1)
       assert.equal((/** @type {any} */ (summarizeCalls[0])).path.id, "my-real-session")
@@ -753,10 +770,10 @@ describe("PipelineCompactionController", () => {
       const { client, summarizeCalls } = createMockClient()
       const plugin = await PipelineCompactionController({ client })
 
-      await plugin.event({ event: makePartUpdatedEvent("post-cognitive") })
+      await sendAndFlush(plugin, makePartUpdatedEvent("post-cognitive"))
       assert.equal(summarizeCalls.length, 1)
 
-      await plugin.event({ event: makePartUpdatedEvent("post-o3") })
+      await sendAndFlush(plugin, makePartUpdatedEvent("post-o3"))
       assert.equal(summarizeCalls.length, 1, "Should be blocked by cooldown")
     })
 
@@ -766,9 +783,83 @@ describe("PipelineCompactionController", () => {
       const plugin = await PipelineCompactionController({ client })
 
       const event = makePartUpdatedEvent("post-cognitive")
-      await plugin.event({ event })
-      await plugin.event({ event })
+      await sendAndFlush(plugin, event)
+      await sendAndFlush(plugin, event)
       assert.equal(summarizeCalls.length, 1, "Duplicate TextPart checkpoint should be deduped")
+    })
+  })
+
+  /* ---------------------------------------------------------------- */
+  /*  NEW: session.idle deferred compaction behavior                   */
+  /* ---------------------------------------------------------------- */
+
+  describe("session.idle deferred compaction", () => {
+    it("should NOT compact when checkpoint detected but no idle event follows", async () => {
+      const { client, summarizeCalls } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      await plugin.event({ event: makePartUpdatedEvent("post-cognitive") })
+      // No idle event sent
+      assert.equal(summarizeCalls.length, 0, "Checkpoint without idle should not trigger compaction")
+    })
+
+    it("should compact when checkpoint is followed by idle event", async () => {
+      const { client, summarizeCalls } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      await plugin.event({ event: makePartUpdatedEvent("post-cognitive") })
+      await plugin.event({ event: makeIdleEvent() })
+
+      assert.equal(summarizeCalls.length, 1, "Checkpoint + idle should trigger compaction")
+    })
+
+    it("should only flush latest checkpoint when multiple arrive before idle", async () => {
+      process.env.OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS = "0"
+      const { client, summarizeCalls } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      await plugin.event({ event: makePartUpdatedEvent("post-cognitive") })
+      await plugin.event({ event: makePartUpdatedEvent("post-o3") })
+      await plugin.event({ event: makeIdleEvent() })
+
+      // Only one compaction call (last checkpoint wins in pendingCompaction map)
+      assert.equal(summarizeCalls.length, 1, "Only latest pending checkpoint should flush")
+    })
+
+    it("should be a no-op when idle fires without pending checkpoint", async () => {
+      const { client, summarizeCalls } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      await plugin.event({ event: makeIdleEvent() })
+
+      assert.equal(summarizeCalls.length, 0, "Idle without pending should not trigger compaction")
+    })
+
+    it("should handle idle for different session than pending checkpoint", async () => {
+      const { client, summarizeCalls } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      await plugin.event({ event: makePartUpdatedEvent("post-cognitive", "sess-A") })
+      await plugin.event({ event: makeIdleEvent("sess-B") })
+
+      assert.equal(summarizeCalls.length, 0, "Idle for wrong session should not flush")
+
+      // Now flush the correct session
+      await plugin.event({ event: makeIdleEvent("sess-A") })
+      assert.equal(summarizeCalls.length, 1, "Idle for correct session should flush")
+    })
+
+    it("should clear pending after flush so second idle is a no-op", async () => {
+      const { client, summarizeCalls } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      await plugin.event({ event: makePartUpdatedEvent("post-cognitive") })
+      await plugin.event({ event: makeIdleEvent() })
+      assert.equal(summarizeCalls.length, 1)
+
+      // Second idle — pending already cleared
+      await plugin.event({ event: makeIdleEvent() })
+      assert.equal(summarizeCalls.length, 1, "Second idle should not re-trigger")
     })
   })
 })

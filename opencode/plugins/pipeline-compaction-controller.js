@@ -113,6 +113,14 @@ export const PipelineCompactionController = async ({ client }) => {
   const startupLogged = new Set()
 
   /**
+   * Pending compactions: when a checkpoint is detected during streaming,
+   * the compaction is deferred until session.idle fires.
+   * Map<sessionID, signature>
+   * @type {Map<string, string>}
+   */
+  const pendingCompaction = new Map()
+
+  /**
    * Evict the oldest tracked session entries when size exceeds MAX_TRACKED_SESSIONS.
    * Uses Map/Set insertion-order iteration to remove the oldest entries first (fix #1).
    */
@@ -413,6 +421,11 @@ export const PipelineCompactionController = async ({ client }) => {
   return {
     /**
      * Handle incoming pipeline events.
+     *
+     * Checkpoint detection happens on message.part.updated (during streaming),
+     * but compaction is deferred until session.idle — calling session.summarize
+     * while the model is still generating is silently ignored by the server.
+     *
      * @param {{ event: PipelineEvent }} params
      * @returns {Promise<void>}
      */
@@ -422,6 +435,20 @@ export const PipelineCompactionController = async ({ client }) => {
       if (event.type === "session.created") {
         const createdSessionID = extractSessionId(event.properties ?? {}) || extractSessionId(/** @type {Record<string, unknown>} */ (event))
         await emitStartupCheck(createdSessionID)
+        return
+      }
+
+      // On session.idle: flush any pending compaction for this session.
+      if (event.type === "session.idle") {
+        const idleSessionID = extractSessionId(event.properties ?? {}) || extractSessionId(/** @type {Record<string, unknown>} */ (event))
+        if (!idleSessionID) return
+
+        const signature = pendingCompaction.get(idleSessionID)
+        if (!signature) return
+        pendingCompaction.delete(idleSessionID)
+
+        await debugLog("Session idle — flushing deferred compaction", { sessionID: idleSessionID, signature })
+        await triggerCompaction(idleSessionID, signature)
         return
       }
 
@@ -456,7 +483,13 @@ export const PipelineCompactionController = async ({ client }) => {
       await emitStartupCheck(sessionID)
 
       const signature = `${checkpoint.id}:${normalizeBlock(checkpoint.block)}`
-      await triggerCompaction(sessionID, signature)
+
+      // Defer compaction: store pending and wait for session.idle.
+      pendingCompaction.set(sessionID, signature)
+      await debugLog("Checkpoint detected — compaction deferred until session.idle", {
+        sessionID,
+        checkpointId: checkpoint.id,
+      })
     },
 
     /**
