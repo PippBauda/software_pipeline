@@ -13,6 +13,8 @@ const ENV_KEYS = [
   "OPENCODE_PIPELINE_COMPACTION_DRY_RUN",
   "OPENCODE_PIPELINE_COMPACTION_DEBUG",
   "OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS",
+  "OPENCODE_PIPELINE_COMPACTION_PROVIDER_ID",
+  "OPENCODE_PIPELINE_COMPACTION_MODEL_ID",
 ]
 
 function saveEnv() {
@@ -537,6 +539,64 @@ describe("PipelineCompactionController", () => {
 
       await sendAndFlush(plugin, makeMessageEvent("post-cognitive"))
       assert.equal(summarizeCalls.length, 1)
+    })
+  })
+
+  describe("compaction provider/model override via env vars", () => {
+    it("should pass providerID and modelID in summarize body when env vars are set", async () => {
+      process.env.OPENCODE_PIPELINE_COMPACTION_PROVIDER_ID = "github-copilot"
+      process.env.OPENCODE_PIPELINE_COMPACTION_MODEL_ID = "gpt-4o"
+      const { client, summarizeCalls } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      await sendAndFlush(plugin, makeMessageEvent("post-cognitive"))
+
+      assert.equal(summarizeCalls.length, 1)
+      const call = /** @type {any} */ (summarizeCalls[0])
+      assert.equal(call.body.providerID, "github-copilot")
+      assert.equal(call.body.modelID, "gpt-4o")
+    })
+
+    it("should not include providerID/modelID when env vars are not set", async () => {
+      const { client, summarizeCalls } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      await sendAndFlush(plugin, makeMessageEvent("post-cognitive"))
+
+      assert.equal(summarizeCalls.length, 1)
+      const call = /** @type {any} */ (summarizeCalls[0])
+      assert.equal(call.body.providerID, undefined)
+      assert.equal(call.body.modelID, undefined)
+    })
+
+    it("should include only providerID when only that env var is set", async () => {
+      process.env.OPENCODE_PIPELINE_COMPACTION_PROVIDER_ID = "github-copilot"
+      const { client, summarizeCalls } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      await sendAndFlush(plugin, makeMessageEvent("post-cognitive"))
+
+      assert.equal(summarizeCalls.length, 1)
+      const call = /** @type {any} */ (summarizeCalls[0])
+      assert.equal(call.body.providerID, "github-copilot")
+      assert.equal(call.body.modelID, undefined)
+    })
+
+    it("should log provider/model in startup diagnostics", async () => {
+      process.env.OPENCODE_PIPELINE_COMPACTION_PROVIDER_ID = "github-copilot"
+      process.env.OPENCODE_PIPELINE_COMPACTION_MODEL_ID = "gpt-4o"
+      const { client, logs } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      await plugin.event({
+        event: { type: "session.created", properties: { sessionID: "s1" } },
+      })
+
+      const startupLog = logs.find((l) => l.message.includes("Startup check"))
+      assert.ok(startupLog)
+      const extra = /** @type {any} */ (startupLog).extra
+      assert.equal(extra.diagnostics.compactionProviderID, "github-copilot")
+      assert.equal(extra.diagnostics.compactionModelID, "gpt-4o")
     })
   })
 

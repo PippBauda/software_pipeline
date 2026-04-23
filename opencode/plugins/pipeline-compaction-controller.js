@@ -83,6 +83,8 @@ const MAX_TRACKED_SESSIONS = 500
  * - `OPENCODE_PIPELINE_COMPACTION_DRY_RUN` — "1"|"true"|"yes"|"on" to skip actual compaction
  * - `OPENCODE_PIPELINE_COMPACTION_DEBUG` — "1"|"true"|"yes"|"on" to enable debug logging
  * - `OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS` — Minimum ms between compactions per session (default 120000)
+ * - `OPENCODE_PIPELINE_COMPACTION_PROVIDER_ID` — Override provider for compaction (e.g. "github-copilot")
+ * - `OPENCODE_PIPELINE_COMPACTION_MODEL_ID` — Override model for compaction (e.g. "gpt-4o")
  *
  * @param {PluginParams} params - Plugin initialization parameters
  * @returns {Promise<PipelineCompactionPluginFull>}
@@ -103,6 +105,8 @@ export const PipelineCompactionController = async ({ client }) => {
   const rawCooldown = process.env.OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS
   const parsedCooldown = Number(rawCooldown || 120000)
   const COOLDOWN_MS = Number.isFinite(parsedCooldown) && parsedCooldown >= 0 ? parsedCooldown : 120000
+  const COMPACTION_PROVIDER_ID = process.env.OPENCODE_PIPELINE_COMPACTION_PROVIDER_ID || ""
+  const COMPACTION_MODEL_ID = process.env.OPENCODE_PIPELINE_COMPACTION_MODEL_ID || ""
   /** @type {Set<string>} */
   const inFlight = new Set()
   /** @type {Map<string, number>} */
@@ -328,7 +332,10 @@ export const PipelineCompactionController = async ({ client }) => {
 
       await client.session?.summarize({
         path: { id: sessionID },
-        body: {},
+        body: {
+          ...(COMPACTION_PROVIDER_ID ? { providerID: COMPACTION_PROVIDER_ID } : {}),
+          ...(COMPACTION_MODEL_ID ? { modelID: COMPACTION_MODEL_ID } : {}),
+        },
       })
       lastCompactionAt.set(sessionID, Date.now())
       evictStaleSessions()
@@ -372,6 +379,8 @@ export const PipelineCompactionController = async ({ client }) => {
         dryRun: DRY_RUN,
         debug: DEBUG,
         cooldownMs: COOLDOWN_MS,
+        compactionProviderID: COMPACTION_PROVIDER_ID || undefined,
+        compactionModelID: COMPACTION_MODEL_ID || undefined,
         targetCheckpoints: Array.from(TARGET_CHECKPOINTS),
         hasSessionSummarize: Boolean(client?.session?.summarize),
         hasAppLog: Boolean(client?.app?.log),
@@ -393,6 +402,8 @@ export const PipelineCompactionController = async ({ client }) => {
               OPENCODE_PIPELINE_COMPACTION_DRY_RUN: rawDryRun || undefined,
               OPENCODE_PIPELINE_COMPACTION_DEBUG: rawDebug || undefined,
               OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS: rawCooldown || undefined,
+              OPENCODE_PIPELINE_COMPACTION_PROVIDER_ID: COMPACTION_PROVIDER_ID || undefined,
+              OPENCODE_PIPELINE_COMPACTION_MODEL_ID: COMPACTION_MODEL_ID || undefined,
             },
           },
         },
