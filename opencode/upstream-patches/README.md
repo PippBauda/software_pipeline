@@ -25,20 +25,20 @@ This keeps compaction inside OpenCode's own compaction flow instead of trying to
 
 ## Reapply after an OpenCode update
 
-1. Clone the exact OpenCode version you want to patch:
+### Clone the exact OpenCode version you want to patch
 
 ```bash
 git clone https://github.com/anomalyco/opencode /path/to/opencode
 cd /path/to/opencode
 ```
 
-1. Apply the patch bundle:
+### Apply the patch bundle
 
 ```bash
 /path/to/software_pipeline/opencode/upstream-patches/apply-opencode-mid-session-compaction.sh /path/to/opencode
 ```
 
-1. Run the recommended upstream verification commands:
+### Run the recommended upstream verification commands
 
 ```bash
 cd /path/to/opencode
@@ -48,7 +48,9 @@ bun --cwd packages/opencode run typecheck
 bun --cwd packages/opencode test test/plugin/trigger.test.ts test/session/processor-effect.test.ts test/session/compaction.test.ts
 ```
 
-1. Build and install your patched OpenCode as you normally do.
+### Build and install your patched OpenCode
+
+Build and install your patched OpenCode as you normally do.
 
 ## Notes
 
