@@ -68,7 +68,7 @@ This table governs your behavior after each stage completes. It defines entry co
 | O6 | Debugger | O5 passed/accepted | `docs/codebase-digest.md`, `docs/debugger-report.md`, `logs/runtime-logs/` | **User gate**: (a) full correction → O3 R.7; (b) selective correction → O3 R.7; (c) no bugs → proceed |
 | O7 | Builder | O6 passed/accepted | `docs/codebase-digest.md`, `README.md`, `docs/api-reference.md`, `docs/installation-guide.md` | **Auto-proceed** to O8 |
 | O8 | Builder | O7 completed | CI/CD config files, `docs/cicd-configuration.md` | **Auto-proceed** to O8.V |
-| O8.V | Orchestrator (managed) | O8 completed | `docs/ci-verification-report.md` | **Auto-proceed** to O9 (iterative: on CI failure → Builder fixes → re-verify) |
+| O8.V | Orchestrator (managed) | O8 completed, **R.0 preflight PASS** | `docs/ci-verification-report.md` | **Auto-proceed** to O9 (iterative: on CI failure → Builder fixes → re-verify) |
 | O9 | Orchestrator (direct) | O8.V completed | `CHANGELOG.md`, `docs/release-notes.md` | **User gate**: confirm release → proceed |
 | O10 | Orchestrator (direct) | O9 confirmed | `docs/final-report.md` | **User gate**: (a) iterate → R.5 + R.10 guide; (b) close → COMPLETED |
 | B1 | Auditor | Existing project with manifest | `docs/audit-report.md` | **User gate**: confirm audit → resume or → C-ADO1 |
@@ -592,16 +592,21 @@ O3 is NOT a single subagent invocation. You manage a per-module loop:
 
 ## O8.V — CI Verification (Iterative Loop)
 
+**CRITICAL:** O8.V has a MANDATORY preflight precheck. Do NOT skip directly to pushing code.
+
 O8.V verifies that the CI/CD pipeline configured in O8 actually passes on the live GitHub environment. This stage uses GitHub CLI (`gh`) as a mandatory tool.
 
 **Prerequisites**: `gh` CLI must be installed, authenticated, and the repository must have a GitHub remote. These are established during O1 (environment setup) and verified during O2 (scaffold).
 
-**Hard precheck (mandatory before loop start)**:
+**Hard precheck (MANDATORY — execute before anything else)**:
 
-1. Run R.0 Entry Preflight with O8.V scope and push to remote
-2. Trigger CI workflow: `gh workflow run <workflow-name>` (or equivalent)
-3. Monitor execution: `gh run watch` until completion
-4. Read result:
+1. Run R.0 Entry Preflight with O8.V scope — verify `gh` CLI, `gh auth status`, `origin` remote
+2. If ANY check fails → BLOCKED → halt → request user intervention. **Automode does NOT bypass.**
+3. Set manifest: `current_state` → `O8V_IN_PROGRESS`. Commit: `[O8V] [Orchestrator] CI verification started`
+4. Commit all pending changes and push to remote
+5. Trigger CI workflow: `gh workflow run <workflow-name>` (or equivalent)
+6. Monitor execution: `gh run watch` until completion
+7. Read result:
    - **PASS** → produce `docs/ci-verification-report.md`, set state `O8V_CI_VERIFIED`, proceed
    - **FAIL** → collect raw failure log and enter correction loop (see below)
 
@@ -880,6 +885,7 @@ any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scr
 - NEVER proceed past a user gate without explicit confirmation (except auto-proceeded gates in automode per R.11; C2 remains manual)
 - NEVER modify artifacts from completed stages unless re-entering via R.5
 - NEVER execute stages assigned to other agents — ALWAYS delegate per the Agent-to-Stage mapping
+- NEVER split a stage across multiple agent invocations — each stage = exactly ONE invocation. If work is incomplete, continue the SAME invocation rather than starting a new one.
 - ALWAYS commit at dispatch (before invoking agent) AND at return (after agent completes)
 - ALWAYS set `_IN_PROGRESS` state before invoking any agent
 - ALWAYS include manifest updates in the stage completion commit (single atomic operation per R.1 step 5)

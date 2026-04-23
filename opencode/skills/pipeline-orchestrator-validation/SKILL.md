@@ -89,7 +89,9 @@ When O4, O5, or O6 identifies issues and user chooses correction:
 
 ## O8.V — CI Verification (Orchestrator-Executed)
 
-### Hard precheck
+**CRITICAL:** O8.V has a MANDATORY preflight precheck. Do NOT skip directly to pushing code.
+
+### Hard precheck (MANDATORY — execute before anything else)
 
 1. Load skill `pipeline-orchestrator-preflight` and execute R.0 with O8.V scope
 2. Verify explicitly: `gh` CLI available, `gh auth status` succeeds, `origin` remote exists and is reachable
@@ -97,7 +99,7 @@ When O4, O5, or O6 identifies issues and user chooses correction:
 
 ### Execution flow
 
-1. Set manifest: `current_state` → `O8V_IN_PROGRESS`. Commit: `[O8V] [Orchestrator] CI verification started`
+1. **CRITICAL:** Set manifest: `current_state` → `O8V_IN_PROGRESS`. Commit: `[O8V] [Orchestrator] CI verification started` — this commit MUST happen before any push.
 2. Commit all pending changes and push to remote
 3. Trigger CI: `gh workflow run <workflow-name>` (or equivalent)
 4. Monitor: `gh run watch` until completion

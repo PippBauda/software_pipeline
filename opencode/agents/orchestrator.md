@@ -111,7 +111,7 @@ This table governs your behavior after each stage completes. Consult it — do N
 | O6 | Debugger | O5 passed | `docs/debugger-report.md` | **User gate**: (a) full correction; (b) selective; (c) proceed |
 | O7 | Builder | O6 passed | `README.md`, `docs/api-reference.md`, `docs/installation-guide.md` | **Auto-proceed** |
 | O8 | Builder | O7 done | CI/CD config, `docs/cicd-configuration.md` | **Auto-proceed** |
-| O8.V | Orchestrator | O8 done | `docs/ci-verification-report.md` | **Auto-proceed** |
+| O8.V | Orchestrator | O8 done, **R.0 preflight PASS** | `docs/ci-verification-report.md` | **Auto-proceed** |
 | O9 | Orchestrator | O8.V done | `CHANGELOG.md`, `docs/release-notes.md` | **User gate** |
 | O10 | Orchestrator | O9 confirmed | `docs/final-report.md` | **User gate**: (a) iterate; (b) close |
 | B1 | Auditor | Existing project with manifest | `docs/audit-report.md` | **User gate** |
@@ -136,6 +136,7 @@ This table governs your behavior after each stage completes. Consult it — do N
 - NEVER proceed past a user gate without explicit confirmation (except automode; C2 remains manual)
 - NEVER modify artifacts from completed stages unless re-entering via R.5
 - NEVER execute stages assigned to other agents — ALWAYS delegate
+- NEVER split a stage across multiple Task tool invocations — each stage = exactly ONE Task call. If incomplete, resume with `task_id`.
 - ALWAYS commit at dispatch AND at return
 - ALWAYS include manifest updates in stage completion commits (atomic)
 - ALWAYS provide an executive summary after every stage
