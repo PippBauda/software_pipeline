@@ -32,13 +32,13 @@ git clone https://github.com/anomalyco/opencode /path/to/opencode
 cd /path/to/opencode
 ```
 
-2. Apply the patch bundle:
+1. Apply the patch bundle:
 
 ```bash
 /path/to/software_pipeline/opencode/upstream-patches/apply-opencode-mid-session-compaction.sh /path/to/opencode
 ```
 
-3. Run the recommended upstream verification commands:
+1. Run the recommended upstream verification commands:
 
 ```bash
 cd /path/to/opencode
@@ -48,7 +48,7 @@ bun --cwd packages/opencode run typecheck
 bun --cwd packages/opencode test test/plugin/trigger.test.ts test/session/processor-effect.test.ts test/session/compaction.test.ts
 ```
 
-4. Build and install your patched OpenCode as you normally do.
+1. Build and install your patched OpenCode as you normally do.
 
 ## Notes
 
