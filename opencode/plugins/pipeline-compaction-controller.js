@@ -152,8 +152,10 @@ export const PipelineCompactionController = async ({ client }) => {
 
   /**
    * Convert a value to its text representation.
-   * Prefers explicit `content` / `text` properties over full JSON serialization
-   * to avoid unnecessary stringify on high-frequency events (fix #9).
+   * Handles the actual OpenCode event structures:
+   * - message.part.updated: properties.part.text (TextPart)
+   * - message.updated: properties.info (Message — no inline text, parts are separate events)
+   * Falls back to content/text properties or JSON serialization for forward-compatibility.
    * @param {unknown} value
    * @returns {string}
    */
@@ -161,6 +163,10 @@ export const PipelineCompactionController = async ({ client }) => {
     if (typeof value === "string") return value
     if (value !== null && typeof value === "object") {
       const obj = /** @type {Record<string, unknown>} */ (value)
+      // OpenCode message.part.updated: properties.part.text
+      const part = /** @type {Record<string, unknown>} */ (obj.part ?? {})
+      if (typeof part.text === "string") return part.text
+      // Legacy/test: properties.content or properties.text
       if (typeof obj.content === "string") return obj.content
       if (typeof obj.text === "string") return obj.text
     }
@@ -188,13 +194,29 @@ export const PipelineCompactionController = async ({ client }) => {
 
   /**
    * Check if event properties indicate an assistant message.
+   * Handles two OpenCode event structures:
+   * - message.updated: properties.info.role === "assistant"
+   * - message.part.updated: no role on part; check part.type === "text" (only
+   *   text parts can contain checkpoint blocks). The looksLikeOrchestratorCheckpoint
+   *   guard downstream ensures only genuine orchestrator checkpoints trigger compaction.
+   * Also checks legacy/test paths: properties.role, properties.message.role.
    * @param {Record<string, unknown>} properties
    * @returns {boolean}
    */
   const isAssistantMessage = (properties) => {
+    // OpenCode message.updated: properties.info.role
     const info = /** @type {Record<string, unknown>} */ (properties?.info ?? {})
+    if (info.role) return String(info.role).toLowerCase() === "assistant"
+
+    // OpenCode message.part.updated: properties.part is a Part object.
+    // Parts don't carry role — accept text parts and rely on downstream
+    // checkpoint format validation to filter out non-orchestrator content.
+    const part = /** @type {Record<string, unknown>} */ (properties?.part ?? {})
+    if (part.type === "text" && typeof part.text === "string") return true
+
+    // Legacy / test / forward-compat paths
     const message = /** @type {Record<string, unknown>} */ (properties?.message ?? {})
-    const role = properties?.role || info?.role || message?.role
+    const role = properties?.role || message?.role
     if (!role) return false
     return String(role).toLowerCase() === "assistant"
   }

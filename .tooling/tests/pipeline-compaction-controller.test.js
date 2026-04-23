@@ -74,7 +74,8 @@ function createMockClient({ hasSummarize = true, hasLog = true } = {}) {
 }
 
 /**
- * Helper: build a message event with checkpoint text.
+ * Helper: build a message event with checkpoint text (LEGACY format — properties.content).
+ * Used by existing tests for backward-compatibility with the legacy event structure.
  * @param {string} checkpointId
  * @param {string} [sessionId]
  */
@@ -104,6 +105,59 @@ function makeTextEvent(text, sessionId = "sess-123") {
       role: "assistant",
       sessionID: sessionId,
       content: text,
+    },
+  }
+}
+
+/**
+ * Helper: build a message.part.updated event matching the REAL OpenCode event structure.
+ * In OpenCode, text content arrives as TextPart in message.part.updated events.
+ * @param {string} checkpointId
+ * @param {string} [sessionId]
+ */
+function makePartUpdatedEvent(checkpointId, sessionId = "sess-123") {
+  const text = [
+    `## Pipeline Checkpoint [${checkpointId}]`,
+    `- **State**: C9_IMPLEMENTATION_PLANNED`,
+    `- **Next stage**: O1`,
+    `- **Required input artifacts**: docs/architecture.md`,
+  ].join("\n")
+
+  return {
+    type: "message.part.updated",
+    properties: {
+      sessionID: sessionId,
+      part: {
+        id: "part-001",
+        sessionID: sessionId,
+        messageID: "msg-001",
+        type: "text",
+        text,
+      },
+      time: Date.now(),
+    },
+  }
+}
+
+/**
+ * Helper: build a message.updated event matching the REAL OpenCode event structure.
+ * In OpenCode, message.updated carries info (Message) but NOT text content.
+ * @param {string} [sessionId]
+ */
+function makeRealMessageUpdatedEvent(sessionId = "sess-123") {
+  return {
+    type: "message.updated",
+    properties: {
+      sessionID: sessionId,
+      info: {
+        id: "msg-001",
+        sessionID: sessionId,
+        role: "assistant",
+        time: { created: Date.now() },
+        parentID: "msg-000",
+        modelID: "test-model",
+        providerID: "test-provider",
+      },
     },
   }
 }
@@ -619,6 +673,102 @@ describe("PipelineCompactionController", () => {
       // We can't directly inspect internal maps, but we verify the plugin
       // handles 600+ distinct sessions without throwing.
       assert.ok(true, "Plugin survived 600 session events without error")
+    })
+  })
+
+  /* ---------------------------------------------------------------- */
+  /*  Real OpenCode event structure tests                              */
+  /* ---------------------------------------------------------------- */
+
+  describe("real OpenCode event structure (message.part.updated with TextPart)", () => {
+    it("should trigger compaction for a valid checkpoint in a TextPart", async () => {
+      const { client, summarizeCalls } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      const event = makePartUpdatedEvent("post-cognitive")
+      await plugin.event({ event })
+
+      assert.equal(summarizeCalls.length, 1, "Should trigger compaction from TextPart")
+      assert.equal((/** @type {any} */ (summarizeCalls[0])).path.id, "sess-123")
+    })
+
+    it("should trigger compaction for all target checkpoints via TextPart", async () => {
+      process.env.OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS = "0"
+      const targets = ["post-cognitive", "post-o3", "post-o10", "post-reentry"]
+
+      for (const cp of targets) {
+        const { client, summarizeCalls } = createMockClient()
+        const plugin = await PipelineCompactionController({ client })
+        await plugin.event({ event: makePartUpdatedEvent(cp, `sess-${cp}`) })
+        assert.equal(summarizeCalls.length, 1, `Expected compaction for ${cp} via TextPart`)
+      }
+    })
+
+    it("should NOT trigger for a non-text part type", async () => {
+      const { client, summarizeCalls } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      const event = {
+        type: "message.part.updated",
+        properties: {
+          sessionID: "sess-123",
+          part: {
+            id: "part-002",
+            sessionID: "sess-123",
+            messageID: "msg-001",
+            type: "reasoning",
+            text: "## Pipeline Checkpoint [post-cognitive]\n- **State**: X\n- **Next stage**: O1\n- **Required input artifacts**: docs/a.md",
+          },
+          time: Date.now(),
+        },
+      }
+      await plugin.event({ event })
+
+      assert.equal(summarizeCalls.length, 0, "Should not trigger for reasoning parts")
+    })
+
+    it("should NOT trigger for a real message.updated event (no text content)", async () => {
+      const { client, summarizeCalls } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      const event = makeRealMessageUpdatedEvent("sess-123")
+      await plugin.event({ event })
+
+      assert.equal(summarizeCalls.length, 0, "message.updated has no text — should not trigger")
+    })
+
+    it("should extract sessionID from part properties", async () => {
+      const { client, summarizeCalls } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      const event = makePartUpdatedEvent("post-cognitive", "my-real-session")
+      await plugin.event({ event })
+
+      assert.equal(summarizeCalls.length, 1)
+      assert.equal((/** @type {any} */ (summarizeCalls[0])).path.id, "my-real-session")
+    })
+
+    it("should respect cooldown for TextPart events", async () => {
+      process.env.OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS = "60000"
+      const { client, summarizeCalls } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      await plugin.event({ event: makePartUpdatedEvent("post-cognitive") })
+      assert.equal(summarizeCalls.length, 1)
+
+      await plugin.event({ event: makePartUpdatedEvent("post-o3") })
+      assert.equal(summarizeCalls.length, 1, "Should be blocked by cooldown")
+    })
+
+    it("should deduplicate identical TextPart checkpoints", async () => {
+      process.env.OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS = "0"
+      const { client, summarizeCalls } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      const event = makePartUpdatedEvent("post-cognitive")
+      await plugin.event({ event })
+      await plugin.event({ event })
+      assert.equal(summarizeCalls.length, 1, "Duplicate TextPart checkpoint should be deduped")
     })
   })
 })
