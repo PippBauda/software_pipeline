@@ -165,7 +165,38 @@ function makeRealMessageUpdatedEvent(sessionId = "sess-123") {
 }
 
 /**
- * Helper: build a session.idle event to flush deferred compaction.
+ * Helper: invoke the patched OpenCode completion hook.
+ * @param {any} plugin
+ * @param {string} [sessionId]
+ * @param {string} [messageId]
+ * @returns {Promise<{ compact: boolean }>}
+ */
+async function completeAssistantMessage(plugin, sessionId = "sess-123", messageId = "msg-001") {
+  const completion = /** @type {Function | undefined} */ (
+    /** @type {any} */ (plugin)["experimental.assistant.message.complete"]
+  )
+  const output = { compact: false }
+  if (!completion) return output
+
+  await completion(
+    {
+      sessionID: sessionId,
+      messageID: messageId,
+      message: {
+        id: messageId,
+        sessionID: sessionId,
+        role: "assistant",
+      },
+      parts: [],
+    },
+    output,
+  )
+
+  return output
+}
+
+/**
+ * Helper: build a session.idle event for fallback compaction on unpatched cores.
  * @param {string} [sessionId]
  */
 function makeIdleEvent(sessionId = "sess-123") {
@@ -182,7 +213,7 @@ function makeIdleEvent(sessionId = "sess-123") {
 /* ------------------------------------------------------------------ */
 
 /**
- * Helper: send checkpoint event + session.idle to flush deferred compaction.
+ * Helper: send checkpoint event and flush via session.idle fallback.
  * @param {any} plugin
  * @param {any} event
  * @param {string} [sessionId]
@@ -489,6 +520,28 @@ describe("PipelineCompactionController", () => {
     })
   })
 
+  describe("experimental.assistant.message.complete hook", () => {
+    it("should request compaction when a checkpoint is pending", async () => {
+      process.env.OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS = "0"
+      const { client, summarizeCalls } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      await plugin.event({ event: makePartUpdatedEvent("post-cognitive", "sess-hook") })
+      const output = await completeAssistantMessage(plugin, "sess-hook")
+
+      assert.equal(output.compact, true)
+      assert.equal(summarizeCalls.length, 0, "completion hook should not call summarize directly")
+    })
+
+    it("should no-op when no checkpoint is pending", async () => {
+      const { client } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      const output = await completeAssistantMessage(plugin, "sess-hook")
+      assert.equal(output.compact, false)
+    })
+  })
+
   describe("experimental.session.compacting hook", () => {
     it("should add context hint to output", async () => {
       const { client } = createMockClient()
@@ -698,7 +751,7 @@ describe("PipelineCompactionController", () => {
   /* ---------------------------------------------------------------- */
 
   describe("concurrent event handling (in-flight guard)", () => {
-    it("should not double-trigger when two checkpoints arrive before idle", async () => {
+    it("should not double-trigger fallback summarize when two checkpoints arrive before idle", async () => {
       process.env.OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS = "0"
       const { client, summarizeCalls } = createMockClient()
       const plugin = await PipelineCompactionController({ client })
@@ -706,17 +759,17 @@ describe("PipelineCompactionController", () => {
       const event1 = makeMessageEvent("post-cognitive", "sess-concurrent")
       const event2 = makeMessageEvent("post-o3", "sess-concurrent")
 
-      // Fire both checkpoint events (both store to pendingCompaction, last wins)
+      // Fire both checkpoint events (last pending checkpoint wins)
       await plugin.event({ event: event1 })
       await plugin.event({ event: event2 })
 
-      // Flush with idle — only one compaction should fire
+      // Flush with idle fallback — only one summarize call should fire
       await plugin.event({ event: makeIdleEvent("sess-concurrent") })
 
       assert.equal(summarizeCalls.length, 1, `Expected exactly 1 call, got ${summarizeCalls.length}`)
     })
 
-    it("should allow sequential idle flushes for same session", async () => {
+    it("should allow sequential idle fallback flushes for same session", async () => {
       process.env.OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS = "0"
       const { client, summarizeCalls } = createMockClient()
       const plugin = await PipelineCompactionController({ client })
@@ -850,76 +903,99 @@ describe("PipelineCompactionController", () => {
   })
 
   /* ---------------------------------------------------------------- */
-  /*  NEW: session.idle deferred compaction behavior                   */
+  /*  NEW: assistant completion + idle fallback behavior               */
   /* ---------------------------------------------------------------- */
 
-  describe("session.idle deferred compaction", () => {
-    it("should NOT compact when checkpoint detected but no idle event follows", async () => {
+  describe("assistant completion hook and idle fallback", () => {
+    it("should NOT compact when checkpoint is detected but no completion follows", async () => {
       const { client, summarizeCalls } = createMockClient()
       const plugin = await PipelineCompactionController({ client })
 
       await plugin.event({ event: makePartUpdatedEvent("post-cognitive") })
-      // No idle event sent
-      assert.equal(summarizeCalls.length, 0, "Checkpoint without idle should not trigger compaction")
+      assert.equal(summarizeCalls.length, 0, "Checkpoint without completion should not trigger compaction")
     })
 
-    it("should compact when checkpoint is followed by idle event", async () => {
+    it("should compact when checkpoint is followed by assistant completion", async () => {
       const { client, summarizeCalls } = createMockClient()
       const plugin = await PipelineCompactionController({ client })
 
       await plugin.event({ event: makePartUpdatedEvent("post-cognitive") })
-      await plugin.event({ event: makeIdleEvent() })
+      const output = await completeAssistantMessage(plugin)
 
-      assert.equal(summarizeCalls.length, 1, "Checkpoint + idle should trigger compaction")
+      assert.equal(output.compact, true)
+      assert.equal(summarizeCalls.length, 0, "Patched flow requests in-loop compaction without calling summarize")
     })
 
-    it("should only flush latest checkpoint when multiple arrive before idle", async () => {
+    it("should only request latest checkpoint when multiple arrive before completion", async () => {
       process.env.OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS = "0"
       const { client, summarizeCalls } = createMockClient()
       const plugin = await PipelineCompactionController({ client })
 
       await plugin.event({ event: makePartUpdatedEvent("post-cognitive") })
       await plugin.event({ event: makePartUpdatedEvent("post-o3") })
-      await plugin.event({ event: makeIdleEvent() })
+      const output = await completeAssistantMessage(plugin)
 
-      // Only one compaction call (last checkpoint wins in pendingCompaction map)
-      assert.equal(summarizeCalls.length, 1, "Only latest pending checkpoint should flush")
+      assert.equal(output.compact, true)
+      assert.equal(summarizeCalls.length, 0)
     })
 
-    it("should be a no-op when idle fires without pending checkpoint", async () => {
-      const { client, summarizeCalls } = createMockClient()
+    it("should be a no-op when completion fires without pending checkpoint", async () => {
+      const { client } = createMockClient()
       const plugin = await PipelineCompactionController({ client })
 
-      await plugin.event({ event: makeIdleEvent() })
+      const output = await completeAssistantMessage(plugin)
 
-      assert.equal(summarizeCalls.length, 0, "Idle without pending should not trigger compaction")
+      assert.equal(output.compact, false, "Completion without pending should not trigger compaction")
     })
 
-    it("should handle idle for different session than pending checkpoint", async () => {
+    it("should ignore completion for different session than pending checkpoint", async () => {
+      const { client } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      await plugin.event({ event: makePartUpdatedEvent("post-cognitive", "sess-A") })
+      const wrongOutput = await completeAssistantMessage(plugin, "sess-B")
+
+      assert.equal(wrongOutput.compact, false, "Completion for wrong session should not request compaction")
+
+      const rightOutput = await completeAssistantMessage(plugin, "sess-A")
+      assert.equal(rightOutput.compact, true, "Completion for correct session should request compaction")
+    })
+
+    it("should support idle fallback on unpatched OpenCode cores", async () => {
       const { client, summarizeCalls } = createMockClient()
       const plugin = await PipelineCompactionController({ client })
 
       await plugin.event({ event: makePartUpdatedEvent("post-cognitive", "sess-A") })
-      await plugin.event({ event: makeIdleEvent("sess-B") })
+      await plugin.event({ event: { type: "session.idle", properties: { sessionID: "sess-B" } } })
 
-      assert.equal(summarizeCalls.length, 0, "Idle for wrong session should not flush")
+      assert.equal(summarizeCalls.length, 0, "Idle for wrong session should not flush fallback summarize")
 
-      // Now flush the correct session
-      await plugin.event({ event: makeIdleEvent("sess-A") })
-      assert.equal(summarizeCalls.length, 1, "Idle for correct session should flush")
+      await plugin.event({ event: { type: "session.idle", properties: { sessionID: "sess-A" } } })
+      assert.equal(summarizeCalls.length, 1, "Idle for correct session should flush summarize fallback")
     })
 
-    it("should clear pending after flush so second idle is a no-op", async () => {
+    it("should clear pending after completion so second completion is a no-op", async () => {
+      const { client } = createMockClient()
+      const plugin = await PipelineCompactionController({ client })
+
+      await plugin.event({ event: makePartUpdatedEvent("post-cognitive") })
+      const first = await completeAssistantMessage(plugin)
+      assert.equal(first.compact, true)
+
+      const second = await completeAssistantMessage(plugin)
+      assert.equal(second.compact, false, "Second completion should not re-trigger")
+    })
+
+    it("should clear pending after idle fallback so second idle is a no-op", async () => {
       const { client, summarizeCalls } = createMockClient()
       const plugin = await PipelineCompactionController({ client })
 
       await plugin.event({ event: makePartUpdatedEvent("post-cognitive") })
-      await plugin.event({ event: makeIdleEvent() })
+      await plugin.event({ event: { type: "session.idle", properties: { sessionID: "sess-123" } } })
       assert.equal(summarizeCalls.length, 1)
 
-      // Second idle — pending already cleared
-      await plugin.event({ event: makeIdleEvent() })
-      assert.equal(summarizeCalls.length, 1, "Second idle should not re-trigger")
+      await plugin.event({ event: { type: "session.idle", properties: { sessionID: "sess-123" } } })
+      assert.equal(summarizeCalls.length, 1, "Second idle should not re-trigger summarize fallback")
     })
   })
 })

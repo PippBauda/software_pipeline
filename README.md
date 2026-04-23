@@ -325,13 +325,33 @@ The compaction plugin must be deployed for autonomous compaction to work. Depend
 - **Global**: `~/.config/opencode/plugins/pipeline-compaction-controller.js`
 - **Per-project**: `.opencode/plugins/pipeline-compaction-controller.js`
 
-The plugin triggers compaction automatically right after `Pipeline Checkpoint` emission at the defined breakpoints.
+By default, the plugin detects `Pipeline Checkpoint` blocks and keeps a best-effort `session.idle` fallback.
+
+For the intended live behavior during pipeline execution, especially in automode, OpenCode itself must also be patched with the upstream bundle shipped in this repository:
+
+- `~/.config/opencode/upstream-patches/` after global install
+- `.opencode/upstream-patches/` after project install
+
+With the upstream patch applied, the plugin requests built-in compaction at the next safe loop boundary of the current session, so checkpoint compaction happens mid-session instead of waiting for idle.
 
 Environment knobs (optional):
 
 - `OPENCODE_PIPELINE_COMPACTION_DRY_RUN=1` — detect checkpoints but do not call compaction (logs only)
 - `OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS=120000` — minimum time between autonomous compactions per session
 - `OPENCODE_PIPELINE_COMPACTION_DEBUG=1` — emit debug logs for skip reasons (cooldown, dedup, format mismatch, etc.)
+
+### OpenCode Repatch Bundle
+
+This repository includes a reusable upstream patch bundle for OpenCode in `opencode/upstream-patches/`.
+
+Use it whenever OpenCode is upgraded and you need to reapply live checkpoint compaction support:
+
+```bash
+git clone https://github.com/anomalyco/opencode /path/to/opencode
+/path/to/software_pipeline/opencode/upstream-patches/apply-opencode-mid-session-compaction.sh /path/to/opencode
+```
+
+Then run the upstream verification commands described in `opencode/upstream-patches/README.md` before rebuilding or reinstalling OpenCode.
 
 ### Startup Health Check
 
@@ -379,6 +399,7 @@ opencode
   - Restart OpenCode after copying plugin/config files
   - Ensure the orchestrator actually emits `## Pipeline Checkpoint [post-cognitive|post-o3|post-o10|post-reentry]`
   - Enable debug logs: `export OPENCODE_PIPELINE_COMPACTION_DEBUG=1`
+  - If you need live checkpoint compaction during automode, verify the OpenCode upstream patch bundle has been applied too
 - Compaction too frequent:
   - Increase cooldown: `export OPENCODE_PIPELINE_COMPACTION_COOLDOWN_MS=180000`
 - Want safe validation first:

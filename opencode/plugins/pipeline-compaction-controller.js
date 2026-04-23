@@ -49,6 +49,8 @@
  * @typedef {Object} PipelineCompactionPlugin
  * @property {(params: { event: PipelineEvent }) => Promise<void>} event
  *   Handle incoming pipeline events.
+ * @property {(input: { sessionID: string, messageID: string, message: Record<string, unknown>, parts: unknown[] }, output: { compact: boolean }) => Promise<void>} [experimental.assistant.message.complete]
+ *   Request in-loop compaction immediately after a completed assistant message.
  * @property {(input: unknown, output: CompactionOutput) => Promise<void>} [experimental.session.compacting]
  *   Hook into session compaction to preserve checkpoint blocks.
  */
@@ -73,9 +75,15 @@ const MAX_TRACKED_SESSIONS = 500
 /**
  * Pipeline Compaction Controller — OpenCode plugin.
  *
- * Monitors assistant messages for Pipeline Checkpoint blocks and triggers
- * autonomous context compaction via `client.session.summarize` when a
- * recognized checkpoint is detected.
+ * Monitors assistant messages for Pipeline Checkpoint blocks and requests
+ * autonomous context compaction when a recognized checkpoint is detected.
+ *
+ * Preferred path: a patched OpenCode core consumes the
+ * `experimental.assistant.message.complete` hook and executes built-in
+ * compaction inside the current loop.
+ *
+ * Fallback path: on unpatched OpenCode builds, the plugin falls back to
+ * `client.session.summarize` on `session.idle`.
  *
  * Guards: cooldown, deduplication, in-flight tracking, fail-open error handling.
  *
@@ -117,12 +125,14 @@ export const PipelineCompactionController = async ({ client }) => {
   const startupLogged = new Set()
 
   /**
-   * Pending compactions: when a checkpoint is detected during streaming,
-   * the compaction is deferred until session.idle fires.
-   * Map<sessionID, signature>
-   * @type {Map<string, string>}
+   * Pending checkpoints detected during streaming. A patched OpenCode core
+   * consumes them through experimental.assistant.message.complete so the
+   * built-in compaction flow can run inside the current loop. On unpatched
+   * cores, session.idle remains as a best-effort fallback.
+   * Map<sessionID, { signature, checkpointId }>
+   * @type {Map<string, { signature: string, checkpointId: string }>}
    */
-  const pendingCompaction = new Map()
+  const pendingCheckpoint = new Map()
 
   /**
    * Evict the oldest tracked session entries when size exceeds MAX_TRACKED_SESSIONS.
@@ -280,37 +290,51 @@ export const PipelineCompactionController = async ({ client }) => {
   const normalizeBlock = (block) => block.replace(/\s+/g, " ").trim()
 
   /**
-   * Trigger context compaction for a session, respecting cooldown, dedup, and in-flight guards.
+   * Decide whether a checkpoint should trigger compaction now.
    * @param {string} sessionID - Target session ID
    * @param {string} signature - Checkpoint signature for deduplication
-   * @returns {Promise<void>}
+   * @returns {{ allow: boolean, reason?: string, elapsedMs?: number }}
    */
-  const triggerCompaction = async (sessionID, signature) => {
+  const shouldTriggerCompaction = (sessionID, signature) => {
     const now = Date.now()
     const lastAt = lastCompactionAt.get(sessionID) || 0
 
     if (inFlight.has(sessionID)) {
-      await debugLog("Skip compaction: already in-flight", { sessionID })
-      return
+      return { allow: false, reason: "already in-flight" }
     }
-
-    // Claim the in-flight slot atomically, before any further await (fix #7).
-    inFlight.add(sessionID)
-
     if (now - lastAt < COOLDOWN_MS) {
-      inFlight.delete(sessionID)
-      await debugLog("Skip compaction: cooldown active", {
-        sessionID,
-        cooldownMs: COOLDOWN_MS,
-        elapsedMs: now - lastAt,
-      })
-      return
+      return { allow: false, reason: "cooldown active", elapsedMs: now - lastAt }
     }
     if (lastSignature.get(sessionID) === signature) {
-      inFlight.delete(sessionID)
-      await debugLog("Skip compaction: duplicate checkpoint signature", { sessionID, signature })
-      return
+      return { allow: false, reason: "duplicate checkpoint signature" }
     }
+
+    return { allow: true }
+  }
+
+  /**
+   * Trigger context compaction for a session, respecting cooldown, dedup, and in-flight guards.
+   * @param {string} sessionID - Target session ID
+   * @param {string} signature - Checkpoint signature for deduplication
+   * @returns {Promise<boolean>}
+   */
+  const triggerCompaction = async (sessionID, signature) => {
+    const decision = shouldTriggerCompaction(sessionID, signature)
+    if (!decision.allow) {
+      if (decision.reason === "cooldown active") {
+        await debugLog("Skip compaction: cooldown active", {
+          sessionID,
+          cooldownMs: COOLDOWN_MS,
+          elapsedMs: decision.elapsedMs,
+        })
+      } else {
+        await debugLog(`Skip compaction: ${decision.reason}`, { sessionID, signature })
+      }
+      return false
+    }
+
+    // Claim the in-flight slot atomically, before any further await.
+    inFlight.add(sessionID)
 
     lastSignature.set(sessionID, signature)
 
@@ -327,7 +351,7 @@ export const PipelineCompactionController = async ({ client }) => {
         lastCompactionAt.set(sessionID, Date.now())
         evictStaleSessions()
         await debugLog("Dry-run compaction event handled", { sessionID, signature })
-        return
+        return true
       }
 
       await client.session?.summarize({
@@ -340,6 +364,7 @@ export const PipelineCompactionController = async ({ client }) => {
       lastCompactionAt.set(sessionID, Date.now())
       evictStaleSessions()
       await debugLog("Autonomous compaction executed", { sessionID, signature })
+      return true
     } catch (err) {
       // fail-open: pipeline continues without autonomous compaction.
       // Emit a visible warning (not just debug) so operators can detect
@@ -358,6 +383,7 @@ export const PipelineCompactionController = async ({ client }) => {
           // last-resort: ignore logging failures
         }
       }
+      return false
     } finally {
       inFlight.delete(sessionID)
     }
@@ -433,15 +459,16 @@ export const PipelineCompactionController = async ({ client }) => {
     /**
      * Handle incoming pipeline events.
      *
-     * Checkpoint detection happens on message.part.updated (during streaming),
-     * but compaction is deferred until session.idle — calling session.summarize
-     * while the model is still generating is silently ignored by the server.
-     *
-     * @param {{ event: PipelineEvent }} params
-     * @returns {Promise<void>}
-     */
+      * Checkpoint detection happens while the orchestrator is streaming.
+      * A patched OpenCode core consumes the pending checkpoint via
+      * experimental.assistant.message.complete and triggers built-in compaction
+      * in the same loop at the next safe boundary.
+      *
+      * @param {{ event: PipelineEvent }} params
+      * @returns {Promise<void>}
+      */
     event: async ({ event }) => {
-      if (!event || event.type === "session.compacted") return
+      if (!event) return
 
       if (event.type === "session.created") {
         const createdSessionID = extractSessionId(event.properties ?? {}) || extractSessionId(/** @type {Record<string, unknown>} */ (event))
@@ -449,17 +476,26 @@ export const PipelineCompactionController = async ({ client }) => {
         return
       }
 
-      // On session.idle: flush any pending compaction for this session.
       if (event.type === "session.idle") {
         const idleSessionID = extractSessionId(event.properties ?? {}) || extractSessionId(/** @type {Record<string, unknown>} */ (event))
         if (!idleSessionID) return
 
-        const signature = pendingCompaction.get(idleSessionID)
-        if (!signature) return
-        pendingCompaction.delete(idleSessionID)
+        const pending = pendingCheckpoint.get(idleSessionID)
+        if (!pending) return
+        pendingCheckpoint.delete(idleSessionID)
 
-        await debugLog("Session idle — flushing deferred compaction", { sessionID: idleSessionID, signature })
-        await triggerCompaction(idleSessionID, signature)
+        await debugLog("Session idle — flushing pending checkpoint via summarize fallback", {
+          sessionID: idleSessionID,
+          signature: pending.signature,
+        })
+        await triggerCompaction(idleSessionID, pending.signature)
+        return
+      }
+
+      if (event.type === "session.compacted") {
+        const compactedSessionID = extractSessionId(event.properties ?? {}) || extractSessionId(/** @type {Record<string, unknown>} */ (event))
+        if (!compactedSessionID) return
+        pendingCheckpoint.delete(compactedSessionID)
         return
       }
 
@@ -486,20 +522,62 @@ export const PipelineCompactionController = async ({ client }) => {
         await debugLog("Skip compaction: missing session id", {})
         return
       }
-      if (!client?.session?.summarize) {
-        await debugLog("Skip compaction: session.summarize unavailable", { sessionID })
-        return
-      }
-
       await emitStartupCheck(sessionID)
 
       const signature = `${checkpoint.id}:${normalizeBlock(checkpoint.block)}`
 
-      // Defer compaction: store pending and wait for session.idle.
-      pendingCompaction.set(sessionID, signature)
-      await debugLog("Checkpoint detected — compaction deferred until session.idle", {
+      pendingCheckpoint.set(sessionID, { signature, checkpointId: checkpoint.id })
+      await debugLog("Checkpoint detected — waiting for assistant message completion", {
         sessionID,
         checkpointId: checkpoint.id,
+      })
+    },
+
+    /**
+     * Request compaction inside the current OpenCode loop when the assistant
+     * message has fully completed.
+     *
+     * This hook is consumed only by a patched OpenCode core. Without that patch,
+     * checkpoint detection still works but live checkpoint compaction will not.
+     *
+     * @param {{ sessionID: string, messageID: string, message: Record<string, unknown>, parts: unknown[] }} input
+     * @param {{ compact: boolean }} output
+     * @returns {Promise<void>}
+     */
+    "experimental.assistant.message.complete": async (input, output) => {
+      const sessionID = typeof input?.sessionID === "string" ? input.sessionID : undefined
+      if (!sessionID) return
+
+      const pending = pendingCheckpoint.get(sessionID)
+      if (!pending) return
+
+      const decision = shouldTriggerCompaction(sessionID, pending.signature)
+      if (!decision.allow) {
+        if (decision.reason === "cooldown active") {
+          await debugLog("Skip compaction: cooldown active", {
+            sessionID,
+            cooldownMs: COOLDOWN_MS,
+            elapsedMs: decision.elapsedMs,
+          })
+        } else {
+          await debugLog(`Skip compaction: ${decision.reason}`, {
+            sessionID,
+            signature: pending.signature,
+          })
+        }
+        pendingCheckpoint.delete(sessionID)
+        return
+      }
+
+      pendingCheckpoint.delete(sessionID)
+      lastSignature.set(sessionID, pending.signature)
+      lastCompactionAt.set(sessionID, Date.now())
+      evictStaleSessions()
+
+      output.compact = true
+      await debugLog("Checkpoint completed — requesting in-loop compaction", {
+        sessionID,
+        checkpointId: pending.checkpointId,
       })
     },
 

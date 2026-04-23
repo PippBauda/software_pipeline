@@ -1,0 +1,54 @@
+diff --git a/packages/opencode/src/session/processor.ts b/packages/opencode/src/session/processor.ts
+index 21f9329..57290c3 100644
+--- a/packages/opencode/src/session/processor.ts
++++ b/packages/opencode/src/session/processor.ts
+@@ -394,6 +394,21 @@ export const layer: Layer.Layer<
+                 messageID: ctx.assistantMessage.parentID,
+               })
+               .pipe(Effect.ignore, Effect.forkIn(scope))
++            if (!ctx.assistantMessage.summary) {
++              const completion = yield* plugin.trigger(
++                "experimental.assistant.message.complete",
++                {
++                  sessionID: ctx.sessionID,
++                  messageID: ctx.assistantMessage.id,
++                  message: ctx.assistantMessage,
++                  parts: MessageV2.parts(ctx.assistantMessage.id),
++                },
++                { compact: false },
++              )
++              if (completion.compact) {
++                ctx.needsCompaction = true
++              }
++            }
+             if (
+               !ctx.assistantMessage.summary &&
+               isOverflow({ cfg: yield* config.get(), tokens: usage.tokens, model: ctx.model })
+diff --git a/packages/plugin/src/index.ts b/packages/plugin/src/index.ts
+index 71a3278..80f04bd 100644
+--- a/packages/plugin/src/index.ts
++++ b/packages/plugin/src/index.ts
+@@ -322,6 +322,23 @@ export interface Hooks {
+     },
+     output: { enabled: boolean },
+   ) => Promise<void>
++  /**
++   * Called after an assistant message step completes and all current parts are
++   * persisted, but before the session loop decides whether to stop or continue.
++   *
++   * - `compact`: Defaults to `false`. Set to `true` to request compaction in
++   *   the current loop, allowing the built-in compaction flow to run before the
++   *   session goes idle.
++   */
++  "experimental.assistant.message.complete"?: (
++    input: {
++      sessionID: string
++      messageID: string
++      message: Message
++      parts: Part[]
++    },
++    output: { compact: boolean },
++  ) => Promise<void>
+   "experimental.text.complete"?: (
+     input: { sessionID: string; messageID: string; partID: string },
+     output: { text: string },

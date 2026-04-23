@@ -15,6 +15,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "validate:schema": "node scripts/validate-manifest-schema.js",
+    "verify:opencode-patch": "bash scripts/verify-opencode-upstream-patch.sh /tmp/opencode-upstream",
     "sync-check": "node scripts/sync-check-agents.js",
     "check-version": "node scripts/check-version.js",
     "lint:md": "markdownlint '**/*.md' --ignore node_modules --ignore ../**/node_modules",

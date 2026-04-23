@@ -119,6 +119,9 @@ install_opencode_global() {
   cp "$PIPELINE_DIR/opencode/plugins/pipeline-compaction-controller.js" \
      "$dest/plugins/"
 
+   mkdir -p "$dest/upstream-patches/"
+   cp "$PIPELINE_DIR/opencode/upstream-patches/"* "$dest/upstream-patches/"
+
   # Global config without compaction prompt override — safe for all workspaces
   cp "$PIPELINE_DIR/opencode/opencode-global.json" "$dest/opencode.json"
 
@@ -126,6 +129,7 @@ install_opencode_global() {
   echo ""
   echo "  Note: to activate pipeline-aware compaction in a specific project,"
   echo "  run again with --scope workspace --target /path/to/project"
+  echo "  OpenCode upstream repatch bundle installed to $dest/upstream-patches/"
 }
 
 install_opencode_workspace() {
@@ -153,6 +157,9 @@ install_opencode_project() {
   mkdir -p "$dest/plugins/"
   cp "$PIPELINE_DIR/opencode/plugins/pipeline-compaction-controller.js" \
      "$dest/plugins/"
+
+  mkdir -p "$dest/upstream-patches/"
+  cp "$PIPELINE_DIR/opencode/upstream-patches/"* "$dest/upstream-patches/"
 
   cp "$PIPELINE_DIR/opencode/compaction-prompt.txt" "$TARGET/compaction-prompt.txt"
 
