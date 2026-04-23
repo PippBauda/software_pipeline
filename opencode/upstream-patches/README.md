@@ -59,26 +59,74 @@ bun test --cwd=/path/to/opencode/packages/opencode test/plugin/trigger.test.ts t
 
 ### Build and install your patched OpenCode
 
-Build a current-platform OpenCode binary:
+Use the bundled helper script for the full rebuild and in-place replacement flow:
 
 ```bash
-bun run --cwd=/path/to/opencode/packages/opencode build --single
+/path/to/software_pipeline/opencode/upstream-patches/build-install-opencode-mid-session-compaction.sh /path/to/opencode
 ```
 
-If OpenCode is already installed on Ubuntu via the official install script, you usually do not need to uninstall it first. Back up the existing binary and replace it in place:
+The script does all of the following on the current machine:
+
+1. Ensures the upstream patch is present in the checkout.
+2. Runs `bun install` in the OpenCode checkout.
+3. Builds a current-platform binary with `OPENCODE_CHANNEL=latest` so OpenCode keeps the standard `opencode.db` path instead of `opencode-dev.db`.
+4. Uses a semver-valid patched version string by default, for example `1.14.21-compaction-patch.1`.
+5. Backs up the currently installed binary to `~/.opencode/bin/opencode.bak.<timestamp>`.
+6. Replaces `~/.opencode/bin/opencode` atomically and smoke-tests `--version`.
+
+If you want a different patched version suffix or install target, override them explicitly:
 
 ```bash
-cp ~/.opencode/bin/opencode ~/.opencode/bin/opencode.bak.$(date +%Y%m%d%H%M%S)
-cp /path/to/opencode/packages/opencode/dist/opencode-linux-x64/bin/opencode ~/.opencode/bin/opencode
-chmod +x ~/.opencode/bin/opencode
+OPENCODE_PATCH_VERSION=1.14.21-compaction-patch.2 \
+OPENCODE_INSTALL_TARGET=~/.opencode/bin/opencode \
+/path/to/software_pipeline/opencode/upstream-patches/build-install-opencode-mid-session-compaction.sh /path/to/opencode
 ```
-
-On arm64 systems, replace `opencode-linux-x64` with `opencode-linux-arm64`.
 
 If `which -a opencode` shows another installation path before `~/.opencode/bin/opencode`, remove that installation or update your `PATH` so the patched binary is the one that runs.
+
+### Manual verification after install
+
+```bash
+~/.opencode/bin/opencode --version
+command -v opencode
+```
+
+The installed version should show the patched semver suffix. If your shell already includes `~/.opencode/bin` in `PATH`, `command -v opencode` should also resolve to the binary you replaced.
+
+For a live verification, start a session that emits a `## Pipeline Checkpoint [...]` block and confirm the OpenCode logs contain both of these signals during the same active session:
+
+- `Checkpoint completed - requesting in-loop compaction`
+- `service=bus type=session.compacted publishing`
+
+### Prevent the official release from overwriting the patch
+
+Any custom patched version string differs from the official npm/GitHub release version, so stock OpenCode treats it as an update candidate. If you keep automatic updates enabled, a later patch check can replace your custom binary with the official release and remove the mid-session compaction patch.
+
+For a persistent patched install, disable autoupdate in your global OpenCode config:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "autoupdate": false
+}
+```
+
+The default config path on Ubuntu is `~/.config/opencode/opencode.json`.
+
+For temporary one-off sessions, you can also launch OpenCode with `OPENCODE_DISABLE_AUTOUPDATE=1`.
+
+### Roll back to the previous binary
+
+Restore whichever backup you want from `~/.opencode/bin/opencode.bak.<timestamp>` and make it executable again:
+
+```bash
+cp ~/.opencode/bin/opencode.bak.<timestamp> ~/.opencode/bin/opencode
+chmod +x ~/.opencode/bin/opencode
+```
 
 ## Notes
 
 - The patch is intentionally minimal to reduce rebase pain on future OpenCode releases.
 - If the patch no longer applies cleanly, inspect the two target files and port the same logic manually.
 - The pipeline plugin in this repository already knows how to use this hook when present, and falls back to `session.idle` on unpatched OpenCode builds.
+- The default patched version format uses semver prerelease syntax such as `1.14.21-compaction-patch.1`. Avoid underscores like `1.14.21-compaction_patch`, because OpenCode uses `semver.valid()` and `semver.satisfies()` in plugin and installation paths.

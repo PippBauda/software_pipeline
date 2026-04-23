@@ -46,10 +46,17 @@ cd /path/to/opencode
 bun install
 bun run --cwd=/path/to/opencode/packages/opencode typecheck
 bun test --cwd=/path/to/opencode/packages/opencode test/plugin/trigger.test.ts test/session/processor-effect.test.ts test/session/compaction.test.ts
-bun run --cwd=/path/to/opencode/packages/opencode build --single
 ```
 
-On Ubuntu installs created by the official OpenCode install script, you can normally back up and replace `~/.opencode/bin/opencode` in place instead of uninstalling first. The exact commands are documented in `opencode/upstream-patches/README.md`.
+Then rebuild and replace the installed Ubuntu binary in place with the helper script:
+
+```bash
+/path/to/software_pipeline/opencode/upstream-patches/build-install-opencode-mid-session-compaction.sh /path/to/opencode
+```
+
+That helper builds with `OPENCODE_CHANNEL=latest`, installs a semver-valid patched version like `1.14.21-compaction-patch.1`, backs up the old binary, and atomically replaces `~/.opencode/bin/opencode`.
+
+Important: if `autoupdate` stays enabled, the official OpenCode release can overwrite the patched binary later. For persistent installs, set `"autoupdate": false` in `~/.config/opencode/opencode.json` or launch with `OPENCODE_DISABLE_AUTOUPDATE=1`.
 
 ## Verification in this repository
 

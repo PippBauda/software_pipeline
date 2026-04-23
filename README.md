@@ -364,10 +364,12 @@ cd /path/to/opencode
 bun install
 bun run --cwd=/path/to/opencode/packages/opencode typecheck
 bun test --cwd=/path/to/opencode/packages/opencode test/plugin/trigger.test.ts test/session/processor-effect.test.ts test/session/compaction.test.ts
-bun run --cwd=/path/to/opencode/packages/opencode build --single
+/path/to/software_pipeline/opencode/upstream-patches/build-install-opencode-mid-session-compaction.sh /path/to/opencode
 ```
 
-If OpenCode is already installed via the official install script, you typically do not need to uninstall it first. Back up `~/.opencode/bin/opencode` and replace it with the freshly built binary from `packages/opencode/dist/opencode-linux-x64/bin/opencode` or `opencode-linux-arm64/bin/opencode`.
+That helper script builds with `OPENCODE_CHANNEL=latest`, so the patched binary keeps the normal `opencode.db` path instead of falling back to `opencode-dev.db`. It also uses a semver-valid patched version string such as `1.14.21-compaction-patch.1`, creates a backup of the currently installed binary, and replaces `~/.opencode/bin/opencode` atomically. If `~/.opencode/bin` is not on your shell `PATH`, run that binary directly or add the directory to `PATH`.
+
+Important: a custom patched version is different from the official release version, so OpenCode can auto-update it away unless `autoupdate` is disabled. For a persistent patched install, set `"autoupdate": false` in `~/.config/opencode/opencode.json` or launch OpenCode with `OPENCODE_DISABLE_AUTOUPDATE=1`.
 
 ### Startup Health Check
 
