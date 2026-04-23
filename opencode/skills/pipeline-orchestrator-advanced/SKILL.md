@@ -13,10 +13,10 @@ These features are loaded on-demand by the orchestrator when a specific trigger 
 
 When the user chooses to re-enter the pipeline at a previous point (from O10/COMPLETED, or from B1/C-ADO1):
 
-1. **Branch check**: verify `pipeline/<project-name>` branch exists and is the active branch. If re-entry from COMPLETED and the branch was merged/deleted, create a new `pipeline/<project-name>` from the default branch (`manifest.json` → `default_branch`) per R.6.
+1. **Branch check**: verify `pipeline/<project-name>` branch exists and is the active branch. If re-entry from COMPLETED and the branch was merged/deleted, create a new `pipeline/<project-name>` from the default branch (`manifest.json` → `default_branch`) per R.6. **CRITICAL:** Read manifest with `limit: 15` only — extract `default_branch` and `current_state` from the header fields. Do NOT read the full manifest.
 2. **Archival**: artifacts produced by stages after the re-entry point are moved to `archive/<timestamp>/`, preserving the original directory structure
 3. **Decision log compaction** (R.15): if `docs/decision-log.md` exists, compact it per R.15 compaction rules. The compacted file is included in the re-entry commit (step 6).
-4. **Manifest update**: `manifest.json` is updated to reflect the new state (the re-entry stage state), with reference to the archive for traceability
+4. **Manifest update**: use `edit` to update `current_state` to the re-entry stage state (you already have the old value from step 1's `limit: 15` read). Do NOT re-read the full manifest — use the values already extracted.
 5. **Automode safety**: if re-entry target is `C2`, set `automode: false` in `manifest.json` before resuming. Commit this change as part of re-entry so C2 remains fully interactive.
 6. **Commit**: `[RE-ENTRY] [Orchestrator] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
 7. **CRITICAL: Write Pipeline Checkpoint [post-reentry]**
@@ -46,7 +46,8 @@ When the user chooses to re-enter the pipeline at a previous point (from O10/COM
 8. **Context compaction**: autonomous compaction is triggered by the plugin after the checkpoint block is detected.
 9. **Resumption**: execution resumes from the indicated stage with artifacts from preceding stages intact
 10. **Preflight**: load skill `pipeline-orchestrator-preflight` and execute R.0 Entry Preflight before first post-reentry dispatch. If `BLOCKED`, halt and request user intervention.
-11. **Delegation**: identify the agent responsible for the target stage from the Agent-to-Stage Mapping and delegate following R.1 (starting from step 2, dispatch commit). You MUST NOT execute stages assigned to other agents.
+11. **Phase skill loading**: after preflight, load the phase skill for the target stage (startup for C2-C9, o3 for O1-O3, validation for O4-O8.V, finalization for O9-O10) per the Skill Trigger Table. You need the phase procedures BEFORE dispatching.
+12. **Delegation**: identify the agent responsible for the target stage from the Agent-to-Stage Mapping and delegate following R.1 (starting from step 2, dispatch commit). You MUST NOT execute stages assigned to other agents.
 
 **Scope**: R.5 applies ONLY to user-initiated re-entry (from COMPLETED or from auxiliary flows B1/C-ADO1). Correction loops (O4→O3, O5→O3, O6→O3) are governed by R.7 and do NOT trigger archival.
 

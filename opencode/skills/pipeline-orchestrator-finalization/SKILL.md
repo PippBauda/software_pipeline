@@ -132,7 +132,9 @@ Load this skill after O8.V CI verification passes.
 
    Then append: `Autonomous compaction is triggered at this checkpoint. If needed, /compact remains available as manual fallback.`
 
-9. **Re-Entry Guide** (ALWAYS present after closure): **In both normal mode and automode**, after the checkpoint, present the Re-Entry Guide so the user knows their options for future work on this project. Load `pipeline-orchestrator-advanced` skill and present R.10 table:
+   **Then proceed IMMEDIATELY to step 9 (Re-Entry Guide) — do NOT end the conversation without it.**
+
+9. **CRITICAL: Re-Entry Guide (MANDATORY — NEVER skip)**: After the checkpoint, you MUST present the Re-Entry Guide to the user. This applies in BOTH normal mode and automode — no exceptions. Load `pipeline-orchestrator-advanced` skill and present R.10 table:
 
    > To make further changes to this project, you can re-enter the pipeline. Use one of these recommended entry points:
    >

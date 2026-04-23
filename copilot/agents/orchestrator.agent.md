@@ -177,7 +177,7 @@ For EVERY stage (including those you delegate), follow this pattern (+ preflight
 4. **Receive result**: the agent writes artifacts to disk and returns a **structured summary** only (not the full report). The agent does NOT commit or update the manifest — these are your responsibilities (step 5). For C2, require status + `blocking_gaps` + `open_questions` + `assumptions` + `intent_version`.
 5. **Stage completion commit (atomic)**: update `manifest.json` (HEAD): set `current_state`, `progress`, upsert `latest_stages[<stage-id>]`. Append to `manifest-history.json` (HISTORY): add entry to `stages_completed`. Both include: resulting state, timestamp, produced artifacts, commit hash, responsible agent, progress metrics (R.9). Then commit the produced artifacts **together with** the manifest updates in a single atomic commit: `[<stage-id>] [<agent-name>] <description>`. This ensures no gap between artifact production and state transition. **C2 exception**: for intermediate clarification rounds (`NEEDS_CLARIFICATION` or user requests another clarification round), keep `current_state` = `C2_IN_PROGRESS`, update `latest_stages[C2]` as in-progress metadata only, and do NOT append C2 to `stages_completed` until explicit user confirmation.
 6. **Executive summary**: write a brief summary for the user based on the agent's returned summary. Reference the full report on disk (e.g., "Full report: `docs/validator-report.md`"). Do NOT read the full report into your context — the agent's returned summary is sufficient.
-   - **At compaction breakpoints** (post-C9, post-O3 with >5 modules, post-O10, and post-reentry after R.5): before the executive summary, write a **Pipeline Checkpoint** block per R.CONTEXT point 7. This block is designed to survive compaction and serve as the reconstruction seed for the next phase.
+   - **At compaction breakpoints** (post-C9, post-O3, post-O10, and post-reentry after R.5): before the executive summary, write a **Pipeline Checkpoint** block per R.CONTEXT point 7. This block is designed to survive compaction and serve as the reconstruction seed for the next phase.
 7. **User gate** (if defined in the Stage Routing Table): present the user gate options as specified in the routing table's "Post-Stage" column. Stages marked "Auto-proceed" transition automatically after the executive summary — do NOT request user confirmation for those stages. **C2 is a hard interactive gate and MUST NEVER auto-proceed, including when automode is active.**
 8. **Revision** (if needed): repeat from step 2 with user's notes
 
@@ -242,10 +242,10 @@ Treat C2 as a loop, not a single-pass stage:
 
 When re-entering from COMPLETED or auxiliary flows (B1/C-ADO1):
 
-1. **Branch check**: verify `pipeline/<project-name>` branch exists and is the active branch. If re-entry from COMPLETED and branch was merged/deleted, create new `pipeline/<project-name>` from the default branch (`manifest.json` → `default_branch`) per R.6.
+1. **Branch check**: verify `pipeline/<project-name>` branch exists and is the active branch. If re-entry from COMPLETED and branch was merged/deleted, create new `pipeline/<project-name>` from the default branch (`manifest.json` → `default_branch`) per R.6. **CRITICAL:** Read manifest with `limit: 15` only — extract `default_branch` and `current_state` from the header fields. Do NOT read the full manifest.
 2. **Archive**: move post-re-entry artifacts to `archive/<timestamp>/`
 3. **Decision log compaction** (R.15): if `docs/decision-log.md` exists, compact it per R.15 compaction rules. The compacted file is included in the re-entry commit (step 6).
-4. **Update manifest**: set new state, reference archive
+4. **Update manifest**: use `edit` to update `current_state` (you already have the old value from step 1's `limit: 15` read). Do NOT re-read the full manifest.
 5. **Automode safety**: if re-entry target is `C2`, set `automode: false` in `manifest.json` before resuming. Commit this change as part of re-entry so C2 remains fully interactive.
 6. **Commit**: `[RE-ENTRY] [Orchestrator] Return to <stage-id> — artifacts archived in archive/<timestamp>/`
 7. **Post-reentry checkpoint**: write `## Pipeline Checkpoint [post-reentry]` with: resulting state, `from_state -> target_stage`, archive path, scope impact, next stage/agent, required input artifacts, pending gate
@@ -894,6 +894,9 @@ any _IN_PROGRESS         → same _IN_PROGRESS             # re-execute from scr
 - After C-ADO1 completion: if Auditor generated `docs/codebase-digest.md` (preliminary digest from existing code), include it in subsequent agent invocations during conformance plan execution and re-entry (R.13)
 - ALWAYS instruct dispatched agents to log genuine alternative choices to `docs/decision-log.md` (R.15)
 - ALWAYS present the R.10 Re-Entry Guide when the user selects Iteration at O10
+- ALWAYS present the R.10 Re-Entry Guide after O10 closure (both normal mode and automode) — NEVER end the conversation without it
+- NEVER re-read artifacts you just wrote in the same stage (O8.V, O9, O10) — you already have the data in context
+- NEVER report results of commands you did not execute — verify exit codes before reporting success or failure
 - After R.5 re-entry, ALWAYS delegate the target stage to its assigned agent (per final delegation step in R.5)
 - After R.7 re-traversal (O4→O5→O6), ALWAYS delegate each stage to its assigned agent — never execute them yourself
 - In automode (R.11): ALWAYS choose "full correction" when issues are found — NEVER skip issues

@@ -139,6 +139,8 @@ This table governs your behavior after each stage completes. Consult it — do N
 - ALWAYS commit at dispatch AND at return
 - ALWAYS include manifest updates in stage completion commits (atomic)
 - ALWAYS provide an executive summary after every stage
+- NEVER re-read artifacts you just wrote in the same stage (O8.V, O9, O10) — you already have the data in context
+- NEVER report results of commands you did not execute — verify exit codes before reporting success or failure
 
 ---
 

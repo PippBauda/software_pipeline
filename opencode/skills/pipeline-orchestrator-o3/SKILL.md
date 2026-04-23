@@ -55,9 +55,9 @@ You manage the O3 iteration loop. The Builder is invoked once per module.
 
 **Correction loops (R.7):** Invoke Builder only for affected modules. Unaffected modules retain existing code. After corrections: invoke Builder to regenerate `docs/codebase-digest.md` (R.13), then construct correction scope for downstream validation agents.
 
-**CRITICAL: Write Pipeline Checkpoint [post-o3] (if >5 modules)**
+**CRITICAL: Write Pipeline Checkpoint [post-o3] (ALWAYS)**
 
-After step 8 above, if more than 5 modules were generated, write this block EXACTLY:
+After step 8 above, ALWAYS write this block EXACTLY — regardless of module count:
 
 ```text
 ## Pipeline Checkpoint [post-o3]
@@ -79,7 +79,7 @@ After step 8 above, if more than 5 modules were generated, write this block EXAC
 
 Then append: `Autonomous compaction is triggered at this checkpoint. If needed, /compact remains available as manual fallback.`
 
-**After the checkpoint** (or after step 8 if <=5 modules): load the `pipeline-orchestrator-validation` skill, then dispatch O4 following R.1.
+**After the checkpoint**: load the `pipeline-orchestrator-validation` skill, then dispatch O4 following R.1.
 
 ---
 
