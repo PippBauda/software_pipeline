@@ -353,6 +353,22 @@ git clone https://github.com/anomalyco/opencode /path/to/opencode
 
 Then run the upstream verification commands described in `opencode/upstream-patches/README.md` before rebuilding or reinstalling OpenCode.
 
+On Debian/Ubuntu, the practical rebuild flow is:
+
+```bash
+apt-get update
+apt-get install -y build-essential
+npm install -g bun
+
+cd /path/to/opencode
+bun install
+bun run --cwd=/path/to/opencode/packages/opencode typecheck
+bun test --cwd=/path/to/opencode/packages/opencode test/plugin/trigger.test.ts test/session/processor-effect.test.ts test/session/compaction.test.ts
+bun run --cwd=/path/to/opencode/packages/opencode build --single
+```
+
+If OpenCode is already installed via the official install script, you typically do not need to uninstall it first. Back up `~/.opencode/bin/opencode` and replace it with the freshly built binary from `packages/opencode/dist/opencode-linux-x64/bin/opencode` or `opencode-linux-arm64/bin/opencode`.
+
 ### Startup Health Check
 
 When a session is created, the plugin runs a health check and emits diagnostic logs via `app.log`.

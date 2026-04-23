@@ -34,12 +34,22 @@ git clone https://github.com/anomalyco/opencode /path/to/opencode
 
 ## Suggested verification for the patched OpenCode checkout
 
+On Debian/Ubuntu, make sure the native build toolchain is installed first:
+
+```bash
+apt-get update
+apt-get install -y build-essential
+```
+
 ```bash
 cd /path/to/opencode
 bun install
-bun --cwd packages/opencode run typecheck
-bun --cwd packages/opencode test test/plugin/trigger.test.ts test/session/processor-effect.test.ts test/session/compaction.test.ts
+bun run --cwd=/path/to/opencode/packages/opencode typecheck
+bun test --cwd=/path/to/opencode/packages/opencode test/plugin/trigger.test.ts test/session/processor-effect.test.ts test/session/compaction.test.ts
+bun run --cwd=/path/to/opencode/packages/opencode build --single
 ```
+
+On Ubuntu installs created by the official OpenCode install script, you can normally back up and replace `~/.opencode/bin/opencode` in place instead of uninstalling first. The exact commands are documented in `opencode/upstream-patches/README.md`.
 
 ## Verification in this repository
 
